@@ -1,0 +1,3008 @@
+# SOLENNE — Software Architecture Document (SAD) & Product Requirements Document (PRD)
+
+**Version:** 1.0.0  
+**Status:** Production-Ready Design  
+**Date:** June 13, 2026  
+**Classification:** Confidential — Engineering Internal  
+**Authors:** Principal Architect Team (SOLENNE Design Council)
+
+---
+
+## Document Control
+
+| Field | Value |
+|-------|-------|
+| Product | SOLENNE — Intelligent Video Journal |
+| Target Scale | 1,000,000 MAU |
+| Primary Cloud | AWS (us-east-1 primary, eu-west-1 GDPR) |
+| **College Build** | **Flutter + Firebase (Spark $0)** — see `SOLENNE-Zero-Budget-Build-Plan.md` |
+| Compliance Posture | GDPR-ready, SOC 2 Type II path, HIPAA-adjacent (not covered entity) |
+| Medical Boundary | Wellness/self-awareness only — NOT diagnostic |
+
+---
+
+# SECTION 1: PRODUCT REQUIREMENTS DOCUMENT
+
+## 1.1 Problem Statement
+
+Mental wellness tracking today is fragmented, effortful, and often inaccurate. Traditional mood apps rely on self-reported 1–5 scales that suffer from recall bias, social desirability bias, and low engagement. Users forget to log; when they do log, they misrepresent their emotional state. Clinical screening tools are episodic, stigmatizing, and inaccessible.
+
+**SOLENNE solves this by:**
+
+1. **Passive multimodal capture** — Users record a 2–5 minute daily video journal. No forms, no sliders.
+2. **Objective signal extraction** — AI analyzes facial expression, micro-expressions, voice prosody, speech patterns, and linguistic content simultaneously.
+3. **Personalized baselines** — Each user gets a unique emotional fingerprint learned over 14–21 days, enabling deviation detection rather than population-norm comparison.
+4. **Actionable wellness insights** — Non-diagnostic, explainable trend reports that increase self-awareness and enable early intervention conversations with trusted humans (therapists, coaches, friends).
+
+**Core insight:** People already talk about their day. SOLENNE turns that natural behavior into a longitudinal wellness signal without adding cognitive burden.
+
+## 1.2 Target Users
+
+| Segment | Description | Primary Need |
+|---------|-------------|--------------|
+| **Students** | College/high school, 18–25 | Stress management during exams, social anxiety awareness |
+| **Professionals** | Knowledge workers, 25–45 | Burnout detection, work-life balance tracking |
+| **Founders** | Startup leaders, 28–50 | High-stress isolation, emotional volatility during pivots |
+| **Remote Workers** | Distributed teams | Loneliness, disengagement, async communication fatigue |
+| **Wellness Trackers** | Health-conscious adults, 25–55 | Quantified-self for emotions, habit correlation |
+
+## 1.3 User Personas
+
+### Persona 1: Maya Chen — Graduate Student (22)
+
+- **Demographics:** PhD candidate, CS, lives alone in Boston, $28K stipend
+- **Goals:** Understand stress patterns before they become debilitating; correlate mood with sleep and deadlines
+- **Frustrations:** Mood tracking apps feel like homework; doesn't trust her own self-reports when exhausted
+- **Usage:** Records 3-min journal before bed, 5–6 days/week; checks weekly trend Sunday mornings
+- **Privacy sensitivity:** High — doesn't want labmates seeing wellness data
+
+### Persona 2: James Okonkwo — Engineering Manager (38)
+
+- **Demographics:** Remote manager at Series C startup, married, two kids, Austin TX
+- **Goals:** Detect burnout early; maintain presence for family; prepare for 1:1s with coach
+- **Frustrations:** "I'm fine" autopilot; no time for therapy scheduling; skeptical of AI but data-driven
+- **Usage:** Records during morning coffee, 4 days/week; engages with insight notifications; exports monthly PDF for therapist
+- **Privacy sensitivity:** Medium-high — wants employer-isolated account
+
+### Persona 3: Sarah Kim — Startup Founder (34)
+
+- **Demographics:** CEO of 12-person B2B SaaS, San Francisco, previously burned out in 2023
+- **Goals:** Monitor emotional volatility during fundraising; track recovery from past burnout
+- **Frustrations:** Therapists don't see daily fluctuations; journaling on paper never stuck
+- **Usage:** Records post-standup, daily during fundraising sprints; shares anonymized trends with co-founder/therapist
+- **Privacy sensitivity:** Very high — competitive concerns about emotional data leaks
+
+### Persona 4: David Martinez — Remote IC Designer (29)
+
+- **Demographics:** Fully remote at agency, Denver, lives with partner
+- **Goals:** Combat isolation; understand why some weeks feel harder despite same workload
+- **Frustrations:** Can't articulate feelings verbally to partner; wants gentle nudges not alarms
+- **Usage:** Records evening journal, 3 days/week; loves timeline view and "emotional weather" metaphor
+- **Privacy sensitivity:** Medium — shares selectively with partner via export
+
+### Persona 5: Eleanor Walsh — Wellness Enthusiast (47)
+
+- **Demographics:** HR director, suburban Chicago, uses Oura + Headspace
+- **Goals:** Unified emotional dashboard; correlate with HRV and meditation streaks
+- **Frustrations:** Wearables miss psychological state; wants longitudinal narrative not snapshots
+- **Usage:** Records daily, reviews insight center, uses API export to Notion dashboard
+- **Privacy sensitivity:** Medium — trusts brands with SOC 2
+
+## 1.4 User Stories (120 Stories)
+
+### Onboarding (15)
+
+1. As a user, I want to sign up with email/password so that I can create a secure account quickly.
+2. As a user, I want to sign up with Google/Apple OAuth so that I don't need another password.
+3. As a user, I want MFA via authenticator app so that my sensitive journal data is protected.
+4. As a user, I want a clear explanation of what data is collected so that I can make an informed consent decision.
+5. As a user, I want to opt-in to each analysis modality (face, voice, text) separately so that I control my privacy granularity.
+6. As a user, I want to set my timezone so that daily streaks and notifications align with my local day.
+7. As a user, I want an interactive tutorial for first video recording so that I know optimal lighting and framing.
+8. As a user, I want to skip tutorial and record immediately so that experienced users aren't blocked.
+9. As a user, I want to see a "baseline building" progress indicator so that I understand insights improve over time.
+10. As a user, I want to choose notification preferences during onboarding so that I'm not overwhelmed.
+11. As a user, I want to accept Terms of Service and Privacy Policy with version tracking so that consent is auditable.
+12. As a user, I want to indicate I'm 18+ so that the platform meets age requirements.
+13. As a user, I want to select my primary wellness goal so that insights are contextualized.
+14. As a user, I want to invite a trusted contact (optional) so that I can share exports later.
+15. As a user, I want onboarding to complete in under 3 minutes so that I reach first journal quickly.
+
+### Journaling (20)
+
+16. As a user, I want to record video in-browser so that I don't need to install an app.
+17. As a user, I want to record video in the native mobile app so that I can journal on the go.
+18. As a user, I want to see a countdown before recording starts so that I can compose myself.
+19. As a user, I want a visible timer during recording so that I stay within recommended duration.
+20. As a user, I want recording to stop automatically at 10 minutes so that uploads remain manageable.
+21. As a user, I want to pause and resume recording so that interruptions don't ruin my entry.
+22. As a user, I want to re-record before submitting so that I can fix mistakes.
+23. As a user, I want to add optional text tags (#work, #family) so that I can annotate context.
+24. As a user, I want to mark entries as private/hidden from exports so that sensitive topics stay contained.
+25. As a user, I want upload progress with retry on failure so that poor connectivity doesn't lose my journal.
+26. As a user, I want background upload on mobile so that I can leave the app during upload.
+27. As a user, I want to record with front or back camera so that I can choose comfort level.
+28. As a user, I want audio-only fallback mode so that I can journal when camera feels intrusive.
+29. As a user, I want daily journal prompts so that I have structure when I don't know what to say.
+30. As a user, I want to disable prompts so that free-form journaling isn't interrupted.
+31. As a user, I want to see my current streak so that I'm motivated to maintain consistency.
+32. As a user, I want streak forgiveness (1 miss per 14 days) so that perfectionism doesn't cause churn.
+33. As a user, I want to schedule a daily reminder so that journaling becomes habit.
+34. As a user, I want to journal offline and sync later so that airplane mode doesn't block me.
+35. As a user, I want to delete a journal entry immediately so that I control my data.
+
+### Analysis (15)
+
+36. As a user, I want my video analyzed within 5 minutes so that insights feel timely.
+37. As a user, I want to see processing status (queued, analyzing, complete) so that I know what's happening.
+38. As a user, I want to view extracted emotion timeline on my video so that I understand the analysis.
+39. As a user, I want to see voice energy waveform overlay so that prosody changes are visible.
+40. As a user, I want to read the auto-generated transcript so that I can verify accuracy.
+41. As a user, I want to correct transcript errors so that downstream NLP isn't wrong.
+42. As a user, I want to see confidence scores on each metric so that I know what's reliable.
+43. As a user, I want analysis to skip face processing if I opted out so that my consent is respected.
+44. As a user, I want to re-process an entry after consent change so that I get full analysis when ready.
+45. As a user, I want to see which AI model version analyzed my entry so that results are traceable.
+46. As a user, I want low-quality video flagged gently so that I can improve recording conditions.
+47. As a user, I want to see detected topics (work, relationships, health) so that themes are surfaced.
+48. As a user, I want micro-expression markers labeled as "subtle" with uncertainty so that I'm not misled.
+49. As a user, I want multimodal consistency score (face vs voice vs words) so that I see internal alignment.
+50. As a user, I want to download raw feature data (JSON) so that I own my quantitative self data.
+
+### Trends (15)
+
+51. As a user, I want a 7-day emotional trend chart so that I see recent patterns.
+52. As a user, I want a 30/90/365-day trend view so that I compare time horizons.
+53. As a user, I want to overlay multiple metrics (voice energy + sentiment) so that I find correlations.
+54. As a user, I want day-of-week patterns so that I see "Sunday scaries" objectively.
+55. As a user, I want to compare current week vs baseline so that deviation is clear.
+56. As a user, I want volatility index over time so that emotional stability is tracked.
+57. As a user, I want speaking rate trends so that cognitive load proxies are visible.
+58. As a user, I want pause frequency trends so that hesitation patterns emerge.
+59. As a user, I want topic frequency trends so that "work stress" increases are quantified.
+60. As a user, I want to annotate trends with life events so that context is preserved.
+61. As a user, I want to export trend charts as PNG/PDF so that I can share with therapist.
+62. As a user, I want calendar heatmap of emotional valence so that months are scannable.
+63. As a user, I want to filter trends by tag so that I analyze work vs personal separately.
+64. As a user, I want baseline confidence band shown on charts so that early days aren't over-interpreted.
+65. As a user, I want trend data via API so that I can build personal dashboards.
+
+### Insights (20)
+
+66. As a user, I want daily insight cards after baseline is established so that I get actionable feedback.
+67. As a user, I want insights phrased as observations not diagnoses so that I feel safe.
+68. As a user, I want "why am I seeing this?" explanations so that insights are trustworthy.
+69. As a user, I want insight confidence percentage so that I can weigh recommendations.
+70. As a user, I want to dismiss irrelevant insights so that the system learns my preferences.
+71. As a user, I want to mark insights as helpful/not helpful so that quality improves.
+72. As a user, I want weekly summary insights so that I don't miss forest for trees.
+73. As a user, I want positive trend reinforcement so that improvement is acknowledged.
+74. As a user, I want gentle language for concerning trends so that I'm not alarmed.
+75. As a user, I want crisis resource links when severe deviation detected so that I have support options.
+76. As a user, I want to disable crisis detection so that I control sensitivity (with acknowledgment).
+77. As a user, I want insights about linguistic markers (hedging, absolutist language) so that speech patterns are visible.
+78. As a user, I want cross-modal insight ("voice flat but words positive") so that incongruence is surfaced.
+79. As a user, I want insight history searchable so that I can find past observations.
+80. As a user, I want insights in plain language not clinical jargon so that they're accessible.
+81. As a user, I want suggested reflection questions based on insights so that I deepen self-awareness.
+82. As a user, I want to snooze insight categories so that I'm not notified about work stress during vacation.
+83. As a user, I want insight generation to reference specific journal dates so that I can review source entries.
+84. As a user, I want multilingual insight support so that non-English journals are handled.
+85. As a user, I want insight RSS/email digest so that I can consume offline.
+
+### Notifications (10)
+
+86. As a user, I want daily journal reminder push notification so that I maintain habit.
+87. As a user, I want "analysis complete" notification so that I know when to review.
+88. As a user, I want weekly insight summary notification so that I stay engaged.
+89. As a user, I want to set quiet hours so that notifications don't disturb sleep.
+90. As a user, I want notification channel preferences (push/email/SMS) so that I control delivery.
+91. As a user, I want smart reminder timing based on my historical journal time so that reminders are relevant.
+92. As a user, I want to disable all notifications except critical so that I reduce noise.
+93. As a user, I want in-app notification center so that I see history of all alerts.
+94. As a user, I want notification deep links to relevant screen so that navigation is seamless.
+95. As a user, I want badge count for unread insights so that I know what's new.
+
+### Privacy (15)
+
+96. As a user, I want to delete all my data permanently so that I exercise right to erasure.
+97. As a user, I want to export all my data (GDPR portability) so that I own my information.
+98. As a user, I want to see exactly what's stored about me so that transparency builds trust.
+99. As a user, I want to revoke analysis consent and stop future processing so that I control AI use.
+100. As a user, I want videos encrypted at rest so that breaches don't expose raw content.
+101. As a user, I want option to auto-delete videos after analysis so that only features remain.
+102. As a user, I want audit log of who accessed my data so that I detect unauthorized access.
+103. As a user, I want to opt out of model training so that my data isn't used to improve AI.
+104. As a user, I want regional data residency (EU/US) so that GDPR requirements are met.
+105. As a user, I want privacy dashboard showing consent history so that changes are tracked.
+106. As a user, I want anonymous analytics opt-out so that product telemetry isn't collected.
+107. As a user, I want to lock app with biometrics so that local device access is protected.
+108. As a user, I want data processing agreement download so that enterprise compliance is satisfied.
+109. As a user, I want to request human review of automated insight so that errors are corrected.
+110. As a user, I want clear "not a medical device" disclaimer so that I'm not misled about capabilities.
+
+### Settings (10)
+
+111. As a user, I want to change email/password so that I maintain account security.
+112. As a user, I want to manage connected OAuth providers so that login options are flexible.
+113. As a user, I want to configure default recording quality so that I balance quality and upload speed.
+114. As a user, I want dark/light theme so that the app matches my preference.
+115. As a user, I want language preference for UI and insights so that localization works.
+116. As a user, I want to manage subscription/billing so that I control my plan.
+117. As a user, I want to configure baseline sensitivity so that deviation detection matches my temperament.
+118. As a user, I want to delete my account so that I can fully leave the platform.
+119. As a user, I want to manage trusted contacts for sharing so that exports go to right people.
+120. As a user, I want accessibility settings (captions, font size) so that the app is usable by all.
+
+## 1.5 Success Metrics
+
+| Metric | Definition | MVP Target | Growth Target | Scale Target |
+|--------|------------|------------|---------------|--------------|
+| **DAU** | Unique users recording or viewing insights daily | 40% of MAU | 35% of MAU | 30% of MAU |
+| **WAU** | Unique users active per week | 70% of MAU | 65% of MAU | 60% of MAU |
+| **D1 Retention** | Return day after signup | 60% | 55% | 50% |
+| **D7 Retention** | Return 7 days after signup | 45% | 40% | 35% |
+| **D30 Retention** | Return 30 days after signup | 30% | 28% | 25% |
+| **Journaling Consistency** | Avg journals per active user per week | 4.5 | 4.0 | 3.5 |
+| **Baseline Completion Rate** | Users reaching 14-day baseline | 55% | 60% | 65% |
+| **Insight Engagement Rate** | Insights opened / insights generated | 70% | 65% | 60% |
+| **Insight Helpful Rate** | Insights marked helpful / opened | 60% | 65% | 70% |
+| **Notification CTR** | Notification taps / notifications sent | 25% | 22% | 20% |
+| **Analysis SLA** | Entries analyzed within 5 min | 95% | 98% | 99% |
+| **NPS** | Net Promoter Score | 40+ | 45+ | 50+ |
+| **Churn (monthly)** | Paid users canceling | <8% | <6% | <5% |
+
+---
+
+# SECTION 2: SYSTEM ARCHITECTURE
+
+## 2.1 Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT LAYER                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐    │
+│  │ Next.js Web  │  │ iOS (Swift)  │  │ Android (Kt) │  │ Admin Dashboard  │    │
+│  │ React/TS/TW  │  │              │  │              │  │                  │    │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘    │
+└─────────┼─────────────────┼─────────────────┼───────────────────┼───────────────┘
+          │                 │                 │                   │
+          └─────────────────┴────────┬────────┴───────────────────┘
+                                     │ HTTPS / WSS
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           EDGE & API GATEWAY LAYER                               │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌─────────────────────┐   │
+│  │ CloudFront  │  │ AWS WAF      │  │ ALB         │  │ API Gateway (REST)  │   │
+│  │ CDN         │  │ Rate Limit   │  │ TLS 1.3     │  │ + WebSocket API     │   │
+│  └─────────────┘  └──────────────┘  └─────────────┘  └─────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         MICROSERVICES LAYER (EKS)                                │
+│                                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│  │ Auth     │ │ User     │ │ Journal  │ │ Video    │ │ Analysis │            │
+│  │ Service  │ │ Service  │ │ Service  │ │ Service  │ │ Service  │            │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
+│                                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│  │ Insight  │ │ Notif.   │ │ Analytics│ │ Recommend│ │ Admin    │            │
+│  │ Service  │ │ Service  │ │ Service  │ │ Service  │ │ Service  │            │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           AI / ML SERVICES LAYER                                 │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────────────────────┐  │
+│  │ AI Inference   │  │ Multimodal     │  │ Baseline & Anomaly               │  │
+│  │ Service (GPU)  │  │ Fusion Engine  │  │ Detection Engine                 │  │
+│  │                │  │                │  │                                  │  │
+│  │ • Face/MediaPipe│  │ • Late Fusion  │  │ • EWMA + Isolation Forest       │  │
+│  │ • Voice/Parsel │  │ • Embeddings   │  │ • Personal Baselines            │  │
+│  │ • NLP/Whisper  │  │ • Cross-attn   │  │ • Drift Scoring                 │  │
+│  └────────────────┘  └────────────────┘  └────────────────────────────────┘  │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────────────────────┐  │
+│  │ Insight LLM    │  │ Model Registry │  │ Feature Store (Feast)            │  │
+│  │ (Constrained)  │  │ (MLflow)       │  │                                  │  │
+│  └────────────────┘  └────────────────┘  └────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              DATA LAYER                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ PostgreSQL   │  │ Redis        │  │ S3           │  │ OpenSearch       │   │
+│  │ (RDS Multi-AZ│  │ ElastiCache  │  │ Videos/Assets│  │ Transcript Search│   │
+│  │ + Read Reps) │  │ Sessions/Cache│  │ + Glacier   │  │                  │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                         │
+│  │ Amazon MSK   │  │ TimescaleDB  │  │ S3 Feature   │                         │
+│  │ (Kafka Events│  │ (Metrics TS) │  │ Parquet Store│                         │
+│  └──────────────┘  └──────────────┘  └──────────────┘                         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           ANALYTICS LAYER                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ Snowflake    │  │ dbt          │  │ Amplitude    │  │ Internal BI      │   │
+│  │ (Warehouse)  │  │ Transforms   │  │ (Product)    │  │ (Metabase)       │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          MONITORING LAYER                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ OpenTelemetry│  │ Prometheus   │  │ Grafana      │  │ Datadog APM      │   │
+│  │ Collector    │  │ + Alertmanager│  │ Dashboards   │  │ Log Management   │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                         │
+│  │ PagerDuty    │  │ AWS CloudTrail│  │ GuardDuty    │                         │
+│  └──────────────┘  └──────────────┘  └──────────────┘                         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 2.2 Service Breakdown
+
+### Auth Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Authentication, authorization, JWT issuance, OAuth/OIDC, MFA, session management, API key management |
+| **APIs** | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/mfa/verify`, `POST /auth/oauth/{provider}`, `DELETE /auth/sessions/{id}` |
+| **Storage** | PostgreSQL (users_auth, sessions, mfa_secrets), Redis (token blacklist, rate limits) |
+| **Scaling** | Stateless pods, HPA on CPU 70%, min 3 replicas, Redis cluster for session cache |
+| **Tech** | Node.js + Fastify, Cognito as optional IdP bridge for enterprise SSO |
+
+### User Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | User profiles, preferences, consent records, subscription tier, timezone, wellness goals |
+| **APIs** | `GET/PATCH /users/me`, `GET/POST /users/me/consent`, `GET /users/me/preferences`, `DELETE /users/me` |
+| **Storage** | PostgreSQL (users, user_preferences, consent_records), S3 (avatar) |
+| **Scaling** | Read-heavy; read replicas, Redis cache for profile (TTL 5min) |
+
+### Journal Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Journal entry CRUD, metadata, tags, streaks, prompts, scheduling |
+| **APIs** | `POST /journals`, `GET /journals`, `GET /journals/{id}`, `PATCH /journals/{id}`, `DELETE /journals/{id}`, `GET /journals/streaks` |
+| **Storage** | PostgreSQL (journal_entries, journal_tags, streaks) |
+| **Scaling** | Partition journal_entries by user_id hash; archive entries >2 years to cold storage |
+
+### Video Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Presigned upload URLs, upload validation, transcoding orchestration, thumbnail generation, playback URLs |
+| **APIs** | `POST /videos/upload/init`, `POST /videos/upload/complete`, `GET /videos/{id}/playback`, `GET /videos/{id}/status` |
+| **Storage** | S3 (raw, processed, thumbnails), PostgreSQL (video_metadata), MediaConvert for transcoding |
+| **Scaling** | Upload via S3 presigned URLs (direct client→S3); Lambda triggers on S3 events; CDN for playback |
+
+### Analysis Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Orchestrates analysis pipeline, aggregates modality results, stores feature vectors, triggers baseline update |
+| **APIs** | `GET /analysis/{journal_id}`, `GET /analysis/{journal_id}/timeline`, `POST /analysis/{journal_id}/reprocess` |
+| **Storage** | PostgreSQL (analysis_jobs), TimescaleDB (time-series metrics), S3 (feature vectors Parquet) |
+| **Scaling** | Event-driven via Kafka; worker pool scales on queue depth; GPU nodes separate from API pods |
+
+### AI Inference Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Runs ML models: face, voice, NLP, micro-expression; batch + realtime inference |
+| **APIs** | Internal gRPC: `InferFace`, `InferVoice`, `InferNLP`, `InferMicroExpression` |
+| **Storage** | EFS model weights, S3 model artifacts, MLflow registry |
+| **Scaling** | K8s GPU node pool (g5.xlarge), KEDA autoscaling on SQS/Kafka lag, model server (Triton) |
+
+### Insight Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Generate insights from baseline deviations, LLM templating with guardrails, confidence scoring, feedback loop |
+| **APIs** | `GET /insights`, `GET /insights/{id}`, `POST /insights/{id}/feedback`, `GET /insights/weekly-summary` |
+| **Storage** | PostgreSQL (insights, insight_feedback), Redis (daily insight cache) |
+| **Scaling** | Batch generation nightly + on-demand after analysis; LLM calls rate-limited per user |
+
+### Notification Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Push (FCM/APNs), email (SES), SMS (SNS), in-app notifications, quiet hours, digest scheduling |
+| **APIs** | `GET /notifications`, `PATCH /notifications/{id}/read`, `GET/PATCH /notifications/preferences` |
+| **Storage** | PostgreSQL (notifications, notification_preferences), Redis (delivery queue) |
+| **Scaling** | SQS fan-out workers; 10K notifications/minute capacity |
+
+### Analytics Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Product analytics ingestion, anonymized event pipeline, funnel metrics, A/B experiment assignment |
+| **APIs** | `POST /analytics/events` (batch), internal dashboards |
+| **Storage** | Kafka → Snowflake; Amplitude for product; no PII in analytics events |
+| **Scaling** | Fire-and-forget async; dropped events acceptable at >100K events/sec with sampling |
+
+### Recommendation Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | Journal prompts, optimal reminder times, reflection questions, content personalization |
+| **APIs** | `GET /recommendations/prompts`, `GET /recommendations/reminder-time`, `GET /recommendations/reflection-questions` |
+| **Storage** | PostgreSQL (prompt_templates), Redis (user context cache), Feature Store |
+| **Scaling** | Low compute; rules engine + lightweight ML for timing |
+
+### Admin Service
+
+| Attribute | Detail |
+|-----------|--------|
+| **Responsibility** | User support, audit queries, model version management, feature flags, system health |
+| **APIs** | `GET /admin/users`, `GET /admin/audit-logs`, `POST /admin/feature-flags`, `GET /admin/system/health` |
+| **Storage** | PostgreSQL (admin_users, feature_flags, support_tickets), OpenSearch (audit logs) |
+| **Scaling** | Internal VPN/IP-restricted; minimal replicas; all actions audit-logged |
+
+---
+
+# SECTION 3: CLOUD INFRASTRUCTURE (AWS)
+
+## 3.1 Networking
+
+```
+AWS Account (Production)
+├── VPC: 10.0.0.0/16 (us-east-1)
+│   ├── Public Subnets (10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24) — AZ a,b,c
+│   │   ├── Internet Gateway
+│   │   ├── NAT Gateways (1 per AZ for HA)
+│   │   ├── ALB (public-facing)
+│   │   └── Bastion (SSM Session Manager preferred, no SSH keys)
+│   │
+│   ├── Private Subnets — Application (10.0.10.0/22, 10.0.14.0/22, 10.0.18.0/22)
+│   │   ├── EKS Worker Nodes (non-GPU)
+│   │   ├── RDS PostgreSQL
+│   │   └── ElastiCache Redis
+│   │
+│   ├── Private Subnets — AI/GPU (10.0.30.0/22, 10.0.34.0/22)
+│   │   ├── EKS GPU Node Pool
+│   │   └── Amazon MSK brokers
+│   │
+│   └── Private Subnets — Data (10.0.50.0/22)
+│       ├── TimescaleDB (RDS or self-managed)
+│       └── OpenSearch
+│
+├── VPC Endpoints (PrivateLink)
+│   ├── S3 Gateway Endpoint
+│   ├── ECR, Secrets Manager, SSM, KMS Interface Endpoints
+│   └── STS, CloudWatch Logs
+│
+└── Security Groups (least privilege)
+    ├── sg-alb: 443 inbound from 0.0.0.0/0
+    ├── sg-eks-api: inbound from sg-alb on app ports
+    ├── sg-eks-gpu: inbound from sg-eks-api on gRPC ports
+    ├── sg-rds: inbound 5432 from sg-eks-api only
+    └── sg-redis: inbound 6379 from sg-eks-api only
+```
+
+**Justification:** 3-AZ design for 99.99% availability target. GPU workloads isolated in separate subnets for cost attribution and security boundary. VPC endpoints eliminate NAT costs for AWS service traffic and keep data off public internet.
+
+## 3.2 Compute Comparison & Decision
+
+| Criteria | ECS Fargate | EKS | Lambda |
+|----------|-------------|-----|--------|
+| GPU support | Limited (EC2 backed) | Native GPU node pools | No GPU |
+| Long-running inference | Good | Excellent | 15min max |
+| Operational complexity | Low | Medium-High | Very Low |
+| Microservices fit | Good | Excellent | Good for event-driven |
+| Autoscaling granularity | Good | Excellent (KEDA) | Excellent |
+| Cost at 1M users | Medium | Medium (with spot) | High for sustained AI |
+| Model serving (Triton) | Possible | Industry standard | Not suitable |
+| Team velocity | Fast MVP | Best long-term | Complements EKS |
+
+**Decision: EKS (Kubernetes) as primary compute, Lambda for event glue**
+
+**Justification:**
+- GPU inference requires persistent model-loaded containers (Triton on g5 instances). Lambda cannot run GPU workloads.
+- ECS could work but EKS provides superior autoscaling (KEDA on Kafka lag), multi-tenant GPU scheduling, and portable ML infrastructure.
+- Lambda used for: S3 upload triggers, thumbnail generation, scheduled cron (EventBridge), dead-letter reprocessing.
+- **Alternative rejected:** Pure Lambda — AI pipeline requires 2-5 min GPU processing per video; cold starts and timeout limits make it unsuitable.
+- **Alternative rejected:** ECS — viable but weaker ML ecosystem integration (Kubeflow, KEDA, Triton helm charts optimized for K8s).
+
+**EKS Configuration:**
+- Control plane: AWS-managed
+- Node groups: (1) `api-pool` — m6i.xlarge spot + on-demand mix, (2) `gpu-pool` — g5.xlarge on-demand, (3) `gpu-spot-pool` — g5.xlarge spot for batch backfill
+- Cluster autoscaler + KEDA for queue-based scaling
+
+## 3.3 Storage
+
+| Bucket | Purpose | Lifecycle | Encryption |
+|--------|---------|-----------|------------|
+| `solenne-videos-raw-{env}` | Original uploads | → IA at 30d, → Glacier at 90d, delete at 365d (configurable per user) | SSE-KMS (CMK per env) |
+| `solenne-videos-processed-{env}` | Transcoded HLS/MP4 | → IA at 60d, Glacier at 180d | SSE-KMS |
+| `solenne-thumbnails-{env}` | Video thumbnails | No archive | SSE-KMS |
+| `solenne-features-{env}` | Parquet feature vectors | Permanent (small) | SSE-KMS |
+| `solenne-models-{env}` | ML model artifacts | Versioned, no delete | SSE-KMS |
+| `solenne-exports-{env}` | GDPR export ZIPs | Delete after 7 days | SSE-KMS |
+| `solenne-backups-{env}` | DB backups, configs | Glacier Deep Archive at 30d | SSE-KMS |
+
+**Backup Policy:**
+- RDS: automated daily snapshots, 35-day retention, cross-region copy to eu-west-1
+- S3: cross-region replication for raw videos (compliance)
+- Point-in-time recovery enabled on PostgreSQL
+
+## 3.4 Database Comparison & Architecture
+
+| Criteria | PostgreSQL | DynamoDB | MongoDB |
+|----------|------------|----------|---------|
+| Relational integrity | Excellent | None | Limited |
+| Complex queries (trends) | Excellent | Poor | Good |
+| Time-series metrics | Good (TimescaleDB) | Good | Fair |
+| ACID transactions | Full | Per-item | Multi-doc |
+| Consistency model | Strong | Eventual/Tunable | Tunable |
+| Team familiarity | High | Medium | Medium |
+| Cost at scale | Predictable | Can spike | Medium |
+| GDPR deletion | Straightforward | Straightforward | Straightforward |
+
+**Decision: PostgreSQL (RDS) as primary + TimescaleDB extension for metrics + Redis cache + S3 for blobs**
+
+**Justification:**
+- SOLENNE has highly relational data (users → journals → analyses → insights) requiring FK constraints and JOINs.
+- Trend queries ("30-day voice energy") are SQL-native with TimescaleDB continuous aggregates.
+- DynamoDB rejected for analysis: complex multi-table queries, no JOINs, trend aggregation expensive.
+- MongoDB rejected: team SQL expertise, stronger consistency needs for billing/consent audit trails.
+- **DynamoDB used for:** idempotency keys, high-write webhook dedup table only (supplementary).
+
+**Database Topology:**
+- RDS PostgreSQL 16 Multi-AZ (db.r6g.xlarge at scale)
+- 2 read replicas (trend queries, analytics)
+- TimescaleDB on dedicated RDS instance for metrics hypertables
+- ElastiCache Redis 7 cluster mode (3 shards)
+- OpenSearch 2.x for transcript full-text search
+
+---
+
+# SECTION 4: VIDEO PROCESSING PIPELINE
+
+## 4.1 Pipeline Overview
+
+```
+User Device                    AWS Cloud
+───────────                    ─────────
+
+[Record Video]
+      │
+      ▼
+[Request Upload URL] ──POST /videos/upload/init──► [Video Service]
+      │                                              │
+      │◄── presigned PUT URL + upload_id ────────────┤
+      ▼
+[Direct Upload to S3] ──PUT──► [s3://raw-bucket/{user_id}/{upload_id}/original.webm]
+      │
+      ▼
+[Confirm Upload] ──POST /videos/upload/complete──► [Video Service]
+      │                                              │
+      │                                              ├── Validate (size, format, duration)
+      │                                              ├── Create journal_entry + video_metadata
+      │                                              └── Emit: video.uploaded (Kafka)
+      ▼
+[S3 Event Notification] ──► [Lambda: validate-trigger]
+                                    │
+                                    ▼
+                            [MediaConvert Job Queue]
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+              [Transcode      [Extract        [Generate
+               HLS 720p]       Audio WAV]      Thumbnail]
+                    │               │               │
+                    └───────────────┼───────────────┘
+                                    ▼
+                            Emit: video.processed (Kafka)
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+            [Analysis Service] [Analysis Service] [Analysis Service]
+             Face/Voice GPU     NLP/Whisper       Feature Store
+                    │               │               │
+                    └───────────────┼───────────────┘
+                                    ▼
+                            Emit: analysis.complete (Kafka)
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+            [Baseline Engine] [Insight Service] [Notification Svc]
+```
+
+## 4.2 Step-by-Step
+
+### 1. Upload Process
+- Client requests presigned URL with `{content_type, content_length, duration_estimate}`
+- Server validates quota (tier limits: free 5min/day, premium 15min/day)
+- Returns multipart upload URLs for files >50MB
+- Client uploads directly to S3 (bypasses API servers — critical for scale)
+
+### 2. Validation
+- Lambda on S3 `ObjectCreated`: verify magic bytes, scan with ClamAV (optional), check duration via ffprobe
+- Reject: >500MB, >10min, non-video MIME, corrupted files
+- Status: `upload_validated` or `upload_rejected` with reason
+
+### 3. Compression
+- Client-side: WebRTC/MediaRecorder at 2.5Mbps H.264 (web), 720p native (mobile)
+- Server-side: MediaConvert creates adaptive HLS ladder (360p/720p)
+
+### 4. Transcoding
+- AWS MediaConvert job template `solenne-standard`
+- Output: HLS manifest + MP4 fallback, AAC 128kbps audio sidecar
+- Typical 3-min 720p video: ~60-90 sec transcode time
+
+### 5. Queueing
+- Kafka topic `video.processed` → consumer group `analysis-orchestrator`
+- Priority queue: premium users get priority partition
+- Dead letter queue after 3 retries with exponential backoff
+
+### 6. Processing
+- Parallel modality workers:
+  - **Face:** Extract frames at 5fps → MediaPipe + custom micro-expression model
+  - **Voice:** Extract WAV → Parselmouth/praat features + energy/pitch
+  - **NLP:** Whisper transcription → sentiment/emotion NLP pipeline
+- Orchestrator waits for all modalities → fusion engine → persist
+
+### 7. Storage
+- Raw: `s3://raw/{user_id}/{journal_id}/original.webm`
+- Processed: `s3://processed/{user_id}/{journal_id}/playlist.m3u8`
+- Features: `s3://features/{user_id}/{journal_id}/features.parquet`
+- Metadata: PostgreSQL `video_metadata`, `analysis_jobs`
+
+## 4.3 Event Schema
+
+```json
+{
+  "event_type": "video.uploaded",
+  "event_id": "uuid",
+  "timestamp": "ISO8601",
+  "payload": {
+    "user_id": "uuid",
+    "journal_id": "uuid",
+    "video_id": "uuid",
+    "s3_key": "string",
+    "duration_seconds": 180,
+    "consent": {"face": true, "voice": true, "text": true}
+  }
+}
+```
+
+---
+
+# SECTION 5: AI/ML SYSTEM DESIGN
+
+## 5.1 Facial Analysis
+
+| Tool | Strengths | Weaknesses | Latency (3min video) | Accuracy |
+|------|-----------|------------|---------------------|----------|
+| **MediaPipe Face Mesh** | Real-time, 468 landmarks, production-proven | No native emotion labels | ~45 sec (CPU) | N/A (geometry) |
+| **OpenCV** | Preprocessing, Haar/DNN face detect | Not emotion-native | ~10 sec | ~70% detect |
+| **FER (huggingface)** | Simple emotion classification | Accuracy varies, no micro-expressions | ~30 sec (GPU) | ~65-72% on FER2013 |
+| **DeepFace** | Multi-model (VGG-Face, Facenet), emotion | Heavy, slower | ~90 sec (GPU) | ~68-75% emotion |
+
+**Recommendation: MediaPipe Face Mesh + custom emotion head + DeepFace as validation ensemble**
+
+**Architecture:**
+1. MediaPipe extracts landmarks at 5fps (900 frames for 3-min video)
+2. Custom lightweight CNN (MobileNetV3 backbone) trained on AffectNet + RAF-DB for macro emotion (7 classes + neutral)
+3. Micro-expression: 3D-CNN on 16-frame clips at 25fps segments (see Section 5.2)
+4. Head movement: compute landmark-derived euler angles, velocity, jitter
+5. Eye movement: gaze estimation via iris landmarks (MediaPipe), blink rate, saccade proxy
+
+**Expected Accuracy:**
+- Macro emotion: 72-78% on user-facing confidence-filtered output (threshold >0.6)
+- Valence/arousal regression: CCC ~0.55-0.65 (wellness trend use, not clinical)
+
+**Inference Latency:** ~60-90 sec GPU (g5.xlarge), batched frame processing
+
+## 5.2 Micro-Expression Analysis
+
+**Research-grade approach:**
+
+| Dataset | Size | Use |
+|---------|------|-----|
+| CASME II | 255 spontaneous MEs | Primary training |
+| SAMM | 159 MEs | Cross-validation |
+| CAS(ME)³ | Long-form | Pre-training |
+
+**Architecture:** Dual-Stream Inflated 3D Conv (I3D) + Optical Flow branch (TV-L1)
+- Input: 16-frame clips at 30fps, face-aligned crop 128×128
+- Classes: Onset/apex/offset detection + 5 emotion categories (happiness, surprise, disgust, repression, others)
+- **Implementation strategy:**
+  1. Phase 1 (MVP): Skip dedicated ME model; use landmark velocity spikes as "subtle expression change" proxy
+  2. Phase 2: Fine-tune I3D on CASME II, deploy as secondary model with high uncertainty flag
+  3. Always display ME insights with "preliminary" badge and confidence <0.7 suppressed
+
+## 5.3 Voice Analysis
+
+**Extracted features:**
+
+| Feature | Tool | Description |
+|---------|------|-------------|
+| Pitch (F0) | Parselmouth (Praat) | Mean, std, range, contour |
+| Energy/RMS | librosa | Mean, dynamic range, peaks |
+| Pauses | Custom VAD (Silero) | Count, mean duration, ratio |
+| Jitter | Parselmouth | Frequency perturbation |
+| Shimmer | Parselmouth | Amplitude perturbation |
+| Speaking rate | Whisper word timestamps | Words per minute |
+| Voice quality | librosa spectral features | MFCCs 1-13 |
+
+**Pipeline:**
+```
+WAV 16kHz mono → Silero VAD → speech segments
+                              → Praat/Parselmouth (pitch, jitter, shimmer)
+                              → librosa (energy, MFCCs)
+                              → aggregate per-segment → session-level stats
+```
+
+**Latency:** ~15-20 sec per 3-min audio on CPU
+
+## 5.4 NLP Pipeline
+
+| Stage | Function | Tool |
+|-------|----------|------|
+| Transcription | Speech-to-text | **Whisper large-v3** (self-hosted on GPU) |
+| Sentiment | Valence score | RoBERTa fine-tuned on wellness corpus |
+| Emotion | 28-class → 7 wellness | GoEmotions fine-tuned |
+| Topics | Latent themes | BERTopic or keyphrase extraction |
+| Stress indicators | Linguistic markers | Custom rules + classifier (hedging, absolutist words, first-person ratio) |
+| Fluency | From Whisper timestamps | Pause insertion, repetition detection |
+
+### Transcription Provider Comparison
+
+| Criteria | Whisper (self-hosted) | Deepgram | AssemblyAI |
+|----------|----------------------|----------|--------------|
+| Cost at 1M users | ~$0.003/min (GPU amortized) | ~$0.0043/min | ~$0.015/min |
+| Accuracy | Excellent (WER ~5-8%) | Excellent | Excellent |
+| Data privacy | Full control | BAA available | SOC2 |
+| Custom vocabulary | Fine-tune possible | Yes | Yes |
+| Latency | ~30-60 sec (3min) | ~15 sec | ~20 sec |
+| Sentiment built-in | No (separate) | Yes | Yes |
+
+**Decision: Whisper large-v3 self-hosted on GPU pool**
+
+**Justification:**
+- At 1M users × 3 min/day × 30 days = 90M min/month — self-hosted saves ~$270K-1.2M/month vs APIs
+- Sensitive mental wellness content must not leave VPC for transcription
+- Deepgram/AssemblyAI viable as **fallback** during GPU outage (with explicit user consent flag for third-party processing)
+- Sentiment/emotion run as separate lightweight models post-transcription (full control, no vendor lock-in)
+
+---
+
+# SECTION 6: MULTIMODAL FUSION ENGINE
+
+## 6.1 Fusion Strategy Comparison
+
+| Approach | Pros | Cons | Fit for SOLENNE |
+|----------|------|------|-------------------|
+| **Feature-level (early)** | Joint representation | Modality missing breaks fusion; hard to explain | Poor — users opt out of modalities |
+| **Late fusion** | Modular, explainable, handles missing modalities | May miss cross-modal interactions | Good — MVP |
+| **Transformer fusion** | Captures cross-modal attention | Needs large data, black box | Best long-term |
+
+**Decision: Late fusion (MVP → Phase 2) with Transformer fusion (Phase 3, 100K+ users with labels)**
+
+**Justification:**
+- Users can opt out of face/voice/text — late fusion handles missing inputs natively via weighted averaging with re-normalized weights
+- Explainability requirement: "Your voice energy decreased 18%" requires per-modality attribution
+- Transformer fusion reserved for Phase 3 when sufficient in-house multimodal training data exists
+
+## 6.2 Feature Vector Structure
+
+```python
+@dataclass
+class ModalityFeatures:
+    # Facial (128 dims)
+    emotion_probs: np.ndarray       # shape (7,) — joy, sadness, anger, fear, surprise, disgust, neutral
+    valence: float                   # -1 to 1
+    arousal: float                   # 0 to 1
+    expression_variability: float    # std of emotion probs over session
+    micro_expr_count: int
+    micro_expr_intensity: float
+    blink_rate: float               # blinks per minute
+    gaze_stability: float           # 0 to 1
+    head_movement_energy: float
+    head_pose_variance: float       # pitch/yaw/roll std
+    face_confidence: float          # detection quality
+    
+    # Voice (64 dims)
+    pitch_mean: float               # Hz
+    pitch_std: float
+    pitch_range: float
+    energy_mean: float              # dB
+    energy_std: float
+    energy_trend: float             # slope over session
+    jitter: float
+    shimmer: float
+    speaking_rate: float            # WPM
+    pause_count: int
+    pause_ratio: float              # silence / total
+    pause_mean_duration: float
+    voice_quality_mfcc: np.ndarray  # shape (13,)
+    voice_confidence: float
+    
+    # Text/NLP (128 dims)
+    transcript_embedding: np.ndarray  # shape (768,) → PCA to (64,)
+    sentiment_valence: float
+    sentiment_arousal: float
+    emotion_probs_nlp: np.ndarray   # shape (7,)
+    topic_vector: np.ndarray        # shape (20,) — top topic weights
+    stress_score: float             # 0 to 1
+    fluency_score: float            # 0 to 1
+    word_count: int
+    first_person_ratio: float
+    hedging_ratio: float
+    absolutist_ratio: float
+    nlp_confidence: float
+
+@dataclass
+class FusedFeatureVector:
+    journal_id: str
+    user_id: str
+    timestamp: datetime
+    modalities_present: List[str]     # ['face', 'voice', 'text']
+    
+    # Per-modality (stored for explainability)
+    face: Optional[ModalityFeatures]
+    voice: Optional[ModalityFeatures]
+    text: Optional[ModalityFeatures]
+    
+    # Fused wellness dimensions (32 dims — stored in feature store)
+    wellness_vector: np.ndarray       # shape (32,)
+    
+    # Interpretable composites
+    overall_valence: float            # -1 to 1
+    overall_arousal: float            # 0 to 1
+    emotional_congruence: float       # 0 to 1 (cross-modal agreement)
+    expressiveness: float             # 0 to 1
+    engagement: float                 # 0 to 1
+    volatility: float                 # 0 to 1
+    
+    fusion_weights: Dict[str, float]  # {'face': 0.35, 'voice': 0.35, 'text': 0.30}
+    fusion_confidence: float
+    model_version: str
+```
+
+## 6.3 Fusion Pseudocode
+
+```python
+MODALITY_WEIGHTS = {'face': 0.35, 'voice': 0.35, 'text': 0.30}
+
+def compute_congruence(face, voice, text) -> float:
+    """Measure cross-modal emotion agreement."""
+    present = []
+    if face: present.append(face.emotion_probs)
+    if voice: present.append(voice_emotion_proxy(voice))  # derived from prosody
+    if text: present.append(text.emotion_probs_nlp)
+    if len(present) < 2:
+        return 1.0  # can't measure incongruence with one modality
+    pairs = list(combinations(present, 2))
+    similarities = [cosine_similarity(a, b) for a, b in pairs]
+    return float(np.mean(similarities))
+
+def fuse_modalities(face, voice, text) -> FusedFeatureVector:
+    available = {}
+    if face and face.face_confidence > 0.5:
+        available['face'] = face
+    if voice and voice.voice_confidence > 0.5:
+        available['voice'] = voice
+    if text and text.nlp_confidence > 0.5:
+        available['text'] = text
+    
+    if not available:
+        raise InsufficientDataError("No modality passed confidence threshold")
+    
+    # Re-normalize weights for present modalities
+    weights = {k: MODALITY_WEIGHTS[k] for k in available}
+    total = sum(weights.values())
+    weights = {k: v/total for k, v in weights.items()}
+    
+    # Weighted valence/arousal fusion
+    valence_terms, arousal_terms = [], []
+    if 'face' in available:
+        f = available['face']
+        valence_terms.append((f.valence, weights['face']))
+        arousal_terms.append((f.arousal, weights['face']))
+    if 'voice' in available:
+        v = available['voice']
+        v_val = map_prosody_to_valence(v.pitch_mean, v.energy_mean)
+        v_aro = map_prosody_to_arousal(v.energy_mean, v.speaking_rate)
+        valence_terms.append((v_val, weights['voice']))
+        arousal_terms.append((v_aro, weights['voice']))
+    if 'text' in available:
+        t = available['text']
+        valence_terms.append((t.sentiment_valence, weights['text']))
+        arousal_terms.append((t.sentiment_arousal, weights['text']))
+    
+    overall_valence = sum(v * w for v, w in valence_terms)
+    overall_arousal = sum(a * w for a, w in arousal_terms)
+    
+    congruence = compute_congruence(face, voice, text)
+    expressiveness = weighted_mean([
+        (face.expression_variability if face else 0, weights.get('face', 0)),
+        (voice.energy_std if voice else 0, weights.get('voice', 0)),
+    ])
+    engagement = weighted_mean([
+        (face.gaze_stability if face else 0, weights.get('face', 0)),
+        (1 - voice.pause_ratio if voice else 0, weights.get('voice', 0)),
+        (text.fluency_score if text else 0, weights.get('text', 0)),
+    ])
+    
+    wellness_vector = build_wellness_vector(available, weights)  # 32-dim normalized
+    
+    return FusedFeatureVector(
+        overall_valence=overall_valence,
+        overall_arousal=overall_arousal,
+        emotional_congruence=congruence,
+        expressiveness=expressiveness,
+        engagement=engagement,
+        volatility=compute_session_volatility(available),
+        wellness_vector=wellness_vector,
+        fusion_weights=weights,
+        fusion_confidence=min(w * c for (_, c) in confidence_terms(available)),
+        ...
+    )
+```
+
+## 6.4 Phase 3 Transformer Fusion (Future)
+
+```
+Input tokens: [CLS] face_emb voice_emb text_emb [SEP]
+              ↓
+         Cross-Modal Transformer (4 layers, 8 heads, d=256)
+              ↓
+         [CLS] output → wellness_vector (32)
+         Attention weights → explainability heatmap per modality
+```
+
+---
+
+# SECTION 7: PERSONAL BASELINE ENGINE
+
+## 7.1 Baseline Creation
+
+| Parameter | Value | Justification |
+|-----------|-------|---------------|
+| **Minimum days** | 7 | Absolute floor for any insight |
+| **Recommended days** | 14 | Stable circadian/weekly patterns captured |
+| **Full confidence** | 21 | Day-of-week effects reliably modeled |
+| **Minimum entries** | 5 in 7 days | Prevent sparse baseline |
+| **Initialization** | Running EWMA from entry 1 | Immediate rough baseline; confidence low |
+| **Update frequency** | After each new analysis | Incremental, not batch-only |
+
+**Confidence formula:**
+
+```
+confidence(day_n) = min(1.0, (n / 21) * consistency_factor * quality_factor)
+
+consistency_factor = entries_last_14_days / 14  (capped at 1.0)
+quality_factor = mean(recording_quality_scores)  (face visible, audio SNR, duration > 60s)
+```
+
+Display to user: "Baseline 67% established (10 of 14 days)"
+
+## 7.2 Behavioral Drift Detection
+
+**Detect:**
+
+| Drift Type | Signals | Detection Method |
+|------------|---------|----------------|
+| Emotional decline | Valence ↓, energy ↓, engagement ↓ | Multi-variate EWMA + Z-score |
+| Unusual positivity | Valence ↑ beyond 2σ | Z-score on valence |
+| Emotional volatility | Variance ↑ | Rolling std vs baseline std |
+| Disengagement | Duration ↓, pause ↑, word count ↓ | Composite disengagement index |
+
+### Algorithm Comparison
+
+| Method | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Z-score | Simple, explainable | Assumes normality | **Use for individual metrics** |
+| EWMA | Adapts to slow drift | Lag on sudden change | **Use for baseline tracking** |
+| Isolation Forest | Multi-variate, no distribution assumption | Less explainable | **Use for composite anomaly** |
+| LSTM | Temporal patterns | Needs lots of data, black box | Phase 3 only |
+| Autoencoders | Unsupervised | Hard to explain | Rejected for user-facing |
+
+**Final Hybrid Solution:**
+
+1. **EWMA baseline** per metric (α=0.1 for days 1-21, α=0.05 after)
+2. **Z-score** for per-metric deviation: `z = (x - μ_ewma) / σ_ewma`
+3. **Isolation Forest** on 32-dim wellness vector for multivariate anomaly (contamination=0.05)
+4. Alert when: `|z| > 2.0` for ≥3 metrics OR isolation score < -0.5 for 3+ consecutive days
+
+### Formulas
+
+**EWMA Update:**
+```
+μ_t = α * x_t + (1 - α) * μ_{t-1}
+σ_t = sqrt(α * (x_t - μ_t)² + (1 - α) * σ_{t-1}²)
+```
+
+**Disengagement Index:**
+```
+DI = 0.3 * z(duration) + 0.25 * z(pause_ratio) + 0.25 * z(-word_count) + 0.2 * z(-speaking_rate)
+Alert if DI < -1.5 for 5+ days
+```
+
+**Volatility Drift:**
+```
+vol_t = std(valence_{t-6:t})
+z_vol = (vol_t - μ_vol_baseline) / σ_vol_baseline
+Alert if z_vol > 2.0
+```
+
+### Pseudocode
+
+```python
+class PersonalBaselineEngine:
+    ALPHA_INITIAL = 0.10
+    ALPHA_MATURE = 0.05
+    MATURE_THRESHOLD_DAYS = 21
+    Z_ALERT_THRESHOLD = 2.0
+    CONSECUTIVE_DAYS_ALERT = 3
+    
+    def __init__(self, user_id: str):
+        self.baselines = load_baselines(user_id)  # from PostgreSQL
+        self.anomaly_detector = load_isolation_forest(user_id)
+    
+    def update(self, fused: FusedFeatureVector) -> BaselineUpdate:
+        n = self.baselines.entry_count + 1
+        alpha = self.ALPHA_MATURE if n > self.MATURE_THRESHOLD_DAYS else self.ALPHA_INITIAL
+        
+        metrics = extract_scalar_metrics(fused)  # ~20 key metrics
+        z_scores = {}
+        
+        for name, value in metrics.items():
+            mu, sigma = self.baselines.get(name)
+            mu_new = alpha * value + (1 - alpha) * mu
+            sigma_new = sqrt(alpha * (value - mu_new)**2 + (1 - alpha) * sigma**2)
+            self.baselines.update(name, mu_new, sigma_new)
+            z_scores[name] = (value - mu_new) / max(sigma_new, 1e-6)
+        
+        # Multivariate anomaly
+        iso_score = self.anomaly_detector.decision_function([fused.wellness_vector])[0]
+        
+        # Drift classification
+        drifts = self.classify_drifts(z_scores, iso_score, fused)
+        
+        confidence = self.compute_confidence(n, self.baselines.consistency, fused.fusion_confidence)
+        
+        persist(self.baselines, z_scores, drifts, confidence)
+        return BaselineUpdate(z_scores=z_scores, drifts=drifts, confidence=confidence)
+    
+    def classify_drifts(self, z_scores, iso_score, fused) -> List[DriftEvent]:
+        drifts = []
+        
+        valence_z = z_scores.get('overall_valence', 0)
+        energy_z = z_scores.get('energy_mean', 0)
+        
+        if valence_z < -self.Z_ALERT_THRESHOLD and energy_z < -1.5:
+            if self.consecutive_days('emotional_decline') >= self.CONSECUTIVE_DAYS_ALERT:
+                drifts.append(DriftEvent(type='emotional_decline', severity=abs(valence_z)/3))
+        
+        if valence_z > self.Z_ALERT_THRESHOLD * 1.5:
+            drifts.append(DriftEvent(type='unusual_positivity', severity=valence_z/3))
+        
+        if z_scores.get('volatility', 0) > self.Z_ALERT_THRESHOLD:
+            drifts.append(DriftEvent(type='emotional_volatility', severity=z_scores['volatility']/3))
+        
+        if self.disengagement_index(z_scores) < -1.5:
+            if self.consecutive_days('disengagement') >= 5:
+                drifts.append(DriftEvent(type='disengagement', severity=abs(self.disengagement_index(z_scores))/3))
+        
+        if iso_score < -0.5:
+            drifts.append(DriftEvent(type='multivariate_anomaly', severity=abs(iso_score)))
+        
+        return drifts
+```
+
+---
+
+# SECTION 8: INSIGHT GENERATION ENGINE
+
+## 8.1 Architecture
+
+```
+Drift Events + Trend Aggregates + User Context
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │ Insight Template     │
+         │ Selector (rules)     │
+         └──────────┬──────────┘
+                    ▼
+         ┌─────────────────────┐
+         │ LLM Generator        │
+         │ (Claude/GPT-4o-mini) │
+         │ + Structured Output  │
+         └──────────┬──────────┘
+                    ▼
+         ┌─────────────────────┐
+         │ Guardrail Validator  │
+         │ • No diagnosis       │
+         │ • Cite metrics       │
+         │ • Confidence check   │
+         └──────────┬──────────┘
+                    ▼
+         ┌─────────────────────┐
+         │ User-facing Insight  │
+         └─────────────────────┘
+```
+
+## 8.2 Insight Generation Rules
+
+**Template examples (rule-selected, LLM-phrased):**
+
+| Trigger | Template ID | Example Output |
+|---------|-------------|----------------|
+| `energy_z < -1.5 for 9 days` | `VOICE_ENERGY_DECLINE` | "Your voice energy has decreased by 18% over the last 9 days compared to your usual baseline." |
+| `topic_work > 2σ` | `TOPIC_FREQUENCY` | "You've been discussing work stress significantly more than your baseline this week." |
+| `valence_z > 0 but face_voice_incongruent` | `INCONGRUENCE` | "Your words sound positive, but your voice and expressions suggest you might be feeling more mixed than you're expressing." |
+| `volatility_z > 2` | `VOLATILITY` | "Your emotional expression has been more variable than usual this week." |
+
+## 8.3 Confidence Scoring
+
+```
+insight_confidence = min(
+    baseline_confidence,
+    fusion_confidence,
+    template_match_strength,  # how far beyond threshold
+    1 - llm_hallucination_risk
+)
+
+template_match_strength = min(1.0, abs(z_score) / 3.0)
+
+Suppress insight if insight_confidence < 0.6
+```
+
+## 8.4 Hallucination Prevention
+
+1. **Structured generation:** LLM receives ONLY numeric facts + template; must fill slots, not invent
+2. **Metric citation required:** Every insight must reference `{metric_name, value, baseline, delta_pct, date_range}`
+3. **Validation layer:** Post-LLM check that all numbers in text match input JSON (regex + numeric tolerance)
+4. **Diagnosis blocklist:** Regex filter for clinical terms (depression, bipolar, PTSD, etc.) → rewrite or block
+5. **Human review queue:** Insights with confidence 0.6-0.7 sampled at 10% for QA
+6. **Temperature 0.3** with JSON schema output mode
+
+## 8.5 Explainability
+
+Each insight includes:
+```json
+{
+  "insight_id": "uuid",
+  "text": "Your voice energy has decreased by 18%...",
+  "confidence": 0.82,
+  "evidence": [
+    {"metric": "voice.energy_mean", "current": 0.42, "baseline": 0.51, "delta_pct": -18, "z_score": -2.1},
+    {"metric": "voice.energy_mean", "dates": ["2026-06-05", "2026-06-13"]}
+  ],
+  "source_journal_ids": ["uuid1", "uuid2"],
+  "template_id": "VOICE_ENERGY_DECLINE",
+  "disclaimer": "This is a wellness observation, not a medical diagnosis."
+}
+```
+
+---
+
+# SECTION 9: DATABASE DESIGN
+
+## 9.1 Entity Relationship Diagram
+
+```
+┌─────────────┐       ┌─────────────────┐       ┌──────────────┐
+│   users     │──1:N──│ journal_entries │──1:1──│ video_metadata│
+└─────────────┘       └─────────────────┘       └──────────────┘
+       │                       │                        │
+       │1:N                    │1:1                     │
+       ▼                       ▼                        │
+┌─────────────┐       ┌─────────────────┐              │
+│consent_rec  │       │   transcripts   │              │
+└─────────────┘       └─────────────────┘              │
+       │                       │                        │
+       │                       │1:1                     │
+       ▼                       ▼                        ▼
+┌─────────────┐       ┌─────────────────┐       ┌──────────────┐
+│user_prefs   │       │ analysis_jobs   │──1:N──│ facial_metrics│
+└─────────────┘       └─────────────────┘       └──────────────┘
+                              │                        │
+                              │1:1                     │
+                              ▼                        │
+                      ┌─────────────────┐              │
+                      │ feature_vectors │              │
+                      └─────────────────┘              │
+                              │                        │
+       ┌──────────────────────┼────────────────────────┘
+       │                      │
+       ▼                      ▼
+┌─────────────┐       ┌─────────────────┐       ┌──────────────┐
+│  baselines  │       │ voice_metrics   │       │emotion_metrics│
+└─────────────┘       └─────────────────┘       └──────────────┘
+       │                      │
+       │1:N                   │
+       ▼                      ▼
+┌─────────────┐       ┌─────────────────┐       ┌──────────────┐
+│behavioral_  │       │    insights     │──1:N──│notifications │
+│events       │       └─────────────────┘       └──────────────┘
+└─────────────┘               │
+                              │1:N
+                              ▼
+                      ┌─────────────────┐
+                      │ insight_feedback│
+                      └─────────────────┘
+
+┌─────────────┐       ┌─────────────────┐
+│ audit_logs  │       │  admin_users    │
+└─────────────┘       └─────────────────┘
+```
+
+## 9.2 Table Definitions
+
+### users
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK, DEFAULT gen_random_uuid() | PK |
+| email | VARCHAR(255) | UNIQUE, NOT NULL | UNIQUE |
+| email_verified | BOOLEAN | DEFAULT false | |
+| password_hash | VARCHAR(255) | NULL (OAuth users) | |
+| display_name | VARCHAR(100) | | |
+| avatar_url | VARCHAR(500) | | |
+| timezone | VARCHAR(50) | NOT NULL DEFAULT 'UTC' | |
+| locale | VARCHAR(10) | DEFAULT 'en-US' | |
+| subscription_tier | ENUM | free, premium, enterprise | idx_users_tier |
+| wellness_goal | VARCHAR(50) | | |
+| data_region | ENUM | us, eu | idx_users_region |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+| updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+| deleted_at | TIMESTAMPTZ | NULL (soft delete) | idx_users_deleted |
+
+### journal_entries
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK → users(id), NOT NULL | idx_journal_user_created |
+| title | VARCHAR(200) | | |
+| recorded_at | TIMESTAMPTZ | NOT NULL | idx_journal_user_created |
+| duration_seconds | INTEGER | NOT NULL | |
+| status | ENUM | draft, uploading, processing, complete, failed | idx_journal_status |
+| recording_mode | ENUM | video, audio_only | |
+| prompt_id | UUID | FK nullable | |
+| is_private | BOOLEAN | DEFAULT false | |
+| quality_score | DECIMAL(3,2) | 0-1 | |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+| updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+| deleted_at | TIMESTAMPTZ | NULL | |
+
+**Index:** `CREATE INDEX idx_journal_user_created ON journal_entries(user_id, recorded_at DESC) WHERE deleted_at IS NULL;`
+
+### video_metadata
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK → journal_entries(id) UNIQUE | UNIQUE |
+| user_id | UUID | FK → users(id) | idx_video_user |
+| raw_s3_key | VARCHAR(500) | NOT NULL | |
+| processed_s3_key | VARCHAR(500) | | |
+| hls_manifest_url | VARCHAR(500) | | |
+| thumbnail_s3_key | VARCHAR(500) | | |
+| content_type | VARCHAR(50) | | |
+| file_size_bytes | BIGINT | | |
+| width | INTEGER | | |
+| height | INTEGER | | |
+| fps | DECIMAL(5,2) | | |
+| transcode_status | ENUM | pending, processing, complete, failed | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### transcripts
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK UNIQUE | UNIQUE |
+| user_id | UUID | FK | |
+| full_text | TEXT | NOT NULL | GIN (tsvector) |
+| language | VARCHAR(10) | DEFAULT 'en' | |
+| word_count | INTEGER | | |
+| whisper_model_version | VARCHAR(50) | | |
+| user_corrected | BOOLEAN | DEFAULT false | |
+| corrected_text | TEXT | | |
+| segments | JSONB | word-level timestamps | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### analysis_jobs
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK UNIQUE | UNIQUE |
+| user_id | UUID | FK | idx_analysis_user |
+| status | ENUM | queued, processing, complete, failed, partial | idx_analysis_status |
+| face_status | ENUM | skipped, pending, complete, failed | |
+| voice_status | ENUM | skipped, pending, complete, failed | |
+| nlp_status | ENUM | skipped, pending, complete, failed | |
+| started_at | TIMESTAMPTZ | | |
+| completed_at | TIMESTAMPTZ | | |
+| error_message | TEXT | | |
+| model_versions | JSONB | | |
+| processing_duration_ms | INTEGER | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### facial_metrics
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK | idx_facial_journal |
+| user_id | UUID | FK | idx_facial_user_time |
+| recorded_at | TIMESTAMPTZ | NOT NULL | idx_facial_user_time |
+| emotion_probs | JSONB | 7-class probabilities | |
+| valence | DECIMAL(4,3) | -1 to 1 | |
+| arousal | DECIMAL(4,3) | 0 to 1 | |
+| expression_variability | DECIMAL(4,3) | | |
+| micro_expr_count | INTEGER | | |
+| micro_expr_intensity | DECIMAL(4,3) | | |
+| blink_rate | DECIMAL(5,2) | | |
+| gaze_stability | DECIMAL(4,3) | | |
+| head_movement_energy | DECIMAL(6,3) | | |
+| head_pose_variance | DECIMAL(6,3) | | |
+| face_confidence | DECIMAL(4,3) | | |
+| timeline | JSONB | per-second snapshots (compressed) | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### voice_metrics
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK | idx_voice_journal |
+| user_id | UUID | FK | idx_voice_user_time |
+| recorded_at | TIMESTAMPTZ | NOT NULL | idx_voice_user_time |
+| pitch_mean | DECIMAL(6,2) | Hz | |
+| pitch_std | DECIMAL(6,2) | | |
+| pitch_range | DECIMAL(6,2) | | |
+| energy_mean | DECIMAL(6,3) | dB | |
+| energy_std | DECIMAL(6,3) | | |
+| energy_trend | DECIMAL(6,4) | slope | |
+| jitter | DECIMAL(8,5) | | |
+| shimmer | DECIMAL(8,5) | | |
+| speaking_rate | DECIMAL(5,1) | WPM | |
+| pause_count | INTEGER | | |
+| pause_ratio | DECIMAL(4,3) | | |
+| pause_mean_duration | DECIMAL(5,2) | seconds | |
+| mfcc_features | JSONB | 13 coefficients | |
+| voice_confidence | DECIMAL(4,3) | | |
+| timeline | JSONB | per-segment features | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### emotion_metrics (NLP)
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK | idx_emotion_journal |
+| user_id | UUID | FK | idx_emotion_user_time |
+| recorded_at | TIMESTAMPTZ | NOT NULL | idx_emotion_user_time |
+| sentiment_valence | DECIMAL(4,3) | | |
+| sentiment_arousal | DECIMAL(4,3) | | |
+| emotion_probs | JSONB | | |
+| stress_score | DECIMAL(4,3) | | |
+| fluency_score | DECIMAL(4,3) | |
+| topics | JSONB | [{topic, weight}] | |
+| first_person_ratio | DECIMAL(4,3) | | |
+| hedging_ratio | DECIMAL(4,3) | | |
+| absolutist_ratio | DECIMAL(4,3) | | |
+| nlp_confidence | DECIMAL(4,3) | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### feature_vectors
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| journal_id | UUID | FK UNIQUE | UNIQUE |
+| user_id | UUID | FK | idx_fv_user_time |
+| recorded_at | TIMESTAMPTZ | NOT NULL | idx_fv_user_time |
+| wellness_vector | BYTEA | 32-dim float32 serialized | |
+| overall_valence | DECIMAL(4,3) | | |
+| overall_arousal | DECIMAL(4,3) | | |
+| emotional_congruence | DECIMAL(4,3) | | |
+| expressiveness | DECIMAL(4,3) | | |
+| engagement | DECIMAL(4,3) | | |
+| volatility | DECIMAL(4,3) | | |
+| fusion_weights | JSONB | | |
+| fusion_confidence | DECIMAL(4,3) | | |
+| modalities_present | TEXT[] | | |
+| s3_parquet_key | VARCHAR(500) | full vector archive | |
+| model_version | VARCHAR(50) | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### baselines
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK | UNIQUE(user_id, metric_name) |
+| metric_name | VARCHAR(100) | NOT NULL | |
+| ewma_mean | DECIMAL(10,6) | | |
+| ewma_variance | DECIMAL(10,6) | | |
+| sample_count | INTEGER | DEFAULT 0 | |
+| alpha | DECIMAL(4,3) | | |
+| confidence | DECIMAL(4,3) | | |
+| day_of_week_means | JSONB | optional dow adjustment | |
+| updated_at | TIMESTAMPTZ | DEFAULT now() | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+**Unique:** `(user_id, metric_name)`
+
+### behavioral_events
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK | idx_be_user_time |
+| journal_id | UUID | FK nullable | |
+| event_type | ENUM | emotional_decline, unusual_positivity, emotional_volatility, disengagement, multivariate_anomaly | |
+| severity | DECIMAL(3,2) | 0-1 | |
+| z_scores | JSONB | | |
+| iso_score | DECIMAL(6,4) | | |
+| consecutive_days | INTEGER | | |
+| resolved_at | TIMESTAMPTZ | | |
+| detected_at | TIMESTAMPTZ | NOT NULL | idx_be_user_time |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### insights
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK | idx_insights_user_created |
+| insight_type | VARCHAR(50) | | |
+| template_id | VARCHAR(50) | | |
+| text | TEXT | NOT NULL | |
+| confidence | DECIMAL(4,3) | | |
+| evidence | JSONB | NOT NULL | |
+| source_journal_ids | UUID[] | | |
+| behavioral_event_id | UUID | FK nullable | |
+| period_start | DATE | | |
+| period_end | DATE | | |
+| is_read | BOOLEAN | DEFAULT false | |
+| is_dismissed | BOOLEAN | DEFAULT false | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | idx_insights_user_created |
+
+### insight_feedback
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| insight_id | UUID | FK → insights(id) | |
+| user_id | UUID | FK | |
+| rating | ENUM | helpful, not_helpful, inaccurate | |
+| comment | TEXT | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### notifications
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK | idx_notif_user_created |
+| type | ENUM | reminder, analysis_complete, insight, weekly_summary, system | |
+| channel | ENUM | push, email, in_app, sms | |
+| title | VARCHAR(200) | | |
+| body | TEXT | | |
+| deep_link | VARCHAR(500) | | |
+| is_read | BOOLEAN | DEFAULT false | |
+| sent_at | TIMESTAMPTZ | | |
+| read_at | TIMESTAMPTZ | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | idx_notif_user_created |
+
+### consent_records
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| user_id | UUID | FK | idx_consent_user |
+| consent_type | ENUM | face_analysis, voice_analysis, text_analysis, model_training, third_party_fallback, analytics | |
+| granted | BOOLEAN | NOT NULL | |
+| version | VARCHAR(20) | NOT NULL | |
+| ip_address | INET | | |
+| user_agent | TEXT | | |
+| created_at | TIMESTAMPTZ | DEFAULT now() | |
+
+### audit_logs
+
+| Column | Type | Constraints | Index |
+|--------|------|-------------|-------|
+| id | UUID | PK | PK |
+| actor_id | UUID | | idx_audit_time |
+| actor_type | ENUM | user, admin, system | |
+| action | VARCHAR(100) | NOT NULL | idx_audit_action |
+| resource_type | VARCHAR(50) | | |
+| resource_id | UUID | | |
+| metadata | JSONB | | |
+| ip_address | INET | | |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | idx_audit_time |
+
+**Partition:** Range partition by `created_at` monthly; archive >1 year to S3/OpenSearch
+
+---
+
+# SECTION 10: API DESIGN
+
+**Base URL:** `https://api.solenne.com/v1`  
+**Auth:** Bearer JWT (RS256, 15min access + 7d refresh)  
+**Rate Limits:** 100 req/min (free), 500 req/min (premium)
+
+## 10.1 Authentication
+
+### POST /auth/register
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!",
+  "display_name": "Maya Chen",
+  "timezone": "America/New_York",
+  "consent": {
+    "terms_version": "1.0",
+    "privacy_version": "1.0",
+    "face_analysis": true,
+    "voice_analysis": true,
+    "text_analysis": true
+  }
+}
+```
+
+**Validation:** email RFC5322, password min 12 chars + complexity, timezone IANA valid
+
+**Response 201:**
+```json
+{
+  "user_id": "uuid",
+  "access_token": "jwt",
+  "refresh_token": "jwt",
+  "expires_in": 900
+}
+```
+
+**Errors:** 400 (validation), 409 (email exists), 429 (rate limit)
+
+### POST /auth/login
+
+**Request:** `{ "email": "...", "password": "..." }`  
+**Response 200:** Same as register  
+**Errors:** 401 (invalid credentials), 403 (MFA required → `{ "mfa_required": true, "session_token": "..." }`)
+
+### POST /auth/refresh
+
+**Request:** `{ "refresh_token": "..." }`  
+**Response 200:** New access_token  
+**Errors:** 401 (expired/revoked)
+
+### POST /auth/oauth/{provider}
+
+**Providers:** google, apple  
+**Request:** `{ "id_token": "..." }`  
+**Response 200/201:** tokens + user
+
+### POST /auth/mfa/verify
+
+**Request:** `{ "session_token": "...", "code": "123456" }`  
+**Response 200:** full tokens
+
+## 10.2 Journals
+
+### POST /journals
+
+**Request:**
+```json
+{
+  "recorded_at": "2026-06-13T08:30:00Z",
+  "recording_mode": "video",
+  "prompt_id": "uuid|null",
+  "tags": ["work", "stress"]
+}
+```
+
+**Response 201:**
+```json
+{
+  "journal_id": "uuid",
+  "upload": {
+    "upload_id": "uuid",
+    "presigned_url": "https://s3...",
+    "expires_at": "ISO8601",
+    "max_size_bytes": 524288000
+  }
+}
+```
+
+### POST /videos/upload/complete
+
+**Request:** `{ "journal_id": "uuid", "upload_id": "uuid", "checksum_sha256": "..." }`  
+**Response 202:** `{ "status": "processing", "estimated_completion_seconds": 180 }`  
+**Errors:** 400 (invalid checksum), 404, 422 (validation failed)
+
+### GET /journals
+
+**Query:** `?page=1&limit=20&from=2026-06-01&to=2026-06-13&tag=work`  
+**Response 200:**
+```json
+{
+  "data": [{
+    "id": "uuid",
+    "recorded_at": "ISO8601",
+    "duration_seconds": 180,
+    "status": "complete",
+    "tags": ["work"],
+    "thumbnail_url": "https://...",
+    "summary": { "valence": 0.2, "energy": 0.65 }
+  }],
+  "pagination": { "page": 1, "limit": 20, "total": 142 }
+}
+```
+
+### GET /journals/{id}
+
+**Response 200:** Full journal with video URLs, analysis summary, transcript preview
+
+### DELETE /journals/{id}
+
+**Response 204:** Soft delete + async S3 purge job queued
+
+## 10.3 Analysis
+
+### GET /analysis/{journal_id}
+
+**Response 200:**
+```json
+{
+  "journal_id": "uuid",
+  "status": "complete",
+  "modalities": {
+    "face": { "status": "complete", "confidence": 0.87 },
+    "voice": { "status": "complete", "confidence": 0.91 },
+    "text": { "status": "complete", "confidence": 0.95 }
+  },
+  "fused": {
+    "overall_valence": 0.15,
+    "overall_arousal": 0.42,
+    "emotional_congruence": 0.78,
+    "engagement": 0.71,
+    "volatility": 0.35
+  },
+  "facial": { "valence": 0.1, "dominant_emotion": "neutral", "timeline_url": "..." },
+  "voice": { "energy_mean": 0.58, "speaking_rate": 142, "timeline_url": "..." },
+  "nlp": { "sentiment_valence": 0.22, "topics": [{"topic": "work stress", "weight": 0.4}] }
+}
+```
+
+**Errors:** 404, 425 (still processing → `{ "status": "processing", "progress_pct": 65 }`)
+
+### GET /analysis/{journal_id}/timeline
+
+**Response 200:** Per-second emotion/energy timeline for video overlay
+
+## 10.4 Timeline & Trends
+
+### GET /timeline/trends
+
+**Query:** `?metric=overall_valence&period=30d&granularity=day`  
+**Response 200:**
+```json
+{
+  "metric": "overall_valence",
+  "period": { "start": "2026-05-14", "end": "2026-06-13" },
+  "baseline": { "mean": 0.25, "std": 0.12, "confidence": 0.85 },
+  "data_points": [
+    { "date": "2026-06-13", "value": 0.15, "z_score": -0.83, "journal_id": "uuid" }
+  ]
+}
+```
+
+### GET /timeline/calendar
+
+**Query:** `?year=2026&month=6`  
+**Response 200:** Heatmap data `{ "2026-06-13": { "valence": 0.15, "has_entry": true } }`
+
+## 10.5 Insights
+
+### GET /insights
+
+**Query:** `?unread=true&limit=10`  
+**Response 200:** List of insight objects with evidence
+
+### POST /insights/{id}/feedback
+
+**Request:** `{ "rating": "helpful", "comment": "optional" }`  
+**Response 201**
+
+### GET /insights/weekly-summary
+
+**Response 200:** Aggregated weekly insight card
+
+## 10.6 Notifications
+
+### GET /notifications
+
+**Query:** `?unread=true&page=1`  
+**Response 200:** Paginated notifications
+
+### PATCH /notifications/preferences
+
+**Request:**
+```json
+{
+  "channels": { "push": true, "email": false, "sms": false },
+  "quiet_hours": { "start": "22:00", "end": "07:00" },
+  "types": { "reminder": true, "insight": true, "weekly_summary": true }
+}
+```
+
+## 10.7 Settings & Privacy
+
+### GET /users/me/export
+
+**Response 202:** `{ "export_id": "uuid", "status": "processing" }`  
+Triggers async GDPR export job
+
+### GET /users/me/export/{export_id}
+
+**Response 200:** `{ "status": "complete", "download_url": "...", "expires_at": "..." }`
+
+### DELETE /users/me/data
+
+**Request:** `{ "confirmation": "DELETE MY DATA", "password": "..." }`  
+**Response 202:** Async deletion job (30-day grace period configurable)
+
+### GET/PATCH /users/me/consent
+
+**PATCH Request:** `{ "face_analysis": false }` → stops future face processing, queues re-consent flow
+
+## 10.8 Admin (Internal)
+
+### GET /admin/users
+
+**Query:** `?email=...&page=1`  
+**Auth:** Admin JWT + IP allowlist  
+**Response 200:** User list (no sensitive content)
+
+### GET /admin/audit-logs
+
+**Query:** `?user_id=...&action=...&from=...`  
+**Response 200:** Audit log entries
+
+---
+
+# SECTION 11: CLIENT ARCHITECTURE
+
+> **College build (current):** **Flutter + Firebase** — see §11.0 and `SOLENNE-Zero-Budget-Build-Plan.md`.  
+> **Production scale (future):** Next.js web + Flutter mobile against AWS APIs — §11.5–11.8.
+
+## 11.0 Flutter Mobile Architecture (College + Primary Client)
+
+### 11.0.1 Tech Stack
+
+- **Framework:** Flutter 3.x (iOS + Android)
+- **Language:** Dart 3.x
+- **Backend:** Firebase (Auth, Firestore, Storage, FCM, Analytics, Crashlytics)
+- **State:** Riverpod 2.x
+- **Navigation:** go_router
+- **Video:** `camera` plugin (record), `video_player` (playback)
+- **Charts:** fl_chart
+- **Auth:** firebase_auth + google_sign_in
+- **Testing:** flutter_test, integration_test, Firebase Emulator Suite
+
+### 11.0.2 Folder Structure
+
+```
+solenne/mobile/
+├── lib/
+│   ├── main.dart
+│   ├── app.dart
+│   ├── core/
+│   │   ├── theme/app_theme.dart
+│   │   ├── router/app_router.dart
+│   │   └── constants/
+│   ├── features/
+│   │   ├── auth/
+│   │   ├── onboarding/
+│   │   ├── journal/
+│   │   ├── analysis/
+│   │   ├── dashboard/
+│   │   ├── timeline/
+│   │   ├── insights/
+│   │   └── settings/
+│   ├── models/
+│   └── services/
+│       ├── firestore_service.dart
+│       ├── storage_service.dart
+│       └── fcm_service.dart
+├── pubspec.yaml
+├── android/
+├── ios/
+└── firebase_options.dart
+```
+
+### 11.0.3 State Management
+
+| State Type | Tool | Example |
+|------------|------|---------|
+| Auth session | `FirebaseAuth.authStateChanges()` | Login/logout |
+| Server data | Firestore `snapshots()` + Riverpod | journals, insights |
+| Recording UI | Riverpod `StateNotifier` | isRecording, duration |
+| Upload progress | `UploadTask.snapshotEvents` | Progress bar |
+| Local prefs | shared_preferences | theme, onboarding done |
+
+### 11.0.4 Routing (go_router)
+
+| Route | Screen | Auth |
+|-------|--------|------|
+| `/login`, `/register` | Auth | Public |
+| `/onboarding/*` | Consent, tutorial | Protected, first-run |
+| `/` | Dashboard | Protected |
+| `/journal/record` | Camera record | Protected |
+| `/journal/:id` | Journal detail + analysis | Protected |
+| `/timeline` | Trends | Protected |
+| `/insights` | Insight center | Protected |
+| `/settings`, `/settings/privacy` | Settings | Protected |
+
+### 11.0.5 Error Handling
+
+- **Global:** `FlutterError.onError` → Crashlytics
+- **Firestore:** Stream error widgets + retry
+- **Upload:** Resumable upload (`putFile` with retry); queue offline recordings locally
+- **Analysis timeout:** Show "Still analyzing…" with `analysisStatus` from Firestore
+
+---
+
+## 11.5 Production Web Architecture (Future — AWS Backend)
+
+## 11.5.1 Tech Stack
+
+- **Framework:** Next.js 15 (App Router)
+- **Language:** TypeScript 5.x strict mode
+- **Styling:** Tailwind CSS 4 + shadcn/ui
+- **State:** TanStack Query v5 (server state) + Zustand (client UI state)
+- **Forms:** React Hook Form + Zod validation
+- **Video:** MediaRecorder API (web), expo-av (mobile)
+- **Charts:** Recharts + custom D3 for timeline overlay
+- **Auth:** NextAuth.js v5 with JWT strategy
+- **Testing:** Vitest + Playwright + MSW
+
+## 11.5.2 Folder Structure
+
+```
+solenne-web/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/page.tsx
+│   │   ├── register/page.tsx
+│   │   └── mfa/page.tsx
+│   ├── (onboarding)/
+│   │   ├── consent/page.tsx
+│   │   ├── tutorial/page.tsx
+│   │   └── first-journal/page.tsx
+│   ├── (dashboard)/
+│   │   ├── layout.tsx              # Shell with nav
+│   │   ├── page.tsx                # Dashboard home
+│   │   ├── journal/
+│   │   │   ├── record/page.tsx
+│   │   │   └── [id]/page.tsx       # Review
+│   │   ├── timeline/page.tsx
+│   │   ├── insights/page.tsx
+│   │   └── settings/
+│   │       ├── page.tsx
+│   │       ├── privacy/page.tsx
+│   │       └── notifications/page.tsx
+│   ├── api/                        # BFF routes (optional proxy)
+│   ├── layout.tsx
+│   └── providers.tsx
+├── components/
+│   ├── ui/                         # shadcn primitives
+│   ├── journal/
+│   │   ├── VideoRecorder.tsx
+│   │   ├── UploadProgress.tsx
+│   │   └── EmotionTimeline.tsx
+│   ├── insights/
+│   │   ├── InsightCard.tsx
+│   │   └── EvidenceDrawer.tsx
+│   ├── trends/
+│   │   ├── TrendChart.tsx
+│   │   └── CalendarHeatmap.tsx
+│   └── layout/
+│       ├── AppShell.tsx
+│       └── MobileNav.tsx
+├── lib/
+│   ├── api/                        # Typed API client
+│   │   ├── client.ts
+│   │   ├── journals.ts
+│   │   ├── analysis.ts
+│   │   └── insights.ts
+│   ├── hooks/
+│   ├── stores/                     # Zustand
+│   ├── utils/
+│   └── validations/                # Zod schemas
+├── types/
+└── public/
+```
+
+## 11.5.3 State Management
+
+| State Type | Tool | Example |
+|------------|------|---------|
+| Server data | TanStack Query | journals, insights, trends |
+| Auth session | NextAuth | user, tokens |
+| Recording UI | Zustand | isRecording, duration, preview stream |
+| Optimistic updates | TanStack Query mutations | delete journal, mark insight read |
+| URL state | nuqs | timeline date range, filters |
+
+**Cache strategy:**
+- Journals list: staleTime 5min, invalidate on new upload
+- Analysis: poll every 5s while processing, then staleTime Infinity
+- Trends: staleTime 15min
+- Insights: staleTime 2min
+
+## 11.5.4 Routing
+
+| Route | Auth | Description |
+|-------|------|-------------|
+| `/login`, `/register` | Public | Auth flows |
+| `/onboarding/*` | Protected | First-run only (middleware redirect) |
+| `/` | Protected | Dashboard |
+| `/journal/record` | Protected | Recording |
+| `/journal/[id]` | Protected | Entry review |
+| `/timeline` | Protected | Trends |
+| `/insights` | Protected | Insight center |
+| `/settings/*` | Protected | Settings |
+
+**Middleware:** Check JWT, redirect unauthenticated, enforce onboarding completion, enforce consent version
+
+## 11.5.5 Error Handling
+
+- **Global error boundary:** `app/error.tsx` with retry
+- **API errors:** Typed `ApiError` with status, code, message
+- **Toast notifications:** Sonner for user-facing errors
+- **Offline:** Service worker caches shell; queue failed uploads in IndexedDB
+- **Sentry:** Client + server error tracking with PII scrubbing
+
+---
+
+# SECTION 12: UI/UX DESIGN
+
+> **College build:** Implement all screens as **Flutter widgets** (Material 3). Wireframes below apply to mobile layout (single column, bottom nav). See `SOLENNE-Zero-Budget-Build-Plan.md` for Firebase-backed interactions.
+
+## 12.1 Design System
+
+- **Primary:** `#4F46E5` (Indigo — trust, calm)
+- **Secondary:** `#10B981` (Emerald — positive trends)
+- **Warning:** `#F59E0B` (Amber — gentle alerts)
+- **Background:** `#FAFAFA` light / `#0F172A` dark
+- **Font:** Inter (UI), Source Serif 4 (insight quotes)
+- **Radius:** 12px cards, 8px buttons
+- **Motion:** 200ms ease, respect `prefers-reduced-motion`
+
+## 12.2 Screen Wireframes
+
+### Onboarding
+
+```
+┌─────────────────────────────────────┐
+│  ○ ○ ● ○ ○     Step 3 of 5         │
+│                                     │
+│  What should we analyze?            │
+│                                     │
+│  ┌─────────────────────────────┐   │
+│  │ ☑ Facial expressions        │   │
+│  │   Detect emotion from face  │   │
+│  ├─────────────────────────────┤   │
+│  │ ☑ Voice tone & energy       │   │
+│  │   Analyze how you sound     │   │
+│  ├─────────────────────────────┤   │
+│  │ ☑ Speech & language         │   │
+│  │   Transcribe and analyze    │   │
+│  └─────────────────────────────┘   │
+│                                     │
+│  ⓘ You can change this anytime      │
+│                                     │
+│  [ Back ]            [ Continue → ] │
+└─────────────────────────────────────┘
+```
+
+**Mobile (Flutter):** Bottom navigation (Dashboard, Journal, Timeline, Insights, Settings). Full-screen camera for record. Swipe gestures on journal list.
+
+**Desktop (future web):** Centered 480px cards on onboarding; wider dashboard grid.
+
+### Dashboard
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ SOLENNE          🔥 12 day streak    [Record Journal ●] │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Good morning, Maya                    Baseline: 85% ●●●○ │
+│                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
+│  │ Today's Mood│  │ Voice Energy│  │ Engagement  │     │
+│  │   🙂 +0.15  │  │   ↓ -8%     │  │   → stable  │     │
+│  └─────────────┘  └─────────────┘  └─────────────┘     │
+│                                                          │
+│  Latest Insight ─────────────────────────────────────    │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ "Your voice energy has decreased by 18% over     │   │
+│  │  the last 9 days."                    [See why?]│   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  7-Day Trend  ╭──╮                                       │
+│               │  ╰──╮    ╭─╮                             │
+│               ╰─────╯────╯ ╰──                           │
+│                                                          │
+│  Recent Journals                                         │
+│  [ Thu 6/13 ] [ Wed 6/12 ] [ Tue 6/11 ]                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Journal Recording
+
+```
+┌─────────────────────────────────────┐
+│  ✕                          02:34   │
+│                                     │
+│         ┌───────────────┐          │
+│         │               │          │
+│         │   [Camera     │          │
+│         │    Preview]   │          │
+│         │               │          │
+│         └───────────────┘          │
+│                                     │
+│  💡 "What challenged you today?"    │
+│                                     │
+│         ( ● ) Record                │
+│                                     │
+│  ───────────●────────── 3:00 max    │
+└─────────────────────────────────────┘
+```
+
+**Interactions:** Tap record → 3-2-1 countdown → record → tap stop → preview → submit/re-record  
+**Mobile:** Full-screen camera, haptic on start/stop  
+**Desktop:** Webcam selector, keyboard shortcut (Space = toggle)
+
+### Video Review
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ← Back          June 13, 2026              ⋮ More       │
+├──────────────────────────────────────────────────────────┤
+│  ┌────────────────────────┐  ┌─────────────────────┐   │
+│  │                        │  │ Emotion Timeline     │   │
+│  │    [Video Player]      │  │ ──╮  ╭──╮           │   │
+│  │    with overlay bars   │  │   ╰──╯  ╰─          │   │
+│  │                        │  │ Voice Energy         │   │
+│  │  ▶ ━━━━━●━━━━━ 2:34   │  │ ════════            │   │
+│  └────────────────────────┘  │ Topics: work (40%)  │   │
+│                               └─────────────────────┘   │
+│  Transcript ▼                                           │
+│  "Today was pretty stressful at work because..."        │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Timeline
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Timeline          [7D] [30D] [90D] [1Y]    metric ▼     │
+├──────────────────────────────────────────────────────────┤
+│  Valence                                                 │
+│  1.0 ┤                    ╭──╮                           │
+│  0.0 ┤───────╮──────╮──────╯  ╰──── baseline band        │
+│ -1.0 ┤       ╰──────╯                                    │
+│      └────────────────────────────────────────           │
+│       Jun 1                              Jun 13        │
+│                                                          │
+│  Calendar Heatmap                                        │
+│  Mo ░░▓▓░░▓▓▓░░▓▓▓▓▓▓▓▓▓▓                               │
+│  Tu ░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                               │
+│  ...                                                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Insight Center
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Insights                    [Weekly Summary]             │
+├──────────────────────────────────────────────────────────┤
+│  Today                                                   │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │ 🔵 Voice Energy Decline          Confidence 82%│     │
+│  │ Your voice energy decreased 18% over 9 days.   │     │
+│  │ [See evidence]  [Helpful 👍] [Not helpful 👎]  │     │
+│  └──────────────────────────────────────────────────┘     │
+│  This Week                                               │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │ 🟢 Reflective Week              Confidence 75% │     │
+│  │ You seem more reflective than usual.            │     │
+│  └──────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Settings & Privacy
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Settings                                                 │
+├──────────────────────────────────────────────────────────┤
+│  Account          Profile, email, password, MFA          │
+│  Recording        Quality, audio-only default            │
+│  Notifications    Reminders, quiet hours                 │
+│  Privacy ▶        Consent, data export, deletion         │
+│  Subscription     Plan, billing                          │
+│  About            Terms, privacy policy, disclaimers     │
+├──────────────────────────────────────────────────────────┤
+│  Privacy Dashboard                                       │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │ Face analysis: ON (since Jun 1)     [Toggle]    │     │
+│  │ Voice analysis: ON                  [Toggle]    │     │
+│  │ Model training: OFF                 [Toggle]    │     │
+│  │ Videos stored: 45 entries (2.3 GB)              │     │
+│  │ [Export all data]  [Delete all data]            │     │
+│  └──────────────────────────────────────────────────┘     │
+│  ⚠ SOLENNE is not a medical device.                   │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+# SECTION 13: SECURITY ARCHITECTURE
+
+## 13.1 Authentication
+
+| Layer | Implementation |
+|-------|----------------|
+| **JWT Access** | RS256, 15min expiry, claims: sub, email, tier, consent_version |
+| **Refresh Token** | Opaque, 7d, rotated on use, stored hashed in PostgreSQL |
+| **OAuth 2.0** | Google + Apple via OIDC; PKCE for mobile |
+| **MFA** | TOTP (RFC 6238) required for premium; optional for free |
+| **Session mgmt** | Max 5 concurrent sessions; revoke all on password change |
+
+## 13.2 Encryption
+
+| Layer | Method |
+|-------|--------|
+| **In transit** | TLS 1.3 everywhere; HSTS preload; certificate pinning (mobile) |
+| **At rest — S3** | SSE-KMS with per-environment CMK; bucket policies deny non-KMS |
+| **At rest — RDS** | AES-256 encryption; encrypted snapshots |
+| **At rest — Redis** | Encryption in transit + at rest (ElastiCache) |
+| **Application-level** | Journal transcripts optionally E2E encrypted (Phase 2 enterprise feature) |
+
+## 13.3 Secrets Management
+
+- **AWS Secrets Manager** for DB credentials, API keys, JWT signing keys
+- **Automatic rotation:** DB passwords every 30 days; JWT keys every 90 days with overlap
+- **No secrets in code/env files** — injected via External Secrets Operator in EKS
+- **HashiCorp Vault** considered for Phase 3 multi-cloud
+
+## 13.4 RBAC
+
+| Role | Permissions |
+|------|-------------|
+| **user** | Own data CRUD, export, delete |
+| **support** | Read user metadata, no video access without audit trail |
+| **admin** | Feature flags, model version deploy, user account actions |
+| **ml_engineer** | Model registry, feature store; no production user PII |
+| **super_admin** | All admin + break-glass access (dual approval) |
+
+## 13.5 Audit Logging
+
+All access to user content logged: `{ actor, action, resource, timestamp, ip, result }`  
+Immutable storage in OpenSearch + S3 archive  
+Retention: 7 years (compliance)
+
+## 13.6 Threat Model (STRIDE)
+
+| Threat | Mitigation |
+|--------|------------|
+| **Data breach (S3)** | KMS encryption, bucket policies, no public access, GuardDuty |
+| **Data breach (DB)** | VPC isolation, no direct internet, IAM least privilege, encryption |
+| **Model extraction** | Rate limiting, API auth, model served internal only, watermarking outputs |
+| **Prompt injection (LLM insights)** | Structured templates, input sanitization, output validation, no user text in system prompt |
+| **Insider threat** | RBAC, audit logs, break-glass dual approval, no bulk export without ticket |
+| **Account takeover** | MFA, anomaly login detection, refresh token rotation |
+| **DDoS** | AWS WAF, CloudFront, rate limiting, Shield Standard |
+| **Supply chain** | Dependabot, Snyk, signed container images, ECR scanning |
+
+---
+
+# SECTION 14: PRIVACY & COMPLIANCE
+
+## 14.1 Consent System
+
+- Granular per-modality consent at onboarding + changeable anytime
+- Version-tracked consent records with IP/timestamp
+- Consent change → immediate pipeline effect (skip opted-out modalities)
+- Re-consent flow when Privacy Policy version changes
+
+## 14.2 Data Ownership & Rights
+
+| Right | Implementation |
+|-------|----------------|
+| **Access** | Privacy dashboard shows all stored data categories |
+| **Portability** | JSON + MP4 export within 48 hours |
+| **Erasure** | 30-day soft delete → hard delete all S3, DB, backups purged |
+| **Rectification** | Transcript correction, profile updates |
+| **Restriction** | Pause analysis while retaining account |
+
+## 14.3 Compliance Matrix
+
+| Framework | Applicability | Status | Key Actions |
+|-----------|---------------|--------|-------------|
+| **GDPR** | EU users | Required | DPO appointed, DPIA completed, EU region deployment, SCCs |
+| **HIPAA** | NOT a covered entity | N/A | No BAA unless enterprise wellness program; avoid clinical claims |
+| **SOC 2 Type II** | Enterprise sales | Year 1 target | Vanta/Drata automation, access controls, change management |
+| **ISO 27001** | Enterprise | Year 2 target | ISMS documentation, risk assessment |
+| **FDA SaMD** | Avoid | N/A | No diagnostic claims; wellness positioning; legal review all copy |
+| **CCPA/CPRA** | California users | Required | Do not sell; honor deletion; privacy notice |
+
+## 14.4 Medical Boundary Language
+
+**Always state:**
+- "SOLENNE provides wellness insights for self-awareness purposes only."
+- "SOLENNE is not a medical device and does not diagnose, treat, or prevent any condition."
+- "If you're in crisis, contact [988 Suicide & Crisis Lifeline] or emergency services."
+
+**Never state:**
+- "Detect depression/anxiety/disorders"
+- "Clinical grade" without substantiation
+- Replace therapy/medical advice
+
+---
+
+# SECTION 15: OBSERVABILITY
+
+## 15.1 Stack
+
+| Component | Tool | Purpose |
+|-----------|------|---------|
+| **Instrumentation** | OpenTelemetry SDK | Unified traces, metrics, logs |
+| **Metrics** | Prometheus + Grafana | Infrastructure + app metrics |
+| **APM** | Datadog | Distributed tracing, log aggregation, RUM |
+| **Alerting** | Alertmanager → PagerDuty | On-call escalation |
+| **Error tracking** | Sentry | Frontend + backend exceptions |
+| **Uptime** | Datadog Synthetics | API endpoint monitoring |
+
+## 15.2 Key Dashboards
+
+**Platform Health:**
+- API latency p50/p95/p99 by endpoint
+- Error rate by service
+- EKS pod CPU/memory/GPU utilization
+- Kafka consumer lag
+- Analysis pipeline throughput (videos/hour)
+
+**AI/ML:**
+- Inference latency by model
+- Model confidence distribution
+- GPU queue depth
+- Analysis failure rate by modality
+
+**Business:**
+- Daily journals recorded
+- Analysis SLA compliance
+- Insight generation rate
+- Baseline completion funnel
+
+## 15.3 Alert Rules
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| API down | Synthetics fail 3x | P1 |
+| Analysis SLA breach | >5% entries >10min | P2 |
+| GPU pool exhausted | Queue depth >1000 for 15min | P2 |
+| Error rate spike | >1% 5xx for 5min | P2 |
+| DB connection exhaustion | >90% pool | P1 |
+| Disk usage | >85% | P2 |
+
+---
+
+# SECTION 16: MLOPS
+
+## 16.1 Architecture
+
+```
+Training Data (opt-in) → Feature Store (Feast)
+                              ↓
+                    Experiment Tracking (W&B)
+                              ↓
+                    Model Training (SageMaker/K8s)
+                              ↓
+                    Model Registry (MLflow)
+                              ↓
+                    Model Validation Gate
+                              ↓
+                    Deploy to Triton (EKS GPU)
+                              ↓
+                    A/B Shadow Traffic → Promote
+```
+
+## 16.2 Components
+
+| Component | Tool | Purpose |
+|-----------|------|---------|
+| **Experiment tracking** | Weights & Biases | Hyperparameter sweeps, metric comparison |
+| **Model registry** | MLflow | Version, stage (staging/production), rollback |
+| **Feature store** | Feast | Online (Redis) + offline (S3 Parquet) features |
+| **Training** | SageMaker (managed) + custom K8s jobs | GPU training at scale |
+| **Serving** | NVIDIA Triton | Multi-model GPU inference |
+| **Monitoring** | Evidently AI | Data drift, model drift detection |
+
+## 16.3 Deployment Workflow
+
+1. Train model → log to W&B + MLflow
+2. Offline eval gate: accuracy, fairness metrics, latency benchmark
+3. Register in MLflow as `Staging`
+4. Deploy to shadow endpoint (10% traffic, no user impact)
+5. Compare shadow vs production metrics for 48 hours
+6. Promote to `Production` via MLflow stage transition
+7. Blue-green Triton model swap (< 30 sec downtime)
+8. Rollback: MLflow revert stage + Triton previous version
+
+## 16.4 Model Upgrade Strategy
+
+- Semantic versioning: `face-emotion-v2.3.1`
+- Analysis results store `model_version` for reproducibility
+- Re-processing queue for major model upgrades (user opt-in)
+- Backward compatible feature vector schema with version field
+
+---
+
+# SECTION 17: DEVOPS & CI/CD
+
+## 17.1 GitHub Actions Pipeline
+
+```yaml
+# .github/workflows/deploy.yml (simplified)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run lint && npm run typecheck
+      - run: npm run test:unit -- --coverage
+      - run: npm run test:integration
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - run: snyk test
+      - run: trivy fs .
+      - run: gitleaks detect
+
+  build:
+    needs: [lint-test, security]
+    steps:
+      - run: docker build -t solenne/${{ matrix.service }}:${{ github.sha }} .
+      - run: docker push to ECR
+
+  deploy-staging:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: helm upgrade --install solenne ./charts -f values-staging.yaml
+      - run: npm run test:e2e -- --env staging
+
+  deploy-production:
+    needs: deploy-staging
+    environment: production  # requires approval
+    steps:
+      - run: helm upgrade --install solenne ./charts -f values-prod.yaml --set image.tag=${{ github.sha }}
+```
+
+## 17.2 Deployment Strategies
+
+| Strategy | Use Case |
+|----------|----------|
+| **Rolling update** | Default for stateless API services |
+| **Blue-green** | Database migrations, breaking API changes |
+| **Canary (10→50→100%)** | AI model updates, insight algorithm changes |
+| **Feature flags** | LaunchDarkly for gradual feature rollout |
+
+## 17.3 Rollback
+
+- **App rollback:** `helm rollback solenne` (< 2 min)
+- **Model rollback:** MLflow stage revert + Triton version swap
+- **Database rollback:** Forward-only migrations; reverse scripts prepared but rarely used
+- **RTO target:** 15 minutes | **RPO target:** 1 hour
+
+## 17.4 Infrastructure as Code
+
+```
+terraform/
+├── environments/
+│   ├── staging/
+│   └── production/
+├── modules/
+│   ├── vpc/
+│   ├── eks/
+│   ├── rds/
+│   ├── s3/
+│   ├── kms/
+│   ├── msk/
+│   └── cloudfront/
+└── global/
+    ├── route53/
+    └── iam/
+```
+
+**Terraform Cloud** for state management; PR plans required; apply on merge to main
+
+---
+
+# SECTION 18: SCALABILITY PLANNING
+
+| Scale | Users | Daily Videos | Storage/mo | API Pods | GPU Nodes | RDS | Monthly Cost Est. |
+|-------|-------|-------------|------------|----------|-----------|-----|-------------------|
+| **Seed** | 100 | 50 | 15 GB | 2 | 1 g5.xlarge | db.t4g.medium | $800 |
+| **Early** | 1,000 | 500 | 150 GB | 4 | 2 g5.xlarge | db.r6g.large | $3,500 |
+| **Growth** | 10,000 | 5,000 | 1.5 TB | 10 | 5 g5.xlarge | db.r6g.xlarge + 1 replica | $18,000 |
+| **Scale** | 100,000 | 50,000 | 15 TB | 30 | 20 g5.xlarge | db.r6g.2xlarge + 2 replicas | $120,000 |
+| **Target** | 1,000,000 | 500,000 | 150 TB | 80 | 80 g5.xlarge | db.r6g.4xlarge + 3 replicas | $850,000 |
+
+**Assumptions:** 3 min avg video, 50% DAU journal rate, 720p H.264 ~50MB raw + 30MB processed
+
+**AI Cost Breakdown at 1M users:**
+- GPU inference: ~$450K/mo (80 g5.xlarge reserved)
+- Whisper self-hosted: included in GPU
+- LLM insights: ~$25K/mo (GPT-4o-mini, ~500 tokens/insight, 1 insight/user/day)
+- MediaConvert: ~$35K/mo
+
+**Bandwidth:** CloudFront ~$40K/mo at 1M users (playback + upload via S3 direct)
+
+---
+
+# SECTION 19: COST ANALYSIS (Monthly)
+
+### 100 Users — $800
+
+| Service | Cost |
+|---------|------|
+| EKS control plane | $73 |
+| EC2 (2 m6i.large + 1 g5.xlarge) | $450 |
+| RDS (db.t4g.medium) | $65 |
+| S3 (15 GB) | $1 |
+| CloudFront | $10 |
+| ElastiCache (cache.t4g.micro) | $25 |
+| Datadog (startup tier) | $100 |
+| Misc (Route53, Secrets, KMS) | $76 |
+
+### 1,000 Users — $3,500
+
+| Service | Cost |
+|---------|------|
+| EKS + EC2 (4 API + 2 GPU) | $1,800 |
+| RDS (db.r6g.large) | $280 |
+| S3 (150 GB) | $8 |
+| MediaConvert | $200 |
+| CloudFront | $80 |
+| ElastiCache | $100 |
+| MSK (dev tier) | $300 |
+| Datadog | $400 |
+| LLM API | $50 |
+| Misc | $282 |
+
+### 10,000 Users — $18,000
+
+| Service | Cost |
+|---------|------|
+| EKS + EC2 (10 API + 5 GPU) | $8,500 |
+| RDS + replica | $1,200 |
+| S3 (1.5 TB) | $40 |
+| MediaConvert | $1,500 |
+| CloudFront | $600 |
+| ElastiCache | $400 |
+| MSK | $800 |
+| OpenSearch | $500 |
+| Datadog | $1,500 |
+| LLM API | $500 |
+| Snowflake | $800 |
+| Misc | $1,660 |
+
+### 100,000 Users — $120,000
+
+| Service | Cost |
+|---------|------|
+| EKS + EC2 (30 API + 20 GPU) | $55,000 |
+| RDS cluster | $8,000 |
+| S3 (15 TB) + Glacier | $400 |
+| MediaConvert | $12,000 |
+| CloudFront | $6,000 |
+| ElastiCache cluster | $2,500 |
+| MSK (3 AZ) | $4,000 |
+| OpenSearch | $3,000 |
+| Datadog | $8,000 |
+| LLM API | $5,000 |
+| Snowflake | $5,000 |
+| Reserved instance savings | -$15,000 |
+| Misc | $26,100 |
+
+### 1,000,000 Users — $850,000
+
+| Service | Cost |
+|---------|------|
+| EKS + EC2 (80 API + 80 GPU reserved) | $380,000 |
+| RDS cluster (primary + 3 replicas) | $45,000 |
+| S3 (150 TB) + lifecycle | $4,000 |
+| MediaConvert | $35,000 |
+| CloudFront | $40,000 |
+| ElastiCache (6 shards) | $12,000 |
+| MSK (large) | $15,000 |
+| OpenSearch | $12,000 |
+| Datadog Enterprise | $35,000 |
+| LLM API | $25,000 |
+| Snowflake | $25,000 |
+| TimescaleDB | $8,000 |
+| WAF + Shield Advanced | $5,000 |
+| Reserved/Savings Plans | -$80,000 |
+| Misc | $333,000 |
+
+---
+
+# SECTION 20: IMPLEMENTATION ROADMAP (12 Months)
+
+### Month 1: Foundation
+- **Deliverables:** Monorepo, CI/CD, Terraform staging, Auth service, User service
+- **Tasks:** EKS cluster, RDS, S3 buckets, GitHub Actions, JWT auth, OAuth
+- **Dependencies:** AWS account, domain, legal review of ToS
+- **Outcome:** Users can register, login, manage profile
+
+### Month 2: Core Journaling
+- **Deliverables:** Video upload pipeline, Journal service, basic web UI
+- **Tasks:** Presigned upload, MediaConvert, recording UI, journal CRUD
+- **Dependencies:** Month 1 auth
+- **Outcome:** Users can record and upload video journals
+
+### Month 3: AI Pipeline MVP
+- **Deliverables:** Whisper transcription, basic facial emotion, voice features
+- **Tasks:** GPU node pool, Triton setup, analysis orchestrator, NLP pipeline
+- **Dependencies:** Month 2 video pipeline
+- **Outcome:** Journals analyzed with transcript + basic emotions
+
+### Month 4: Fusion & Baseline
+- **Deliverables:** Multimodal fusion, personal baseline engine, trend API
+- **Tasks:** Feature vectors, EWMA baselines, Z-score drift, timeline UI
+- **Dependencies:** Month 3 analysis
+- **Outcome:** Users see trends after 7+ days of journaling
+
+### Month 5: Insights & Notifications
+- **Deliverables:** Insight generation, push notifications, insight center UI
+- **Tasks:** LLM insight templates, guardrails, FCM/APNs, notification service
+- **Dependencies:** Month 4 baseline
+- **Outcome:** Personalized insights delivered daily
+
+### Month 6: Privacy & Compliance
+- **Deliverables:** Privacy dashboard, GDPR export/delete, consent management
+- **Tasks:** Data export pipeline, deletion workflow, DPIA, SOC 2 prep
+- **Dependencies:** All data services
+- **Outcome:** GDPR-compliant data rights; beta launch ready
+
+### Month 7: Beta Launch
+- **Deliverables:** Public beta (1,000 users), mobile-responsive web, monitoring
+- **Tasks:** Load testing, security audit, Datadog dashboards, bug fixes
+- **Dependencies:** Month 6 compliance
+- **Outcome:** 1,000 beta users, <5min analysis SLA
+
+### Month 8: Mobile Apps
+- **Deliverables:** iOS + Android apps (React Native or native)
+- **Tasks:** Camera integration, background upload, push notifications, biometrics
+- **Dependencies:** Stable API
+- **Outcome:** Mobile journaling experience
+
+### Month 9: Advanced AI
+- **Deliverables:** Micro-expression model v1, improved fusion, Isolation Forest
+- **Tasks:** CASME II training, anomaly detection, confidence calibration
+- **Dependencies:** Sufficient training data (opt-in)
+- **Outcome:** Higher-quality insights with multivariate anomaly detection
+
+### Month 10: Premium & Scale
+- **Deliverables:** Stripe billing, premium tier, performance optimization
+- **Tasks:** Subscription service, rate limiting by tier, CDN optimization, read replicas
+- **Dependencies:** Beta feedback
+- **Outcome:** Monetization live; 10K user capacity
+
+### Month 11: Enterprise & Integrations
+- **Deliverables:** Admin dashboard, API for exports, therapist share links
+- **Tasks:** RBAC admin, PDF export, enterprise SSO (SAML), API keys
+- **Dependencies:** SOC 2 in progress
+- **Outcome:** B2B pipeline ready
+
+### Month 12: GA Launch
+- **Deliverables:** Public launch, 100K user capacity, SOC 2 Type I
+- **Tasks:** Marketing site, App Store launch, scale testing, on-call rotation
+- **Dependencies:** All prior months
+- **Outcome:** General availability, 100K user architecture proven
+
+---
+
+# SECTION 21: TEAM STRUCTURE
+
+### MVP Team (Months 1-6) — 8 people
+
+| Role | Count | Responsibilities | Hire Order |
+|------|-------|------------------|------------|
+| **Tech Lead / Architect** | 1 | Architecture, code review, infra | 1 |
+| **Backend Engineer** | 2 | Microservices, API, pipeline | 2, 3 |
+| **ML Engineer** | 1 | Models, inference, fusion | 4 |
+| **Frontend Engineer** | 1 | Next.js web app | 5 |
+| **DevOps Engineer** | 1 | EKS, CI/CD, Terraform | 6 |
+| **Product Manager** | 1 | PRD, prioritization, user research | 7 |
+| **Designer (UI/UX)** | 1 | Wireframes, design system | 8 |
+
+### Growth Team (Months 7-12) — +10 (18 total)
+
+| Role | Count | Responsibilities | Hire Order |
+|------|-------|------------------|------------|
+| **ML Engineer** | +1 | Micro-expressions, MLOps | 9 |
+| **Backend Engineer** | +2 | Scale, notifications, billing | 10, 11 |
+| **Mobile Engineer** | +2 | iOS + Android | 12, 13 |
+| **Frontend Engineer** | +1 | Timeline, insights UI | 14 |
+| **QA Engineer** | 1 | Test automation, AI validation | 15 |
+| **Security Engineer** | 1 | SOC 2, pen testing | 16 |
+| **Data Engineer** | 1 | Analytics pipeline, Snowflake | 17 |
+| **Compliance/Privacy** | 1 | GDPR, legal, DPIA | 18 |
+
+### Enterprise Team (Year 2) — +8 (26 total)
+
+| Role | Count | Responsibilities |
+|------|-------|------------------|
+| **Solutions Engineer** | 2 | Enterprise integrations |
+| **Customer Success** | 2 | B2B onboarding |
+| **ML Research** | 1 | Transformer fusion, publications |
+| **SRE** | 2 | On-call, reliability |
+| **Engineering Manager** | 1 | Team scaling |
+
+---
+
+# SECTION 22: TESTING STRATEGY
+
+### Unit Testing
+- **Coverage target:** 80% backend, 70% frontend
+- **Tools:** Jest (backend), Vitest (frontend), pytest (ML)
+- **Focus:** Fusion engine, baseline calculations, insight template selection, API validation
+
+### Integration Testing
+- **Tools:** Testcontainers (PostgreSQL, Redis, Kafka), LocalStack (S3)
+- **Scenarios:** Upload → transcode → analyze → insight full pipeline
+- **Run:** Every PR, ~15 min suite
+
+### E2E Testing
+- **Tools:** Playwright
+- **Scenarios:** Register → onboard → record (mock camera) → view analysis → read insight
+- **Environments:** Staging on every deploy; production synthetic monitoring
+
+### Load Testing
+- **Tools:** k6, Locust
+- **Targets:** 10K concurrent users, 1K simultaneous uploads, 500 GPU inference/min
+- **Schedule:** Monthly + pre-launch
+
+### Security Testing
+- **Tools:** OWASP ZAP, Burp Suite (annual pen test), Snyk, Trivy
+- **Schedule:** SAST every PR; DAST weekly staging; pen test quarterly
+
+### AI Model Validation
+- **Datasets:** Held-out AffectNet, CASME II, internal annotated set
+- **Metrics:** Emotion accuracy, valence CCC, WER, inference latency, confidence calibration
+- **Gate:** No production deploy if accuracy drops >2% or latency increases >20%
+
+### Bias Testing
+- **Dimensions:** Skin tone (Fitzpatrick I-VI), age, gender presentation, accent
+- **Tools:** Fairlearn, custom demographic parity reports
+- **Gate:** Max 5% accuracy disparity across demographic groups
+- **Mitigation:** Balanced training data, threshold calibration per subgroup
+
+---
+
+# SECTION 23: FAILURE SCENARIOS & RECOVERY
+
+| Scenario | Impact | Detection | Recovery | RTO |
+|----------|--------|-----------|----------|-----|
+| **API service outage** | Users can't access app | Datadog synthetics, 5xx alerts | Auto-restart pods, rollback helm | 5 min |
+| **Database failure** | All reads/writes fail | RDS monitoring, connection errors | Failover to Multi-AZ standby | 2 min |
+| **GPU node failure** | Analysis queue backs up | KEDA queue depth alert | Cluster autoscaler provisions new node; jobs retry | 10 min |
+| **Model failure (bad deploy)** | Wrong analysis results | Shadow metric comparison, user feedback spike | MLflow rollback, Triton version swap | 15 min |
+| **S3 corruption/loss** | Videos unplayable | Checksum validation on upload | Restore from cross-region replica | 1 hour |
+| **Kafka failure** | Pipeline stalls | Consumer lag alert | MSK auto-recovery; replay from offset | 30 min |
+| **Security breach** | Data exposure | GuardDuty, anomalous access patterns | Incident response plan: isolate, rotate keys, notify users within 72h (GDPR) | 4 hours |
+| **LLM provider outage** | No new insights | API error rate | Fallback to template-only insights (no LLM phrasing) | 5 min |
+| **Region outage** | Full service down | Route53 health checks | Failover to secondary region (Phase 2) | 30 min |
+
+**Incident Response Runbook:** PagerDuty → Slack #incidents → IC assigned → status page update → postmortem within 48h
+
+---
+
+# SECTION 24: PRODUCTION READINESS CHECKLIST
+
+### Architecture
+- [ ] All services deployed to EKS with HPA configured
+- [ ] Multi-AZ RDS with automated backups tested
+- [ ] S3 lifecycle policies configured
+- [ ] CDN serving static assets and video playback
+- [ ] Kafka topics created with retention policies
+- [ ] Feature store operational
+
+### Security
+- [ ] Pen test completed with no critical findings
+- [ ] WAF rules configured
+- [ ] MFA available and tested
+- [ ] Secrets in Secrets Manager (no env vars)
+- [ ] Audit logging verified
+- [ ] Dependency scanning in CI
+
+### Compliance
+- [ ] Privacy Policy and ToS published
+- [ ] DPIA completed
+- [ ] GDPR export/delete tested end-to-end
+- [ ] Consent flow audited
+- [ ] "Not a medical device" disclaimers in app
+- [ ] Crisis resource links verified
+
+### Infrastructure
+- [ ] Terraform applied for production
+- [ ] DNS and TLS certificates valid
+- [ ] Auto-scaling tested under load
+- [ ] Cross-region backup verified
+- [ ] Disaster recovery drill completed
+
+### AI
+- [ ] All models versioned in MLflow
+- [ ] Inference latency within SLA
+- [ ] Bias testing passed
+- [ ] Hallucination guardrails tested
+- [ ] Confidence thresholds calibrated
+- [ ] Fallback models configured
+
+### Monitoring
+- [ ] Dashboards created for all critical metrics
+- [ ] Alert rules configured with PagerDuty
+- [ ] On-call rotation established
+- [ ] Runbooks written for top 10 incidents
+- [ ] Status page configured
+
+### Testing
+- [ ] Unit test coverage >80%
+- [ ] E2E tests passing in staging
+- [ ] Load test passed at 2x expected launch traffic
+- [ ] Chaos engineering test (pod kill) passed
+
+### Documentation
+- [ ] API documentation published (OpenAPI)
+- [ ] Architecture diagram current
+- [ ] Runbooks for all services
+- [ ] Onboarding guide for new engineers
+
+### Operations
+- [ ] Deployment pipeline tested (including rollback)
+- [ ] Blue-green/canary procedures documented
+- [ ] Data retention policies enforced
+- [ ] Support escalation path defined
+
+### Launch
+- [ ] Beta user feedback incorporated
+- [ ] App Store / Play Store approved
+- [ ] Marketing site live
+- [ ] Customer support trained
+- [ ] Legal sign-off on all user-facing copy
+
+---
+
+# SECTION 25: CODE GENERATION PLAN
+
+## 25.1 Repository Structure
+
+```
+solenne/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       ├── deploy-staging.yml
+│       └── deploy-production.yml
+├── apps/
+│   ├── web/                          # Next.js frontend
+│   ├── mobile/                       # React Native
+│   └── admin/                        # Admin dashboard
+├── services/
+│   ├── auth-service/
+│   ├── user-service/
+│   ├── journal-service/
+│   ├── video-service/
+│   ├── analysis-service/
+│   ├── ai-inference-service/
+│   ├── insight-service/
+│   ├── notification-service/
+│   ├── analytics-service/
+│   ├── recommendation-service/
+│   └── admin-service/
+├── ml/
+│   ├── models/
+│   │   ├── face-emotion/
+│   │   ├── micro-expression/
+│   │   ├── voice-features/
+│   │   └── nlp-sentiment/
+│   ├── pipelines/
+│   │   ├── training/
+│   │   ├── inference/
+│   │   └── fusion/
+│   ├── feature-store/
+│   └── notebooks/
+├── infra/
+│   ├── terraform/
+│   ├── helm/
+│   │   └── solenne/
+│   └── docker/
+├── packages/
+│   ├── shared-types/                 # TypeScript types shared across services
+│   ├── api-client/                   # Generated API client
+│   ├── proto/                        # gRPC definitions
+│   └── ui/                           # Shared component library
+├── migrations/
+│   └── postgres/
+│       ├── 001_users.sql
+│       ├── 002_journal_entries.sql
+│       └── ...
+├── docs/
+│   ├── architecture/
+│   ├── api/
+│   └── runbooks/
+├── scripts/
+│   ├── seed-dev-data.sh
+│   └── local-dev-setup.sh
+├── docker-compose.yml                # Local dev stack
+├── turbo.json                        # Monorepo config
+└── README.md
+```
+
+## 25.2 Service Implementation Order
+
+| Phase | Order | Service | Depends On |
+|-------|-------|---------|------------|
+| 1 | 1 | auth-service | — |
+| 1 | 2 | user-service | auth |
+| 2 | 3 | journal-service | user |
+| 2 | 4 | video-service | journal |
+| 3 | 5 | ai-inference-service | video (S3 events) |
+| 3 | 6 | analysis-service | ai-inference |
+| 4 | 7 | insight-service | analysis, baselines |
+| 4 | 8 | notification-service | insight, journal |
+| 5 | 9 | recommendation-service | analysis |
+| 5 | 10 | analytics-service | all events |
+| 6 | 11 | admin-service | all |
+
+## 25.3 Database Migration Order
+
+```
+001_users_and_auth.sql
+002_user_preferences.sql
+003_consent_records.sql
+004_journal_entries.sql
+005_journal_tags.sql
+006_video_metadata.sql
+007_transcripts.sql
+008_analysis_jobs.sql
+009_facial_metrics.sql
+010_voice_metrics.sql
+011_emotion_metrics.sql
+012_feature_vectors.sql
+013_baselines.sql
+014_behavioral_events.sql
+015_insights.sql
+016_insight_feedback.sql
+017_notifications.sql
+018_notification_preferences.sql
+019_audit_logs.sql
+020_admin_users.sql
+021_feature_flags.sql
+022_subscriptions.sql
+023_timescale_hypertables.sql
+```
+
+## 25.4 API Implementation Order
+
+1. Auth endpoints (register, login, refresh, OAuth, MFA)
+2. User profile + consent endpoints
+3. Journal CRUD + streaks
+4. Video upload init/complete + status
+5. Analysis results + timeline
+6. Trend/timeline aggregation endpoints
+7. Insights CRUD + feedback
+8. Notification preferences + inbox
+9. Privacy export/delete
+10. Admin endpoints
+
+## 25.5 Frontend Implementation Order
+
+1. Auth pages (login, register, MFA)
+2. Onboarding flow (consent, tutorial)
+3. App shell + navigation
+4. Video recorder component
+5. Upload progress + status polling
+6. Journal list + detail view
+7. Analysis visualization (timeline overlay)
+8. Trend charts + calendar heatmap
+9. Insight center + evidence drawer
+10. Settings + privacy dashboard
+11. Notification center
+12. Mobile responsive polish
+
+## 25.6 AI Pipeline Implementation Order
+
+1. Video frame extraction + audio separation
+2. Whisper transcription pipeline
+3. MediaPipe face landmark extraction
+4. Basic emotion classification head
+5. Voice feature extraction (Parselmouth/librosa)
+6. NLP sentiment + topic extraction
+7. Late fusion engine
+8. Feature vector persistence (Parquet + PostgreSQL)
+9. EWMA baseline engine
+10. Z-score drift detection
+11. Isolation Forest anomaly detection
+12. Insight template selector + LLM generator
+13. Micro-expression model (Phase 2)
+14. Transformer fusion (Phase 3)
+
+## 25.7 Development Milestones
+
+| Milestone | Week | Criteria |
+|-----------|------|----------|
+| **M0: Dev Environment** | 2 | docker-compose up, register user, all services health check |
+| **M1: First Upload** | 6 | Record video in web, upload to S3, see in journal list |
+| **M2: First Analysis** | 10 | Transcript + basic emotion displayed within 5 min |
+| **M3: First Trend** | 14 | 7-day trend chart with baseline band |
+| **M4: First Insight** | 18 | Personalized insight with evidence drawer |
+| **M5: Beta Ready** | 24 | GDPR export/delete, privacy dashboard, 100 beta users |
+| **M6: Mobile Ready** | 32 | iOS + Android recording and playback |
+| **M7: Premium Launch** | 40 | Billing, premium tier, 10K capacity |
+| **M8: GA Launch** | 48 | Public launch, 100K capacity, SOC 2 Type I |
+
+---
+
+# APPENDIX A: Glossary
+
+| Term | Definition |
+|------|------------|
+| **Emotional Fingerprint** | User's unique multimodal baseline profile |
+| **Wellness Vector** | 32-dimensional fused feature representation |
+| **Drift** | Statistically significant deviation from personal baseline |
+| **Congruence** | Agreement between face, voice, and text emotional signals |
+| **Baseline Confidence** | 0-1 score indicating reliability of personal baseline |
+
+# APPENDIX B: Technology Decision Log
+
+| Decision | Choice | Date | Alternatives Considered |
+|----------|--------|------|------------------------|
+| Compute | EKS | 2026-06 | ECS, Lambda |
+| Primary DB | PostgreSQL + TimescaleDB | 2026-06 | DynamoDB, MongoDB |
+| Transcription | Self-hosted Whisper v3 | 2026-06 | Deepgram, AssemblyAI |
+| Fusion | Late fusion → Transformer | 2026-06 | Early fusion only |
+| Anomaly detection | EWMA + Z-score + Isolation Forest | 2026-06 | LSTM, Autoencoders |
+| Frontend | Next.js 15 App Router | 2026-06 | Remix, Vite SPA |
+
+---
+
+**END OF DOCUMENT**
+
+*SOLENNE SAD/PRD v1.0.0 — Generated for engineering implementation.*
