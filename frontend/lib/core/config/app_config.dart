@@ -1,6 +1,6 @@
 class AppConfig {
-  static const cloudinaryDefaultCloudName = '';
-  static const cloudinaryDefaultUploadPreset = '';
+  static const cloudinaryDefaultCloudName = 'dqjd3lszl';
+  static const cloudinaryDefaultUploadPreset = 'solenne';
   static const cloudinaryUploadFolder = 'solenne/journals';
 
   static const cloudinaryCloudName = String.fromEnvironment(

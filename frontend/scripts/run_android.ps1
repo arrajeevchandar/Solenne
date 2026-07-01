@@ -25,6 +25,7 @@ if (-not [string]::IsNullOrWhiteSpace($CloudinaryUploadPreset)) {
   $flutterArgs += "--dart-define=CLOUDINARY_UPLOAD_PRESET=$CloudinaryUploadPreset"
 }
 
-Write-Host "Running Solenne on Android. Keep this session open and press 'r' for hot reload."
+Write-Host "Running Solenne on Android. Cloudinary defaults are built in; passed values override them."
+Write-Host "Keep this session open and press 'r' for hot reload."
 
 & flutter @flutterArgs

@@ -22,11 +22,15 @@ flutter run -d chrome
 Run on Android:
 
 ```powershell
-.\scripts\run_android.ps1
+flutter run -d <device-id>
 ```
 
-Cloudinary values are only required when saving/uploading a reflection. Pass
-them when running either platform:
+The app includes prototype Cloudinary defaults:
+
+- Cloud name: `dqjd3lszl`
+- Unsigned upload preset: `solenne`
+
+Use dart defines only when overriding those defaults:
 
 ```powershell
 .\scripts\run_chrome.ps1 `
@@ -84,5 +88,5 @@ Cloudinary setup for this prototype:
 6. Allow video uploads from browser and mobile formats, including `webm`,
    `mp4`, and `mov`.
 7. Set a max file size that can handle a 3-minute reflection.
-8. Run Flutter with `CLOUDINARY_CLOUD_NAME` and
-   `CLOUDINARY_UPLOAD_PRESET` as shown above.
+8. Make sure the preset name is `solenne`, or override the defaults with
+   `CLOUDINARY_CLOUD_NAME` and `CLOUDINARY_UPLOAD_PRESET` as shown above.
