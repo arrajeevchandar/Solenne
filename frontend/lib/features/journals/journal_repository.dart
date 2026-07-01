@@ -33,8 +33,9 @@ class JournalRepository {
         .orderBy('recordedAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map(JournalEntry.fromFirestore).toList());
+        .map(
+          (snapshot) => snapshot.docs.map(JournalEntry.fromFirestore).toList(),
+        );
   }
 
   Future<JournalEntry?> getJournal(String id) async {

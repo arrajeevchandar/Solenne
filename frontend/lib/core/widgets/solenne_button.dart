@@ -20,8 +20,8 @@ class SolenneButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = isSecondary ? AppColors.ivoryWhite : AppColors.mutedTeal;
-    final foreground = isSecondary ? AppColors.deepCharcoal : Colors.white;
+    final background = isSecondary ? AppColors.cardElevated : AppColors.aqua;
+    final foreground = isSecondary ? AppColors.textPrimary : AppColors.midnight;
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -39,11 +39,14 @@ class SolenneButton extends StatelessWidget {
           elevation: 0,
           backgroundColor: background,
           foregroundColor: foreground,
-          disabledBackgroundColor: AppColors.warmSand,
+          disabledBackgroundColor: AppColors.border,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          textStyle: Theme.of(context).textTheme.titleMedium,
+          textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: foreground,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );

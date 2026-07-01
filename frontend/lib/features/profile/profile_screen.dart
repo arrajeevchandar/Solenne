@@ -19,16 +19,24 @@ class ProfileScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text('Profile', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Profile',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 18),
               SolenneCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(user?.displayName ?? 'Solenne user',
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      user?.displayName ?? 'Solenne user',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 6),
-                    Text(user?.email ?? '', style: Theme.of(context).textTheme.bodyMedium),
+                    Text(
+                      user?.email ?? '',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                     const SizedBox(height: 20),
                     const Text(
                       'Insights, consent controls, and privacy export will be added with the backend analysis milestone.',

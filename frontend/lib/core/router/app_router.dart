@@ -40,7 +40,10 @@ final appRouter = GoRouter(
   },
   routes: [
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
-    GoRoute(path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
+    GoRoute(
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
+    ),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(path: '/signup', builder: (context, state) => const SignupScreen()),
     GoRoute(
@@ -48,16 +51,27 @@ final appRouter = GoRouter(
       builder: (context, state) => const ForgotPasswordScreen(),
     ),
     ShellRoute(
-      builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
+      builder: (context, state, child) =>
+          AppShell(location: state.uri.path, child: child),
       routes: [
         GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
-        GoRoute(path: '/journals', builder: (context, state) => const JournalListScreen()),
+        GoRoute(
+          path: '/journals',
+          builder: (context, state) => const JournalListScreen(),
+        ),
         GoRoute(
           path: '/journals/:id',
-          builder: (_, state) => JournalDetailScreen(id: state.pathParameters['id']!),
+          builder: (_, state) =>
+              JournalDetailScreen(id: state.pathParameters['id']!),
         ),
-        GoRoute(path: '/record', builder: (context, state) => const RecordingScreen()),
-        GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
+        GoRoute(
+          path: '/record',
+          builder: (context, state) => const RecordingScreen(),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
       ],
     ),
     GoRoute(

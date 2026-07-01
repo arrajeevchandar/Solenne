@@ -1,68 +1,104 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
 class AppTheme {
+  static const _fontFamily = 'Roboto';
+  static const _fontFallback = ['Arial', 'Segoe UI', 'sans-serif'];
+
   static ThemeData get light {
-    final baseText = GoogleFonts.interTextTheme();
+    final baseText = ThemeData.light().textTheme;
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: AppColors.creamBase,
+      scaffoldBackgroundColor: AppColors.midnight,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.mutedTeal,
-        brightness: Brightness.light,
-        surface: AppColors.ivoryWhite,
-        primary: AppColors.mutedTeal,
-        secondary: AppColors.softSage,
+        seedColor: AppColors.aqua,
+        brightness: Brightness.dark,
+        surface: AppColors.card,
+        primary: AppColors.aqua,
+        secondary: AppColors.coral,
         error: AppColors.danger,
       ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        centerTitle: false,
+      ),
       textTheme: baseText.copyWith(
-        displaySmall: GoogleFonts.outfit(
+        displaySmall: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 36,
           fontWeight: FontWeight.w700,
-          color: AppColors.deepCharcoal,
+          color: AppColors.textPrimary,
         ),
-        headlineMedium: GoogleFonts.outfit(
+        headlineMedium: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 28,
           fontWeight: FontWeight.w700,
-          color: AppColors.deepCharcoal,
+          color: AppColors.textPrimary,
         ),
-        titleLarge: GoogleFonts.outfit(
+        titleLarge: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 22,
           fontWeight: FontWeight.w700,
-          color: AppColors.deepCharcoal,
+          color: AppColors.textPrimary,
         ),
-        titleMedium: GoogleFonts.outfit(
+        titleMedium: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 17,
           fontWeight: FontWeight.w600,
-          color: AppColors.deepCharcoal,
+          color: AppColors.textPrimary,
         ),
-        bodyLarge: GoogleFonts.inter(
+        bodyLarge: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 16,
           height: 1.45,
-          color: AppColors.deepCharcoal,
+          color: AppColors.textPrimary,
         ),
-        bodyMedium: GoogleFonts.inter(
+        bodyMedium: const TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
           fontSize: 14,
           height: 1.45,
-          color: AppColors.warmGrey,
+          color: AppColors.textSecondary,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.ivoryWhite,
+        fillColor: AppColors.cardElevated,
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        hintStyle: const TextStyle(color: AppColors.textSecondary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Colors.white70),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: AppColors.mutedTeal, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.aqua, width: 1.5),
+        ),
+      ),
+      chipTheme: const ChipThemeData(
+        backgroundColor: AppColors.cardElevated,
+        side: BorderSide(color: AppColors.border),
+        labelStyle: TextStyle(color: AppColors.textPrimary),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.aqua),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: AppColors.textPrimary,
+          backgroundColor: AppColors.cardElevated,
         ),
       ),
     );

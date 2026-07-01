@@ -27,7 +27,7 @@ class AuthFormScaffold extends StatelessWidget {
               const Icon(
                 Icons.self_improvement_rounded,
                 size: 54,
-                color: AppColors.mutedTeal,
+                color: AppColors.aqua,
               ),
               const SizedBox(height: 18),
               Text(title, style: Theme.of(context).textTheme.headlineMedium),

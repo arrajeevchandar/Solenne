@@ -23,8 +23,8 @@ class HomeScreen extends ConsumerWidget {
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 18
-            ? 'Good afternoon'
-            : 'Good evening';
+        ? 'Good afternoon'
+        : 'Good evening';
     return Scaffold(
       body: OrganicBackground(
         child: SafeArea(
@@ -61,24 +61,46 @@ class HomeScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(30),
                   gradient: const LinearGradient(
-                    colors: [AppColors.pastelBlue, AppColors.softSage],
+                    colors: [AppColors.electricBlue, AppColors.aqua],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.aqua.withValues(alpha: 0.18),
+                      blurRadius: 28,
+                      offset: const Offset(0, 16),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Today’s reflection', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Today’s reflection',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.midnight,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       journals.when(
-                        data: (items) => items.any((item) =>
-                                DateUtils.isSameDay(item.recordedAt, DateTime.now()))
+                        data: (items) =>
+                            items.any(
+                              (item) => DateUtils.isSameDay(
+                                item.recordedAt,
+                                DateTime.now(),
+                              ),
+                            )
                             ? 'Saved for today. You can still add another reflection.'
                             : 'A short check-in can help you notice what changed today.',
                         loading: () => 'Checking your latest reflection...',
                         error: (error, stackTrace) => 'Ready when you are.',
+                      ),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.midnight,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -95,7 +117,10 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Daily prompt', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Daily prompt',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
                     Text(_prompt, style: Theme.of(context).textTheme.bodyLarge),
                   ],
@@ -128,7 +153,10 @@ class HomeScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Recent journals', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Recent journals',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   TextButton(
                     onPressed: () => context.go('/journals'),
                     child: const Text('View all'),
@@ -148,11 +176,16 @@ class HomeScreen extends ConsumerWidget {
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.blushPink,
-                          child: const Icon(Icons.play_arrow_rounded),
+                          backgroundColor: AppColors.coral,
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                         title: Text(entry.prompt),
-                        subtitle: Text(DateFormat('MMM d, h:mm a').format(entry.recordedAt)),
+                        subtitle: Text(
+                          DateFormat('MMM d, h:mm a').format(entry.recordedAt),
+                        ),
                         onTap: () => context.go('/journals/${entry.id}'),
                       );
                     }).toList(),
@@ -170,7 +203,11 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.title, required this.value, required this.label});
+  const _MetricCard({
+    required this.title,
+    required this.value,
+    required this.label,
+  });
 
   final String title;
   final String value;

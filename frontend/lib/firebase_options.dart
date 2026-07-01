@@ -20,11 +20,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_ANDROID_API_KEY'),
-    appId: String.fromEnvironment('FIREBASE_ANDROID_APP_ID'),
-    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    apiKey: 'AIzaSyD3HnRCt2cGT-2QsAw3dtlszHygT3R2FIE',
+    appId: '1:682422521838:android:1bf4f7cdb8a00ed1b708ff',
+    messagingSenderId: '682422521838',
+    projectId: 'solenne-9324d',
+    storageBucket: 'solenne-9324d.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -37,11 +37,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_WEB_API_KEY'),
-    appId: String.fromEnvironment('FIREBASE_WEB_APP_ID'),
-    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    authDomain: String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
-    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
+    apiKey: 'AIzaSyD3HnRCt2cGT-2QsAw3dtlszHygT3R2FIE',
+    appId: '1:682422521838:web:solenne-frontend',
+    messagingSenderId: '682422521838',
+    projectId: 'solenne-9324d',
+    authDomain: 'solenne-9324d.firebaseapp.com',
+    storageBucket: 'solenne-9324d.firebasestorage.app',
   );
 }

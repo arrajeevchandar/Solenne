@@ -27,7 +27,9 @@ class JournalEntry {
   final String analysisStatus;
   final String? moodLabel;
 
-  factory JournalEntry.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory JournalEntry.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? {};
     return JournalEntry(
       id: doc.id,

@@ -43,7 +43,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       context.go('/signup');
       return;
     }
-    await ref.read(authRepositoryProvider).completeOnboarding(wellnessGoal: _goal);
+    await ref
+        .read(authRepositoryProvider)
+        .completeOnboarding(wellnessGoal: _goal);
     if (mounted) context.go('/home');
   }
 
@@ -70,24 +72,49 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             width: 160,
                             height: 160,
                             decoration: BoxDecoration(
-                              color: AppColors.ivoryWhite,
+                              gradient: const LinearGradient(
+                                colors: [AppColors.cardElevated, AppColors.ink],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                               borderRadius: BorderRadius.circular(42),
+                              border: Border.all(color: AppColors.border),
                             ),
-                            child: Icon(slide.$1, size: 78, color: AppColors.mutedTeal),
+                            child: Icon(
+                              slide.$1,
+                              size: 78,
+                              color: AppColors.aqua,
+                            ),
                           ),
                           const SizedBox(height: 32),
-                          Text(slide.$2, style: Theme.of(context).textTheme.headlineMedium),
-                          const SizedBox(height: 14),
                           Text(
-                            slide.$3,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyLarge,
+                            slide.$2,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 14),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                slide.$3,
+                                textAlign: TextAlign.center,
+                                softWrap: true,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodyLarge?.copyWith(fontSize: 15.5),
+                              ),
+                            ),
                           ),
                           if (index == 2) ...[
                             const SizedBox(height: 24),
                             DropdownButtonFormField<String>(
                               initialValue: _goal,
-                              decoration: const InputDecoration(labelText: 'Wellness goal'),
+                              decoration: const InputDecoration(
+                                labelText: 'Wellness goal',
+                              ),
                               items: const [
                                 DropdownMenuItem(
                                   value: 'Build a daily reflection habit',
@@ -102,7 +129,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   child: Text('Create a private video journal'),
                                 ),
                               ],
-                              onChanged: (value) => setState(() => _goal = value ?? _goal),
+                              onChanged: (value) =>
+                                  setState(() => _goal = value ?? _goal),
                             ),
                           ],
                         ],
@@ -120,7 +148,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       width: _page == index ? 22 : 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: _page == index ? AppColors.mutedTeal : AppColors.warmSand,
+                        color: _page == index
+                            ? AppColors.aqua
+                            : AppColors.border,
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
@@ -128,7 +158,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
                 const SizedBox(height: 20),
                 SolenneButton(
-                  label: _page == _slides.length - 1 ? 'Start Reflecting' : 'Continue',
+                  label: _page == _slides.length - 1
+                      ? 'Start Reflecting'
+                      : 'Continue',
                   icon: Icons.arrow_forward_rounded,
                   onPressed: () {
                     if (_page == _slides.length - 1) {
@@ -142,9 +174,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   },
                 ),
                 TextButton(
-                  onPressed: () => FirebaseAuth.instance.currentUser == null
-                      ? context.go('/login')
-                      : context.go('/home'),
+                  onPressed: () {
+                    FirebaseAuth.instance.currentUser == null
+                        ? context.go('/login')
+                        : context.go('/home');
+                  },
                   child: const Text('Skip for now'),
                 ),
               ],

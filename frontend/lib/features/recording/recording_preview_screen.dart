@@ -20,10 +20,12 @@ class RecordingPreviewScreen extends ConsumerStatefulWidget {
   final RecordingDraft draft;
 
   @override
-  ConsumerState<RecordingPreviewScreen> createState() => _RecordingPreviewScreenState();
+  ConsumerState<RecordingPreviewScreen> createState() =>
+      _RecordingPreviewScreenState();
 }
 
-class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen> {
+class _RecordingPreviewScreenState
+    extends ConsumerState<RecordingPreviewScreen> {
   late final VideoPlayerController _controller;
   bool _saving = false;
   String? _error;
@@ -32,7 +34,13 @@ class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen>
   void initState() {
     super.initState();
     _controller = createLocalVideoController(widget.draft.file)
-      ..initialize().then((_) => setState(() {}));
+      ..initialize()
+          .then((_) {
+            if (mounted) setState(() {});
+          })
+          .catchError((Object error) {
+            if (mounted) setState(() => _error = error.toString());
+          });
   }
 
   @override
@@ -85,9 +93,15 @@ class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen>
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text('Review reflection', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Review reflection',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 8),
-              Text('Save it when it feels ready.', style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                'Save it when it feels ready.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               const SizedBox(height: 18),
               ClipRRect(
                 borderRadius: BorderRadius.circular(28),
@@ -109,9 +123,11 @@ class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen>
                                       : _controller.play();
                                 });
                               },
-                              icon: Icon(_controller.value.isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded),
+                              icon: Icon(
+                                _controller.value.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                              ),
                             ),
                           ],
                         )
@@ -126,7 +142,10 @@ class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.draft.prompt, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      widget.draft.prompt,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 10),
                     Text('Duration: ${widget.draft.durationSeconds}s'),
                   ],
@@ -134,7 +153,10 @@ class _RecordingPreviewScreenState extends ConsumerState<RecordingPreviewScreen>
               ),
               if (_error != null) ...[
                 const SizedBox(height: 14),
-                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ],
               const SizedBox(height: 18),
               SolenneButton(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -42,14 +43,18 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _init() async {
-    final camera = await Permission.camera.request();
-    final mic = await Permission.microphone.request();
-    if (!camera.isGranted || !mic.isGranted) {
-      setState(() => _permissionDenied = true);
-      return;
-    }
     try {
+      final camera = await Permission.camera.request();
+      final mic = await Permission.microphone.request();
+      if (!camera.isGranted || !mic.isGranted) {
+        setState(() => _permissionDenied = true);
+        return;
+      }
       final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        setState(() => _error = 'No camera was found on this device.');
+        return;
+      }
       final front = cameras.indexWhere(
         (camera) => camera.lensDirection == CameraLensDirection.front,
       );
@@ -62,50 +67,87 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _setCamera(int index) async {
-    await _controller?.dispose();
-    final controller = CameraController(
-      _cameras[index],
-      ResolutionPreset.high,
-      enableAudio: true,
-    );
-    await controller.initialize();
-    if (!mounted) return;
-    setState(() => _controller = controller);
+    try {
+      await _controller?.dispose();
+      final controller = CameraController(
+        _cameras[index],
+        ResolutionPreset.high,
+        enableAudio: true,
+      );
+      await controller.initialize();
+      if (!mounted) return;
+      setState(() {
+        _controller = controller;
+        _error = null;
+      });
+    } on CameraException catch (error) {
+      setState(() => _error = _cameraErrorMessage(error));
+    } on PlatformException catch (error) {
+      setState(() => _error = error.message ?? error.code);
+    } catch (error) {
+      setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _start() async {
     final controller = _controller;
     if (controller == null || _isRecording) return;
-    await controller.startVideoRecording();
-    setState(() {
-      _isRecording = true;
-      _elapsed = 0;
-    });
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!mounted) return;
-      if (_elapsed + 1 >= _maxSeconds) {
-        await _stop();
-      } else {
-        setState(() => _elapsed++);
-      }
-    });
+    try {
+      await controller.startVideoRecording();
+      setState(() {
+        _isRecording = true;
+        _elapsed = 0;
+        _error = null;
+      });
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
+        if (!mounted) return;
+        if (_elapsed + 1 >= _maxSeconds) {
+          await _stop();
+        } else {
+          setState(() => _elapsed++);
+        }
+      });
+    } on CameraException catch (error) {
+      setState(() => _error = _cameraErrorMessage(error));
+    } on PlatformException catch (error) {
+      setState(() => _error = error.message ?? error.code);
+    } catch (error) {
+      setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _stop() async {
     final controller = _controller;
     if (controller == null || !_isRecording) return;
     _timer?.cancel();
-    final file = await controller.stopVideoRecording();
-    setState(() => _isRecording = false);
-    if (!mounted) return;
-    context.go(
-      '/record/preview',
-      extra: RecordingDraft(
-        file: file,
-        durationSeconds: _elapsed.clamp(1, _maxSeconds),
-        prompt: _prompt,
-      ),
-    );
+    try {
+      final file = await controller.stopVideoRecording();
+      setState(() => _isRecording = false);
+      if (!mounted) return;
+      context.go(
+        '/record/preview',
+        extra: RecordingDraft(
+          file: file,
+          durationSeconds: _elapsed.clamp(1, _maxSeconds),
+          prompt: _prompt,
+        ),
+      );
+    } on CameraException catch (error) {
+      setState(() {
+        _isRecording = false;
+        _error = _cameraErrorMessage(error);
+      });
+    } on PlatformException catch (error) {
+      setState(() {
+        _isRecording = false;
+        _error = error.message ?? error.code;
+      });
+    } catch (error) {
+      setState(() {
+        _isRecording = false;
+        _error = error.toString();
+      });
+    }
   }
 
   Future<void> _flip() async {
@@ -126,9 +168,14 @@ class _RecordingScreenState extends State<RecordingScreen> {
             children: [
               const Icon(Icons.no_photography_outlined, size: 64),
               const SizedBox(height: 18),
-              Text('Camera access is needed', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Camera access is needed',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 10),
-              const Text('Enable camera and microphone permissions to record a reflection.'),
+              const Text(
+                'Enable camera and microphone permissions to record a reflection.',
+              ),
               const SizedBox(height: 18),
               SolenneButton(
                 label: 'Open Settings',
@@ -149,7 +196,16 @@ class _RecordingScreenState extends State<RecordingScreen> {
           children: [
             Positioned.fill(
               child: controller == null || !controller.value.isInitialized
-                  ? Center(child: Text(_error ?? 'Preparing camera...', style: const TextStyle(color: Colors.white)))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _error ?? 'Preparing camera...',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    )
                   : CameraPreview(controller),
             ),
             Positioned.fill(
@@ -176,12 +232,18 @@ class _RecordingScreenState extends State<RecordingScreen> {
                   Text(
                     _prompt,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: Colors.white),
                   ),
                   const SizedBox(height: 10),
                   if (_isRecording)
                     Chip(
-                      avatar: const Icon(Icons.fiber_manual_record, color: AppColors.danger, size: 16),
+                      avatar: const Icon(
+                        Icons.fiber_manual_record,
+                        color: AppColors.danger,
+                        size: 16,
+                      ),
                       label: Text(_formatTime(_elapsed)),
                     ),
                 ],
@@ -206,11 +268,15 @@ class _RecordingScreenState extends State<RecordingScreen> {
                       height: 82,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isRecording ? AppColors.danger : AppColors.mutedTeal,
+                        color: _isRecording
+                            ? AppColors.danger
+                            : AppColors.mutedTeal,
                         border: Border.all(color: Colors.white, width: 5),
                       ),
                       child: Icon(
-                        _isRecording ? Icons.stop_rounded : Icons.videocam_rounded,
+                        _isRecording
+                            ? Icons.stop_rounded
+                            : Icons.videocam_rounded,
                         color: Colors.white,
                         size: 36,
                       ),
@@ -233,5 +299,16 @@ class _RecordingScreenState extends State<RecordingScreen> {
     final minutes = seconds ~/ 60;
     final remaining = seconds % 60;
     return '$minutes:${remaining.toString().padLeft(2, '0')}';
+  }
+
+  String _cameraErrorMessage(CameraException error) {
+    if (error.code == 'notSupported') {
+      return 'Video recording is not supported by this browser. Use Chrome on '
+          'desktop or the Android app.';
+    }
+    if (error.code.toLowerCase().contains('permission')) {
+      return 'Camera and microphone permission are required to record.';
+    }
+    return error.description ?? error.code;
   }
 }

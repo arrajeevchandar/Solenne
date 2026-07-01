@@ -83,6 +83,15 @@ class _StartupErrorApp extends StatelessWidget {
 
   final Object? error;
 
+  String get _firebaseSetupMessage {
+    final platformMessage = kIsWeb
+        ? 'the web options in lib/firebase_options.dart match project '
+              'solenne-9324d and that a Firebase Web app is registered.'
+        : 'android/app/google-services.json exists and matches the package '
+              'com.spd.solenne.';
+    return 'Firebase failed to initialize. Confirm that $platformMessage';
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -108,9 +117,7 @@ class _StartupErrorApp extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Firebase failed to initialize. Confirm that '
-                  'android/app/google-services.json exists and matches '
-                  'the package com.spd.solenne.',
+                  _firebaseSetupMessage,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 16),

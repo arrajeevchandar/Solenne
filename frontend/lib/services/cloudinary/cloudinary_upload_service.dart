@@ -33,8 +33,9 @@ class CloudinaryUploadService {
   Future<CloudinaryUploadResult> uploadVideo(XFile file) async {
     if (!AppConfig.hasCloudinaryConfig) {
       throw StateError(
-        'Cloudinary is not configured. Run with CLOUDINARY_CLOUD_NAME and '
-        'CLOUDINARY_UPLOAD_PRESET dart-defines.',
+        'Cloudinary is not configured. Missing: '
+        '${AppConfig.missingCloudinaryFields.join(', ')}. Create an unsigned '
+        'Cloudinary upload preset and pass these values with --dart-define.',
       );
     }
 
@@ -44,7 +45,7 @@ class CloudinaryUploadService {
     );
     final request = http.MultipartRequest('POST', uri)
       ..fields['upload_preset'] = AppConfig.cloudinaryUploadPreset
-      ..fields['folder'] = 'solenne/journals'
+      ..fields['folder'] = AppConfig.cloudinaryUploadFolder
       ..files.add(
         http.MultipartFile.fromBytes(
           'file',

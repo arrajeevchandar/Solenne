@@ -13,7 +13,8 @@ class JournalDetailScreen extends ConsumerStatefulWidget {
   final String id;
 
   @override
-  ConsumerState<JournalDetailScreen> createState() => _JournalDetailScreenState();
+  ConsumerState<JournalDetailScreen> createState() =>
+      _JournalDetailScreenState();
 }
 
 class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
@@ -44,14 +45,21 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (entry == null) return const Center(child: Text('Journal not found.'));
+              if (entry == null) {
+                return const Center(child: Text('Journal not found.'));
+              }
               _loadVideo(entry.videoUrl);
               return ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text('Reflection', style: Theme.of(context).textTheme.headlineMedium),
+                  Text(
+                    'Reflection',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                   const SizedBox(height: 8),
-                  Text(DateFormat('MMMM d, y • h:mm a').format(entry.recordedAt)),
+                  Text(
+                    DateFormat('MMMM d, y • h:mm a').format(entry.recordedAt),
+                  ),
                   const SizedBox(height: 18),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(26),
@@ -75,9 +83,11 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
                                           : _controller!.play();
                                     });
                                   },
-                                  icon: Icon(_controller!.value.isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded),
+                                  icon: Icon(
+                                    _controller!.value.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                  ),
                                 ),
                               ],
                             ),
@@ -88,11 +98,16 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(entry.prompt, style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          entry.prompt,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                         const SizedBox(height: 10),
                         Text('Duration: ${entry.durationSeconds}s'),
                         Text('Upload: ${entry.uploadStatus}'),
-                        Text('Analysis: ${entry.analysisStatus.replaceAll('_', ' ')}'),
+                        Text(
+                          'Analysis: ${entry.analysisStatus.replaceAll('_', ' ')}',
+                        ),
                       ],
                     ),
                   ),

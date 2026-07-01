@@ -10,7 +10,8 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
@@ -25,8 +26,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _send() async {
+    if (!_email.text.contains('@')) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
     try {
-      await ref.read(authRepositoryProvider).sendPasswordReset(_email.text.trim());
+      await ref
+          .read(authRepositoryProvider)
+          .sendPasswordReset(_email.text.trim());
       setState(() {
         _sent = true;
         _error = null;
@@ -50,10 +57,21 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 16),
           if (_sent) const Text('Check your inbox for the reset link.'),
-          if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          if (_error != null)
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           const SizedBox(height: 16),
-          SolenneButton(label: 'Send Reset Link', icon: Icons.mail_outline, onPressed: _send),
-          TextButton(onPressed: () => context.go('/login'), child: const Text('Back to sign in')),
+          SolenneButton(
+            label: 'Send Reset Link',
+            icon: Icons.mail_outline,
+            onPressed: _send,
+          ),
+          TextButton(
+            onPressed: () => context.go('/login'),
+            child: const Text('Back to sign in'),
+          ),
         ],
       ),
     );

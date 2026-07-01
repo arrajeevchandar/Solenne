@@ -42,7 +42,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).signUp(
+      await ref
+          .read(authRepositoryProvider)
+          .signUp(
             name: _name.text.trim(),
             email: _email.text.trim(),
             password: _password.text,
@@ -69,34 +71,42 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             TextFormField(
               controller: _name,
               decoration: const InputDecoration(labelText: 'Name'),
-              validator: (value) =>
-                  value != null && value.trim().length >= 2 ? null : 'Enter your name.',
+              validator: (value) => value != null && value.trim().length >= 2
+                  ? null
+                  : 'Enter your name.',
             ),
             const SizedBox(height: 14),
             TextFormField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'Email'),
-              validator: (value) =>
-                  value != null && value.contains('@') ? null : 'Enter a valid email.',
+              validator: (value) => value != null && value.contains('@')
+                  ? null
+                  : 'Enter a valid email.',
             ),
             const SizedBox(height: 14),
             TextFormField(
               controller: _password,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
-              validator: (value) =>
-                  value != null && value.length >= 6 ? null : 'Use at least 6 characters.',
+              validator: (value) => value != null && value.length >= 6
+                  ? null
+                  : 'Use at least 6 characters.',
             ),
             CheckboxListTile(
               value: _accepted,
               onChanged: (value) => setState(() => _accepted = value ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
-              title: const Text('I understand Solenne is a wellness journal, not medical care.'),
+              title: const Text(
+                'I understand Solenne is a wellness journal, not medical care.',
+              ),
             ),
             if (_error != null) ...[
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: 12),
             ],
             SolenneButton(

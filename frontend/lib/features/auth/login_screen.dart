@@ -61,16 +61,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'Email'),
-              validator: (value) =>
-                  value != null && value.contains('@') ? null : 'Enter a valid email.',
+              validator: (value) => value != null && value.contains('@')
+                  ? null
+                  : 'Enter a valid email.',
             ),
             const SizedBox(height: 14),
             TextFormField(
               controller: _password,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
-              validator: (value) =>
-                  value != null && value.length >= 6 ? null : 'Use at least 6 characters.',
+              validator: (value) => value != null && value.length >= 6
+                  ? null
+                  : 'Use at least 6 characters.',
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -80,7 +82,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
             if (_error != null) ...[
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: 12),
             ],
             SolenneButton(

@@ -14,16 +14,19 @@ class AppShell extends StatelessWidget {
     final index = location.startsWith('/journals')
         ? 1
         : location.startsWith('/record')
-            ? 2
-            : location.startsWith('/profile')
-                ? 3
-                : 0;
+        ? 2
+        : location.startsWith('/profile')
+        ? 3
+        : 0;
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        backgroundColor: AppColors.ivoryWhite,
-        indicatorColor: AppColors.softSage.withValues(alpha: 0.6),
+        backgroundColor: AppColors.deepNavy,
+        indicatorColor: AppColors.aqua.withValues(alpha: 0.22),
+        labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+        ),
         onDestinationSelected: (value) {
           switch (value) {
             case 0:

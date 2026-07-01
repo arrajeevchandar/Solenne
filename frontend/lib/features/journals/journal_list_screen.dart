@@ -22,7 +22,10 @@ class JournalListScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text('My Journals', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'My Journals',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Your saved video reflections, ready to revisit.',
@@ -33,7 +36,9 @@ class JournalListScreen extends ConsumerWidget {
                 data: (items) {
                   if (items.isEmpty) return const _EmptyJournals();
                   return Column(
-                    children: items.map((entry) => _JournalCard(entry: entry)).toList(),
+                    children: items
+                        .map((entry) => _JournalCard(entry: entry))
+                        .toList(),
                   );
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -55,9 +60,16 @@ class _EmptyJournals extends StatelessWidget {
     return SolenneCard(
       child: Column(
         children: [
-          const Icon(Icons.video_call_outlined, size: 58, color: AppColors.mutedTeal),
+          const Icon(
+            Icons.video_call_outlined,
+            size: 58,
+            color: AppColors.aqua,
+          ),
           const SizedBox(height: 14),
-          Text('Record your first reflection', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Record your first reflection',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           const Text(
             'Start with a short check-in. You can watch it back after it is saved.',
@@ -95,7 +107,7 @@ class _JournalCard extends StatelessWidget {
                 width: 76,
                 height: 76,
                 decoration: BoxDecoration(
-                  color: AppColors.pastelBlue,
+                  color: AppColors.electricBlue,
                   borderRadius: BorderRadius.circular(20),
                   image: entry.thumbnailUrl.isEmpty
                       ? null
@@ -104,7 +116,11 @@ class _JournalCard extends StatelessWidget {
                           fit: BoxFit.cover,
                         ),
                 ),
-                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 34),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -118,13 +134,17 @@ class _JournalCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 6),
-                    Text(DateFormat('MMM d, y • h:mm a').format(entry.recordedAt)),
+                    Text(
+                      DateFormat('MMM d, y • h:mm a').format(entry.recordedAt),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children: [
                         _Badge(label: entry.uploadStatus),
-                        _Badge(label: entry.analysisStatus.replaceAll('_', ' ')),
+                        _Badge(
+                          label: entry.analysisStatus.replaceAll('_', ' '),
+                        ),
                       ],
                     ),
                   ],
@@ -148,7 +168,7 @@ class _Badge extends StatelessWidget {
     return Chip(
       label: Text(label),
       visualDensity: VisualDensity.compact,
-      backgroundColor: AppColors.warmSand,
+      backgroundColor: AppColors.cardElevated,
       side: BorderSide.none,
     );
   }
