@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import 'journal_entry.dart';
 import 'journal_repository.dart';
 
@@ -20,16 +21,25 @@ class JournalListScreen extends ConsumerWidget {
       body: OrganicBackground(
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
             children: [
-              Text(
-                'My Journals',
-                style: Theme.of(context).textTheme.headlineMedium,
+              const SolenneSectionTitle(
+                title: 'My Journals',
+                subtitle: 'Your saved video reflections, ready to revisit.',
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Your saved video reflections, ready to revisit.',
-                style: Theme.of(context).textTheme.bodyMedium,
+              const SizedBox(height: 20),
+              SolenneCard(
+                padding: const EdgeInsets.all(6),
+                child: const Row(
+                  children: [
+                    Expanded(
+                      child: _JournalTab(label: 'All Entries', selected: true),
+                    ),
+                    Expanded(
+                      child: _JournalTab(label: 'Favorites', selected: false),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
               journals.when(
@@ -61,13 +71,14 @@ class _EmptyJournals extends StatelessWidget {
       child: Column(
         children: [
           const Icon(
-            Icons.video_call_outlined,
+            Icons.play_circle_outline_rounded,
             size: 58,
             color: AppColors.aqua,
           ),
           const SizedBox(height: 14),
           Text(
             'Record your first reflection',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -94,82 +105,53 @@ class _JournalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () => context.go('/journals/${entry.id}'),
-        child: SolenneCard(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: AppColors.electricBlue,
-                  borderRadius: BorderRadius.circular(20),
-                  image: entry.thumbnailUrl.isEmpty
-                      ? null
-                      : DecorationImage(
-                          image: NetworkImage(entry.thumbnailUrl),
-                          fit: BoxFit.cover,
-                        ),
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.prompt,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      DateFormat('MMM d, y • h:mm a').format(entry.recordedAt),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        _Badge(label: entry.uploadStatus),
-                        _Badge(
-                          label: entry.analysisStatus.replaceAll('_', ' '),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return SolenneVideoTile(
+      title: entry.prompt,
+      subtitle:
+          '${DateFormat('MMM d, y - h:mm a').format(entry.recordedAt)} - ${entry.durationSeconds}s',
+      thumbnailUrl: entry.thumbnailUrl,
+      color: _entryColor(entry.id),
+      onTap: () => context.go('/journals/${entry.id}'),
+      chips: [
+        SolenneStatusChip(
+          label: entry.uploadStatus,
+          icon: Icons.cloud_done_outlined,
         ),
-      ),
+        SolenneStatusChip(
+          label: entry.analysisStatus.replaceAll('_', ' '),
+          color: AppColors.violet,
+        ),
+      ],
     );
+  }
+
+  Color _entryColor(String id) {
+    final colors = [AppColors.aqua, AppColors.violet, AppColors.coral];
+    return colors[id.hashCode.abs() % colors.length];
   }
 }
 
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label});
+class _JournalTab extends StatelessWidget {
+  const _JournalTab({required this.label, required this.selected});
 
   final String label;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      label: Text(label),
-      visualDensity: VisualDensity.compact,
-      backgroundColor: AppColors.cardElevated,
-      side: BorderSide.none,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.cardElevated : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+        ),
+      ),
     );
   }
 }

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import 'journal_repository.dart';
 
 class JournalDetailScreen extends ConsumerStatefulWidget {
@@ -37,6 +39,7 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: OrganicBackground(
+        showGrid: true,
         child: SafeArea(
           child: FutureBuilder(
             future: ref.read(journalRepositoryProvider).getJournal(widget.id),
@@ -50,24 +53,23 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
               }
               _loadVideo(entry.videoUrl);
               return ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
                 children: [
-                  Text(
-                    'Reflection',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    DateFormat('MMMM d, y • h:mm a').format(entry.recordedAt),
+                  SolenneSectionTitle(
+                    eyebrow: DateFormat(
+                      'MMMM d, y - h:mm a',
+                    ).format(entry.recordedAt),
+                    title: 'Reflection',
+                    subtitle: entry.prompt,
                   ),
                   const SizedBox(height: 18),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(30),
                     child: AspectRatio(
                       aspectRatio: _controller?.value.aspectRatio ?? 9 / 16,
                       child: _controller == null
                           ? const ColoredBox(
-                              color: Colors.black12,
+                              color: AppColors.cardElevated,
                               child: Center(child: CircularProgressIndicator()),
                             )
                           : Stack(
@@ -102,11 +104,27 @@ class _JournalDetailScreenState extends ConsumerState<JournalDetailScreen> {
                           entry.prompt,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        const SizedBox(height: 10),
-                        Text('Duration: ${entry.durationSeconds}s'),
-                        Text('Upload: ${entry.uploadStatus}'),
-                        Text(
-                          'Analysis: ${entry.analysisStatus.replaceAll('_', ' ')}',
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            SolenneStatusChip(
+                              label: '${entry.durationSeconds}s',
+                              color: AppColors.aqua,
+                              icon: Icons.timer_outlined,
+                            ),
+                            SolenneStatusChip(
+                              label: entry.uploadStatus,
+                              color: AppColors.violet,
+                              icon: Icons.cloud_done_outlined,
+                            ),
+                            SolenneStatusChip(
+                              label: entry.analysisStatus.replaceAll('_', ' '),
+                              color: AppColors.coral,
+                              icon: Icons.auto_awesome_outlined,
+                            ),
+                          ],
                         ),
                       ],
                     ),

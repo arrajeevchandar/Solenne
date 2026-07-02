@@ -13,14 +13,19 @@ class SolenneCard extends StatelessWidget {
     return Container(
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.card.withValues(alpha: 0.94),
+        color: AppColors.glass,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.88)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.30),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: AppColors.aqua.withValues(alpha: 0.05),
+            blurRadius: 30,
+            offset: const Offset(0, 16),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.34),
+            blurRadius: 28,
+            offset: const Offset(0, 18),
           ),
         ],
       ),

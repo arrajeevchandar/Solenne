@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../journals/journal_entry.dart';
 import '../journals/journal_repository.dart';
@@ -89,22 +90,19 @@ class _RecordingPreviewScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       body: OrganicBackground(
+        showGrid: true,
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
             children: [
-              Text(
-                'Review reflection',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Save it when it feels ready.',
-                style: Theme.of(context).textTheme.bodyMedium,
+              const SolenneSectionTitle(
+                eyebrow: 'Preview',
+                title: 'Review reflection',
+                subtitle: 'Save it when it feels ready.',
               ),
               const SizedBox(height: 18),
               ClipRRect(
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(30),
                 child: AspectRatio(
                   aspectRatio: _controller.value.isInitialized
                       ? _controller.value.aspectRatio
@@ -132,7 +130,7 @@ class _RecordingPreviewScreenState
                           ],
                         )
                       : const ColoredBox(
-                          color: AppColors.warmSand,
+                          color: AppColors.cardElevated,
                           child: Center(child: CircularProgressIndicator()),
                         ),
                 ),
@@ -146,8 +144,12 @@ class _RecordingPreviewScreenState
                       widget.draft.prompt,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 10),
-                    Text('Duration: ${widget.draft.durationSeconds}s'),
+                    const SizedBox(height: 12),
+                    SolenneStatusChip(
+                      label: '${widget.draft.durationSeconds}s',
+                      color: AppColors.aqua,
+                      icon: Icons.timer_outlined,
+                    ),
                   ],
                 ),
               ),

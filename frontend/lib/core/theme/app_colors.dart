@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const midnight = Color(0xFF07111F);
-  static const deepNavy = Color(0xFF0B1F33);
-  static const ink = Color(0xFF102A43);
-  static const card = Color(0xFF132F46);
-  static const cardElevated = Color(0xFF173B54);
-  static const aqua = Color(0xFF35D3C8);
-  static const electricBlue = Color(0xFF4BA3FF);
+  static const midnight = Color(0xFF06091A);
+  static const deepNavy = Color(0xFF080D24);
+  static const ink = Color(0xFF0C1230);
+  static const card = Color(0xFF0F1734);
+  static const cardElevated = Color(0xFF151D3F);
+  static const aqua = Color(0xFF00C8AA);
+  static const electricBlue = Color(0xFF23A8FF);
   static const coral = Color(0xFFFF6B6B);
-  static const mint = Color(0xFF8EF6C6);
-  static const violet = Color(0xFFB18CFF);
-  static const gold = Color(0xFFFFC857);
-  static const textPrimary = Color(0xFFF6FBFF);
-  static const textSecondary = Color(0xFFB8C8D8);
-  static const border = Color(0xFF244A63);
+  static const mint = Color(0xFF3FF2CE);
+  static const violet = Color(0xFF7C3AED);
+  static const gold = Color(0xFFFFB545);
+  static const textPrimary = Color(0xFFF7F3EA);
+  static const textSecondary = Color(0xFF9AA3C2);
+  static const border = Color(0xFF263158);
   static const danger = Color(0xFFFF5A73);
+  static const glass = Color(0xB20F1734);
+  static const glassStrong = Color(0xD9141C3F);
+  static const gridLine = Color(0x1A8AA4FF);
 
   // Backward-compatible aliases used by existing widgets while the UI migrates.
   static const creamBase = midnight;

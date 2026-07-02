@@ -2,11 +2,15 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
+import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import 'recording_draft.dart';
 
 class RecordingScreen extends StatefulWidget {
@@ -161,28 +165,35 @@ class _RecordingScreenState extends State<RecordingScreen> {
   Widget build(BuildContext context) {
     if (_permissionDenied) {
       return Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.no_photography_outlined, size: 64),
-              const SizedBox(height: 18),
-              Text(
-                'Camera access is needed',
-                style: Theme.of(context).textTheme.headlineMedium,
+        body: OrganicBackground(
+          showGrid: true,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SolenneLogoOrb(size: 104),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Camera access is needed',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Enable camera and microphone permissions to record a reflection.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 22),
+                  SolenneButton(
+                    label: 'Open Settings',
+                    icon: Icons.settings_rounded,
+                    onPressed: openAppSettings,
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Enable camera and microphone permissions to record a reflection.',
-              ),
-              const SizedBox(height: 18),
-              SolenneButton(
-                label: 'Open Settings',
-                icon: Icons.settings_rounded,
-                onPressed: openAppSettings,
-              ),
-            ],
+            ),
           ),
         ),
       );
@@ -190,19 +201,29 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
     final controller = _controller;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.midnight,
       body: SafeArea(
         child: Stack(
           children: [
             Positioned.fill(
               child: controller == null || !controller.value.isInitialized
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _error ?? 'Preparing camera...',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white),
+                  ? OrganicBackground(
+                      showGrid: true,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SolenneLogoOrb(size: 92),
+                              const SizedBox(height: 18),
+                              Text(
+                                _error ?? 'Preparing camera...',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     )
@@ -223,29 +244,66 @@ class _RecordingScreenState extends State<RecordingScreen> {
                 ),
               ),
             ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _RecordingGridPainter()),
+              ),
+            ),
             Positioned(
               top: 18,
               left: 18,
               right: 18,
               child: Column(
                 children: [
-                  Text(
-                    _prompt,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(color: Colors.white),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_isRecording)
-                    Chip(
-                      avatar: const Icon(
-                        Icons.fiber_manual_record,
-                        color: AppColors.danger,
-                        size: 16,
-                      ),
-                      label: Text(_formatTime(_elapsed)),
+                  SolenneCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
                     ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.aqua,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _prompt,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Text(
+                    _formatTime(_elapsed),
+                    style: GoogleFonts.dmMono(
+                      color: AppColors.textPrimary,
+                      fontSize: 58,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SolenneStatusChip(
+                    label: _isRecording ? 'Recording - max 03:00' : 'Ready',
+                    color: _isRecording ? AppColors.coral : AppColors.aqua,
+                    icon: _isRecording
+                        ? Icons.fiber_manual_record
+                        : Icons.videocam_outlined,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 14),
+                    SolenneCard(
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.coral),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -264,14 +322,26 @@ class _RecordingScreenState extends State<RecordingScreen> {
                     onTap: _isRecording ? _stop : _start,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
-                      width: 82,
-                      height: 82,
+                      width: 92,
+                      height: 92,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isRecording
-                            ? AppColors.danger
-                            : AppColors.mutedTeal,
-                        border: Border.all(color: Colors.white, width: 5),
+                        color: _isRecording ? AppColors.coral : AppColors.aqua,
+                        border: Border.all(
+                          color: AppColors.textPrimary,
+                          width: 5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (_isRecording
+                                        ? AppColors.coral
+                                        : AppColors.aqua)
+                                    .withValues(alpha: 0.40),
+                            blurRadius: 34,
+                            spreadRadius: 8,
+                          ),
+                        ],
                       ),
                       child: Icon(
                         _isRecording
@@ -311,4 +381,23 @@ class _RecordingScreenState extends State<RecordingScreen> {
     }
     return error.description ?? error.code;
   }
+}
+
+class _RecordingGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.gridLine
+      ..strokeWidth = 1;
+    const gap = 34.0;
+    for (double x = 0; x <= size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y <= size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

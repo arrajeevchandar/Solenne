@@ -19,47 +19,56 @@ class AppShell extends StatelessWidget {
         ? 3
         : 0;
     return Scaffold(
+      extendBody: true,
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        backgroundColor: AppColors.deepNavy,
-        indicatorColor: AppColors.aqua.withValues(alpha: 0.22),
-        labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: NavigationBar(
+            height: 70,
+            selectedIndex: index,
+            backgroundColor: AppColors.glassStrong,
+            indicatorColor: AppColors.aqua.withValues(alpha: 0.20),
+            labelTextStyle: WidgetStateProperty.all(
+              const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            ),
+            onDestinationSelected: (value) {
+              switch (value) {
+                case 0:
+                  context.go('/home');
+                case 1:
+                  context.go('/journals');
+                case 2:
+                  context.go('/record');
+                case 3:
+                  context.go('/profile');
+              }
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.video_library_outlined),
+                selectedIcon: Icon(Icons.video_library),
+                label: 'Journals',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.radio_button_checked),
+                selectedIcon: Icon(Icons.radio_button_checked),
+                label: 'Record',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
-        onDestinationSelected: (value) {
-          switch (value) {
-            case 0:
-              context.go('/home');
-            case 1:
-              context.go('/journals');
-            case 2:
-              context.go('/record');
-            case 3:
-              context.go('/profile');
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.spa_outlined),
-            selectedIcon: Icon(Icons.spa),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.video_library_outlined),
-            selectedIcon: Icon(Icons.video_library),
-            label: 'Journals',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.radio_button_checked),
-            label: 'Record',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

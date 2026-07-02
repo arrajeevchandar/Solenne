@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
+import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../auth/auth_providers.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -69,26 +71,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 160,
-                            height: 160,
+                            width: 168,
+                            height: 168,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppColors.cardElevated, AppColors.ink],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(42),
-                              border: Border.all(color: AppColors.border),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.aqua.withValues(alpha: 0.22),
+                                  blurRadius: 70,
+                                ),
+                              ],
                             ),
-                            child: Icon(
-                              slide.$1,
-                              size: 78,
-                              color: AppColors.aqua,
-                            ),
+                            child: index == 0
+                                ? const SolenneLogoOrb(size: 168)
+                                : SolenneCard(
+                                    padding: EdgeInsets.zero,
+                                    child: Center(
+                                      child: Icon(
+                                        slide.$1,
+                                        size: 72,
+                                        color: AppColors.aqua,
+                                      ),
+                                    ),
+                                  ),
                           ),
                           const SizedBox(height: 32),
                           Text(
                             slide.$2,
+                            textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 14),

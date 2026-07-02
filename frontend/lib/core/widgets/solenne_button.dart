@@ -43,6 +43,7 @@ class SolenneButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
+          shadowColor: AppColors.aqua.withValues(alpha: 0.26),
           textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: foreground,
             fontWeight: FontWeight.w800,

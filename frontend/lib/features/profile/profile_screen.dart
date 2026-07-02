@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../auth/auth_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -15,19 +16,23 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(firebaseAuthProvider).currentUser;
     return Scaffold(
       body: OrganicBackground(
+        showGrid: true,
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
             children: [
-              Text(
-                'Profile',
-                style: Theme.of(context).textTheme.headlineMedium,
+              const SolenneSectionTitle(
+                eyebrow: 'Private account',
+                title: 'Profile',
+                subtitle: 'Your reflection space and setup controls.',
               ),
               const SizedBox(height: 18),
               SolenneCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Center(child: SolenneLogoOrb(size: 96)),
+                    const SizedBox(height: 18),
                     Text(
                       user?.displayName ?? 'Solenne user',
                       style: Theme.of(context).textTheme.titleLarge,
@@ -39,7 +44,21 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 20),
                     const Text(
-                      'Insights, consent controls, and privacy export will be added with the backend analysis milestone.',
+                      'Your videos are saved as private journal entries. ML insights, consent controls, and exports arrive in the backend milestone.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              const SolenneCard(
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline_rounded),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Solenne is a wellness journal, not medical care.',
+                      ),
                     ),
                   ],
                 ),
