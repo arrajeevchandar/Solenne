@@ -22,10 +22,22 @@ class CloudinaryUploadResult {
     return CloudinaryUploadResult(
       publicId: publicId,
       secureUrl: secureUrl,
-      thumbnailUrl: secureUrl.isEmpty
-          ? ''
-          : secureUrl.replaceFirst('/video/upload/', '/video/upload/so_0/'),
+      thumbnailUrl: secureUrl.isEmpty ? '' : _thumbnailFromVideoUrl(secureUrl),
     );
+  }
+
+  static String _thumbnailFromVideoUrl(String secureUrl) {
+    final transformed = secureUrl.replaceFirst(
+      '/video/upload/',
+      '/video/upload/so_0,f_jpg/',
+    );
+    final extension = RegExp(
+      r'\.(mp4|mov|webm|m4v)(\?.*)?$',
+      caseSensitive: false,
+    );
+    return transformed.replaceFirstMapped(extension, (match) {
+      return '.jpg${match.group(2) ?? ''}';
+    });
   }
 }
 

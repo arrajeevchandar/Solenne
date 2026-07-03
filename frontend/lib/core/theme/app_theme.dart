@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
 class AppTheme {
-  static const _fontFamily = 'Roboto';
-  static const _fontFallback = ['Arial', 'Segoe UI', 'sans-serif'];
-
   static ThemeData get light {
     final baseText = ThemeData.light().textTheme;
+    final bodyText = GoogleFonts.loraTextTheme(baseText).apply(
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+    );
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.midnight,
@@ -25,45 +27,33 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
       ),
-      textTheme: baseText.copyWith(
-        displaySmall: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+      textTheme: bodyText.copyWith(
+        displaySmall: GoogleFonts.cormorantGaramond(
           fontSize: 36,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
-        headlineMedium: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+        headlineMedium: GoogleFonts.cormorantGaramond(
           fontSize: 28,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
-        titleLarge: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+        titleLarge: GoogleFonts.cormorantGaramond(
           fontSize: 22,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
-        titleMedium: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+        titleMedium: GoogleFonts.lora(
           fontSize: 17,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        bodyLarge: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+        bodyLarge: GoogleFonts.lora(
           fontSize: 16,
           height: 1.45,
           color: AppColors.textPrimary,
         ),
-        bodyMedium: const TextStyle(
-          fontFamily: _fontFamily,
-          fontFamilyFallback: _fontFallback,
+        bodyMedium: GoogleFonts.lora(
           fontSize: 14,
           height: 1.45,
           color: AppColors.textSecondary,
@@ -71,7 +61,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.cardElevated,
+        fillColor: AppColors.royalBlue.withValues(alpha: 0.72),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
         hintStyle: const TextStyle(color: AppColors.textSecondary),
         border: OutlineInputBorder(
@@ -80,11 +70,13 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(
+            color: AppColors.shellstone.withValues(alpha: 0.20),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: AppColors.aqua, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.quicksand, width: 1.4),
         ),
       ),
       chipTheme: const ChipThemeData(
@@ -93,14 +85,23 @@ class AppTheme {
         labelStyle: TextStyle(color: AppColors.textPrimary),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: AppColors.aqua),
+        style: TextButton.styleFrom(foregroundColor: AppColors.quicksand),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
-          backgroundColor: AppColors.cardElevated,
+          backgroundColor: AppColors.sapphire.withValues(alpha: 0.42),
         ),
       ),
     );
   }
+}
+
+class AppTextStyles {
+  static TextStyle get monoLabel => GoogleFonts.ibmPlexMono(
+    color: AppColors.textSecondary,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.8,
+  );
 }

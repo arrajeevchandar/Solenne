@@ -11,6 +11,7 @@ void main() {
 
     expect(result.publicId, 'solenne/journals/abc123');
     expect(result.secureUrl, contains('/video/upload/'));
-    expect(result.thumbnailUrl, contains('/video/upload/so_0/'));
+    expect(result.thumbnailUrl, contains('/video/upload/so_0,f_jpg/'));
+    expect(result.thumbnailUrl, endsWith('/abc123.jpg'));
   });
 }
