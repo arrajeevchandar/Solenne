@@ -16,6 +16,8 @@ pip install -r requirements.txt
 ```
 
 Install `ffmpeg` and make sure both `ffmpeg` and `ffprobe` are available on PATH.
+The current analyzer can also run without system ffmpeg because `imageio-ffmpeg`
+provides a bundled executable.
 
 ## Run
 
@@ -28,6 +30,22 @@ For a faster local smoke test, use a smaller Whisper model:
 ```powershell
 python -m solenne_analyzer analyze input_videos/sample.mp4 --whisper-model base
 ```
+
+To generate richer Groq-backed insight cards, create `backend/.env`:
+
+```powershell
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.1-8b-instant
+```
+
+Then run:
+
+```powershell
+python -m solenne_analyzer analyze input_videos/sample.mp4 --whisper-model base --enable-llm-insights
+```
+
+If the key is missing or Groq fails, the analyzer still completes and writes
+fallback AI insight cards.
 
 ## Test
 
@@ -53,6 +71,7 @@ Each run writes:
 6. Analyze transcript sentiment, stress terms, topics, and paraphrase.
 7. Fuse face, voice, and text signals into Solenne wellness metrics.
 8. Generate non-clinical template insights.
+9. Optionally generate structured Groq-backed AI insight cards.
 
 ## Notes
 

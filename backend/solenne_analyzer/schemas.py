@@ -78,6 +78,29 @@ class Insight:
 
 
 @dataclass
+class AiInsight:
+    title: str
+    summary: str
+    moodLabel: str
+    dayThemes: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    reflectionQuestions: list[str] = field(default_factory=list)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    confidence: float = 0.0
+    safetyNote: str = ""
+
+
+@dataclass
+class LlmDiagnostics:
+    status: Literal["not_requested", "skipped", "complete", "failed"] = "not_requested"
+    provider: str | None = None
+    model: str | None = None
+    tokenEstimate: int = 0
+    latencyMs: int | None = None
+    failureReason: str | None = None
+
+
+@dataclass
 class AnalysisResult:
     runId: str
     sourceVideo: str
@@ -89,6 +112,9 @@ class AnalysisResult:
     nlp: NlpResult = field(default_factory=NlpResult)
     fused: FusedResult = field(default_factory=FusedResult)
     insights: list[Insight] = field(default_factory=list)
+    aiInsights: list[AiInsight] = field(default_factory=list)
+    insightProvider: Literal["template", "groq", "fallback"] = "template"
+    llmDiagnostics: LlmDiagnostics = field(default_factory=LlmDiagnostics)
     status: Literal["complete", "failed"] = "complete"
     warnings: list[str] = field(default_factory=list)
     errorMessage: str | None = None

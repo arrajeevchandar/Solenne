@@ -11,6 +11,7 @@ from ..schemas import AnalysisResult, FacialResult, utc_now_iso
 from .face import analyze_face
 from .fusion import fuse_modalities
 from .insights import generate_insights
+from .llm_insights import generate_llm_insights
 from .media import extract_audio, validate_video
 from .nlp import analyze_text
 from .transcribe import transcribe_audio
@@ -62,6 +63,13 @@ class PipelineRunner:
 
             self._log(log_lines, "insights", "generating templates")
             result.insights = generate_insights(result, self.config)
+
+            self._log(log_lines, "ai_insights", "checking LLM insight generation")
+            (
+                result.aiInsights,
+                result.llmDiagnostics,
+                result.insightProvider,
+            ) = generate_llm_insights(result, self.config)
             result.status = "complete"
             result.warnings = list(result.facial.warnings)
             self._log(log_lines, "complete", "analysis complete")
@@ -109,6 +117,11 @@ def render_summary(result: AnalysisResult) -> str:
     )
     if not insights:
         insights = "- No insight generated yet. More usable signal or future baseline data may be needed."
+    ai_insights = "\n\n".join(
+        _render_ai_insight(insight) for insight in result.aiInsights
+    )
+    if not ai_insights:
+        ai_insights = "- No AI insight cards generated."
 
     return f"""# Solenne Analysis Summary
 
@@ -138,6 +151,14 @@ Created: `{result.createdAt}`
 
 {insights}
 
+## AI Insight Cards
+
+Provider: `{result.insightProvider}`  
+LLM status: `{result.llmDiagnostics.status}`  
+Model: `{result.llmDiagnostics.model or "n/a"}`
+
+{ai_insights}
+
 ## Warnings
 
 {_warnings(result)}
@@ -151,6 +172,25 @@ def _warnings(result: AnalysisResult) -> str:
     if not warnings:
         return "- None"
     return "\n".join(f"- {warning}" for warning in warnings)
+
+
+def _render_ai_insight(insight) -> str:
+    themes = ", ".join(insight.dayThemes) if insight.dayThemes else "none"
+    suggestions = "\n".join(f"  - {item}" for item in insight.suggestions) or "  - None"
+    questions = "\n".join(
+        f"  - {item}" for item in insight.reflectionQuestions
+    ) or "  - None"
+    return f"""### {insight.title}
+
+- Mood label: `{insight.moodLabel}`
+- Confidence: `{insight.confidence:.2f}`
+- Themes: {themes}
+- Summary: {insight.summary}
+- Suggestions:
+{suggestions}
+- Reflection questions:
+{questions}
+- Safety note: {insight.safetyNote}"""
 
 
 def _build_run_id(video_path: Path) -> str:
