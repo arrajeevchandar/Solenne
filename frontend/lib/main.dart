@@ -1,15 +1,24 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import 'app.dart';
-import 'core/theme/app_colors.dart';
-import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.royalBlue,
+    ),
+  );
   runApp(const ProviderScope(child: SolenneBootstrap()));
 }
 
@@ -39,7 +48,9 @@ class _SolenneBootstrapState extends State<SolenneBootstrap> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError) {
-          return const SolenneApp();
+          return SolenneApp(
+            isAuthenticated: FirebaseAuth.instance.currentUser != null,
+          );
         }
         if (snapshot.hasError) {
           return _StartupErrorApp(error: snapshot.error);
@@ -57,20 +68,25 @@ class _StartupLoadingApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       home: const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.self_improvement_rounded,
-                size: 64,
-                color: AppColors.mutedTeal,
-              ),
-              SizedBox(height: 18),
-              CircularProgressIndicator(),
-            ],
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF080E1C),
+                Color(0xFF0A1628),
+                AppColors.royalBlue,
+              ],
+            ),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(
+              color: AppColors.quicksand,
+              strokeWidth: 2,
+            ),
           ),
         ),
       ),
@@ -96,36 +112,49 @@ class _StartupErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       home: Scaffold(
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  size: 56,
-                  color: AppColors.danger,
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Solenne could not start',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _firebaseSetupMessage,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 16),
-                SelectableText(
-                  error.toString(),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF080E1C),
+                Color(0xFF0A1628),
+                AppColors.royalBlue,
               ],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 46,
+                    color: AppColors.quicksand.withValues(alpha: 0.9),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Solenne could not start',
+                    style: AppTextStyles.display(fontSize: 34),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _firebaseSetupMessage,
+                    style: AppTextStyles.body(fontSize: 15),
+                  ),
+                  const SizedBox(height: 16),
+                  SelectableText(
+                    error.toString(),
+                    style: AppTextStyles.mono(fontSize: 10),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
-import 'core/router/app_router.dart';
-import 'core/theme/app_theme.dart';
+import 'screens/app_shell.dart';
+import 'screens/onboarding/splash_screen.dart';
+import 'theme/app_theme.dart';
 
 class SolenneApp extends StatelessWidget {
-  const SolenneApp({super.key});
+  const SolenneApp({super.key, required this.isAuthenticated});
+
+  final bool isAuthenticated;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return MaterialApp(
       title: 'Solenne',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      routerConfig: appRouter,
+      theme: AppTheme.dark,
+      home: isAuthenticated ? const AppShell() : const SplashScreen(),
     );
   }
 }
