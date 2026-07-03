@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../auth/auth_providers.dart';
 import '../journals/journal_repository.dart';
 
@@ -25,14 +26,17 @@ class HomeScreen extends ConsumerWidget {
         : hour < 18
         ? 'Good afternoon'
         : 'Good evening';
+
     return Scaffold(
       body: OrganicBackground(
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
             children: [
               Row(
                 children: [
+                  const SolenneOrb(size: 58),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,7 +45,7 @@ class HomeScreen extends ConsumerWidget {
                           '$greeting, ${user?.displayName ?? 'friend'}',
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 3),
                         Text(
                           DateFormat('EEEE, MMMM d').format(DateTime.now()),
                           style: Theme.of(context).textTheme.bodyMedium,
@@ -56,32 +60,18 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 22),
-              Container(
+              SolenneCard(
                 padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  gradient: const LinearGradient(
-                    colors: [AppColors.electricBlue, AppColors.aqua],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.aqua.withValues(alpha: 0.18),
-                      blurRadius: 28,
-                      offset: const Offset(0, 16),
-                    ),
-                  ],
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SectionLabel('Today'),
+                    const SizedBox(height: 10),
                     Text(
-                      'Today’s reflection',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.midnight,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      'Today\'s reflection',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(fontSize: 30),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -98,10 +88,7 @@ class HomeScreen extends ConsumerWidget {
                         loading: () => 'Checking your latest reflection...',
                         error: (error, stackTrace) => 'Ready when you are.',
                       ),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.midnight,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 18),
                     SolenneButton(
@@ -112,42 +99,42 @@ class HomeScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              SolenneCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Daily prompt',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_prompt, style: Theme.of(context).textTheme.bodyLarge),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                    child: _MetricCard(
-                      title: 'Current streak',
+                    child: MetricTile(
+                      label: 'Saved reflections',
                       value: journals.maybeWhen(
                         data: (items) => '${items.length}',
                         orElse: () => '0',
                       ),
-                      label: 'saved reflections',
+                      icon: Icons.auto_stories_outlined,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _MetricCard(
-                      title: 'Status',
-                      value: 'Private',
-                      label: 'stored to your account',
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: MetricTile(
+                      label: 'Private account',
+                      value: 'Safe',
+                      icon: Icons.lock_outline,
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              SolenneCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionLabel('Daily prompt'),
+                    const SizedBox(height: 10),
+                    Text(
+                      _prompt,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 22),
               Row(
@@ -158,8 +145,8 @@ class HomeScreen extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   TextButton(
-                    onPressed: () => context.go('/journals'),
-                    child: const Text('View all'),
+                    onPressed: () => context.go('/timeline'),
+                    child: const Text('View timeline'),
                   ),
                 ],
               ),
@@ -176,10 +163,10 @@ class HomeScreen extends ConsumerWidget {
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.coral,
+                          backgroundColor: AppColors.quicksand,
                           child: const Icon(
                             Icons.play_arrow_rounded,
-                            color: Colors.white,
+                            color: AppColors.royalBlue,
                           ),
                         ),
                         title: Text(entry.prompt),
@@ -197,33 +184,6 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.label,
-  });
-
-  final String title;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return SolenneCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text(value, style: Theme.of(context).textTheme.titleLarge),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        ],
       ),
     );
   }

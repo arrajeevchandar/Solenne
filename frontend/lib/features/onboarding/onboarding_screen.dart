@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
+import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../auth/auth_providers.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -68,27 +70,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 160,
-                            height: 160,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppColors.cardElevated, AppColors.ink],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(42),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Icon(
-                              slide.$1,
-                              size: 78,
-                              color: AppColors.aqua,
+                          SolenneCard(
+                            padding: const EdgeInsets.all(26),
+                            child: Column(
+                              children: [
+                                const SolenneOrb(size: 106),
+                                const SizedBox(height: 18),
+                                Icon(
+                                  slide.$1,
+                                  size: 38,
+                                  color: AppColors.quicksand,
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 32),
                           Text(
                             slide.$2,
+                            textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 14),
@@ -149,8 +148,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       height: 8,
                       decoration: BoxDecoration(
                         color: _page == index
-                            ? AppColors.aqua
-                            : AppColors.border,
+                            ? AppColors.quicksand
+                            : AppColors.sapphire.withValues(alpha: 0.52),
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),

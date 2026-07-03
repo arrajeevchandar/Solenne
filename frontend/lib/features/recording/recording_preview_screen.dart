@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../journals/journal_entry.dart';
 import '../journals/journal_repository.dart';
@@ -77,7 +78,7 @@ class _RecordingPreviewScreenState
         analysisStatus: 'not_started',
       );
       await ref.read(journalRepositoryProvider).saveJournal(entry);
-      if (mounted) context.go('/journals');
+      if (mounted) context.go('/timeline');
     } catch (error) {
       setState(() => _error = error.toString());
     } finally {
@@ -93,6 +94,8 @@ class _RecordingPreviewScreenState
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              const SectionLabel('Preview room'),
+              const SizedBox(height: 8),
               Text(
                 'Review reflection',
                 style: Theme.of(context).textTheme.headlineMedium,
@@ -103,38 +106,41 @@ class _RecordingPreviewScreenState
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 18),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: AspectRatio(
-                  aspectRatio: _controller.value.isInitialized
-                      ? _controller.value.aspectRatio
-                      : 9 / 16,
-                  child: _controller.value.isInitialized
-                      ? Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            VideoPlayer(_controller),
-                            IconButton.filled(
-                              iconSize: 42,
-                              onPressed: () {
-                                setState(() {
+              SolenneCard(
+                padding: const EdgeInsets.all(10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: AspectRatio(
+                    aspectRatio: _controller.value.isInitialized
+                        ? _controller.value.aspectRatio
+                        : 9 / 16,
+                    child: _controller.value.isInitialized
+                        ? Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              VideoPlayer(_controller),
+                              IconButton.filled(
+                                iconSize: 42,
+                                onPressed: () {
+                                  setState(() {
+                                    _controller.value.isPlaying
+                                        ? _controller.pause()
+                                        : _controller.play();
+                                  });
+                                },
+                                icon: Icon(
                                   _controller.value.isPlaying
-                                      ? _controller.pause()
-                                      : _controller.play();
-                                });
-                              },
-                              icon: Icon(
-                                _controller.value.isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                ),
                               ),
-                            ),
-                          ],
-                        )
-                      : const ColoredBox(
-                          color: AppColors.warmSand,
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
+                            ],
+                          )
+                        : const ColoredBox(
+                            color: AppColors.royalBlue,
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
@@ -142,6 +148,8 @@ class _RecordingPreviewScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SectionLabel('Prompt'),
+                    const SizedBox(height: 10),
                     Text(
                       widget.draft.prompt,
                       style: Theme.of(context).textTheme.titleMedium,

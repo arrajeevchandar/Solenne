@@ -27,6 +27,14 @@ class JournalEntry {
   final String analysisStatus;
   final String? moodLabel;
 
+  bool get hasImageThumbnail {
+    final path = Uri.tryParse(thumbnailUrl)?.path.toLowerCase() ?? '';
+    return path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.webp');
+  }
+
   factory JournalEntry.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 
 class AuthFormScaffold extends StatelessWidget {
   const AuthFormScaffold({
@@ -24,15 +25,23 @@ class AuthFormScaffold extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 34, 24, 24),
             children: [
-              const Icon(
-                Icons.self_improvement_rounded,
-                size: 54,
-                color: AppColors.aqua,
-              ),
+              const Center(child: SolenneOrb(size: 82)),
               const SizedBox(height: 18),
-              Text(title, style: Theme.of(context).textTheme.headlineMedium),
+              const Center(child: SectionLabel('Solenne')),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 8),
-              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.shellstone),
+              ),
               const SizedBox(height: 28),
               SolenneCard(child: child),
             ],

@@ -6,7 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
+import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import 'recording_draft.dart';
 
 class RecordingScreen extends StatefulWidget {
@@ -161,28 +164,32 @@ class _RecordingScreenState extends State<RecordingScreen> {
   Widget build(BuildContext context) {
     if (_permissionDenied) {
       return Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.no_photography_outlined, size: 64),
-              const SizedBox(height: 18),
-              Text(
-                'Camera access is needed',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Enable camera and microphone permissions to record a reflection.',
-              ),
-              const SizedBox(height: 18),
-              SolenneButton(
-                label: 'Open Settings',
-                icon: Icons.settings_rounded,
-                onPressed: openAppSettings,
-              ),
-            ],
+        body: OrganicBackground(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SolenneOrb(size: 84),
+                const SizedBox(height: 18),
+                Text(
+                  'Camera access is needed',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Enable camera and microphone permissions to record a reflection.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                SolenneButton(
+                  label: 'Open Settings',
+                  icon: Icons.settings_rounded,
+                  onPressed: openAppSettings,
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -227,26 +234,31 @@ class _RecordingScreenState extends State<RecordingScreen> {
               top: 18,
               left: 18,
               right: 18,
-              child: Column(
-                children: [
-                  Text(
-                    _prompt,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(color: Colors.white),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_isRecording)
-                    Chip(
-                      avatar: const Icon(
-                        Icons.fiber_manual_record,
-                        color: AppColors.danger,
-                        size: 16,
-                      ),
-                      label: Text(_formatTime(_elapsed)),
+              child: SolenneCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const SectionLabel('Private room'),
+                    const SizedBox(height: 8),
+                    Text(
+                      _prompt,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(color: Colors.white),
                     ),
-                ],
+                    const SizedBox(height: 10),
+                    if (_isRecording)
+                      Chip(
+                        avatar: const Icon(
+                          Icons.fiber_manual_record,
+                          color: AppColors.danger,
+                          size: 16,
+                        ),
+                        label: Text(_formatTime(_elapsed)),
+                      ),
+                  ],
+                ),
               ),
             ),
             Positioned(
@@ -270,14 +282,27 @@ class _RecordingScreenState extends State<RecordingScreen> {
                         shape: BoxShape.circle,
                         color: _isRecording
                             ? AppColors.danger
-                            : AppColors.mutedTeal,
-                        border: Border.all(color: Colors.white, width: 5),
+                            : AppColors.quicksand,
+                        border: Border.all(color: AppColors.swanWing, width: 5),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (_isRecording
+                                        ? AppColors.danger
+                                        : AppColors.quicksand)
+                                    .withValues(alpha: 0.36),
+                            blurRadius: 34,
+                            spreadRadius: 4,
+                          ),
+                        ],
                       ),
                       child: Icon(
                         _isRecording
                             ? Icons.stop_rounded
                             : Icons.videocam_rounded,
-                        color: Colors.white,
+                        color: _isRecording
+                            ? Colors.white
+                            : AppColors.royalBlue,
                         size: 36,
                       ),
                     ),

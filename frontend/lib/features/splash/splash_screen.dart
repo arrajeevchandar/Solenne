@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/organic_background.dart';
+import '../../core/widgets/solenne_visuals.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,37 +34,20 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 104,
-                height: 104,
-                decoration: BoxDecoration(
-                  color: AppColors.ivoryWhite,
-                  borderRadius: BorderRadius.circular(34),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.28),
-                      blurRadius: 28,
-                      offset: const Offset(0, 16),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.self_improvement_rounded,
-                  color: AppColors.aqua,
-                  size: 54,
-                ),
-              ),
-              const SizedBox(height: 22),
+              const SolenneOrb(size: 118),
+              const SizedBox(height: 28),
               Text(
                 'Solenne',
                 style: Theme.of(
                   context,
-                ).textTheme.displaySmall?.copyWith(letterSpacing: 0.2),
+                ).textTheme.displaySmall?.copyWith(fontSize: 44),
               ),
               const SizedBox(height: 8),
               Text(
-                'A softer daily reflection',
-                style: Theme.of(context).textTheme.bodyMedium,
+                'private video reflections',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.quicksand),
               ),
             ],
           ),

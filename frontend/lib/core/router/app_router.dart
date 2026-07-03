@@ -8,6 +8,7 @@ import '../../features/auth/forgot_password_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/signup_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/insights/insights_screen.dart';
 import '../../features/journals/journal_detail_screen.dart';
 import '../../features/journals/journal_list_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
@@ -17,6 +18,7 @@ import '../../features/recording/recording_screen.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/timeline/timeline_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -60,6 +62,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const JournalListScreen(),
         ),
         GoRoute(
+          path: '/timeline',
+          builder: (context, state) => const TimelineScreen(),
+        ),
+        GoRoute(
           path: '/journals/:id',
           builder: (_, state) =>
               JournalDetailScreen(id: state.pathParameters['id']!),
@@ -67,6 +73,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/record',
           builder: (context, state) => const RecordingScreen(),
+        ),
+        GoRoute(
+          path: '/insights',
+          builder: (context, state) => const InsightsScreen(),
         ),
         GoRoute(
           path: '/profile',

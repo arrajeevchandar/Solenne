@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/widgets/organic_background.dart';
 import '../../core/widgets/solenne_button.dart';
 import '../../core/widgets/solenne_card.dart';
+import '../../core/widgets/solenne_visuals.dart';
 import '../auth/auth_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -17,17 +18,21 @@ class ProfileScreen extends ConsumerWidget {
       body: OrganicBackground(
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
             children: [
+              const SectionLabel('Account'),
+              const SizedBox(height: 8),
               Text(
                 'Profile',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               SolenneCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Center(child: SolenneOrb(size: 88)),
+                    const SizedBox(height: 18),
                     Text(
                       user?.displayName ?? 'Solenne user',
                       style: Theme.of(context).textTheme.titleLarge,
@@ -38,8 +43,11 @@ class ProfileScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 20),
-                    const Text(
+                    const SectionLabel('Privacy'),
+                    const SizedBox(height: 8),
+                    Text(
                       'Insights, consent controls, and privacy export will be added with the backend analysis milestone.',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
