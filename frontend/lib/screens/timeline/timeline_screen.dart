@@ -12,85 +12,186 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-  int _expandedIndex = 0;
+  static const int _futureDayCount = 30;
+  static const int _pastDayCount = 120;
+  static const double _navHeight = 62;
+  static const double _navBottomMargin = 14;
+  static const double _calendarToNavGap = 8;
+  static const double _sectionGap = 4;
+  static const double _horizontalPadding = 20;
+  static const double _headerTop = 20;
+  static const double _timelinePanelTop = 102;
 
-  final _days = const [
-    _TimelineDay(
-      date: '13 June',
-      hasEntry: true,
-      length: 0.86,
-      tint: AppColors.quicksand,
-      observation: 'You sounded more settled by the end than at the start.',
-      tags: ['sleep', 'work', 'uncertainty'],
-    ),
-    _TimelineDay(
-      date: '12 June',
-      hasEntry: true,
-      length: 0.72,
-      tint: AppColors.shellstone,
-      observation: 'A small good thing kept returning in the background.',
-      tags: ['family', 'rest', 'something good'],
-    ),
-    _TimelineDay(
-      date: '11 June',
-      hasEntry: true,
-      length: 0.94,
-      tint: AppColors.sapphire,
-      observation: 'There was more future-tense language than usual.',
-      tags: ['plans', 'work', 'change'],
-    ),
-    _TimelineDay(
-      date: '10 June',
-      hasEntry: false,
-      length: 0.36,
-      tint: AppColors.shellstone,
-      observation: '',
-      tags: [],
-    ),
-    _TimelineDay(
-      date: '9 June',
-      hasEntry: true,
-      length: 0.42,
-      tint: AppColors.quicksand,
-      observation: 'Your voice got quieter when you talked about timing.',
-      tags: ['sleep', 'timing', 'pressure'],
-    ),
-  ];
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _todayKey = GlobalKey();
+  int _expandedIndex = _pastDayCount;
+  bool _hasPositionedToday = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _positionTodayAtTop());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  List<_TimelineDay> _visibleDays() {
+    final today = _dateOnly(DateTime.now());
+    return List.generate(_futureDayCount + 1 + _pastDayCount, (index) {
+      final date = today.add(Duration(days: index - _pastDayCount));
+      return _TimelineDay.fromDate(date, index: index, today: today);
+    });
+  }
+
+  void _positionTodayAtTop() {
+    if (!mounted || _hasPositionedToday) return;
+    final todayContext = _todayKey.currentContext;
+    if (todayContext == null) return;
+    _hasPositionedToday = true;
+    Scrollable.ensureVisible(
+      todayContext,
+      alignment: 0,
+      duration: Duration.zero,
+      curve: Curves.linear,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final days = _visibleDays();
+    final bottomPadding =
+        _navHeight +
+        _navBottomMargin +
+        _calendarToNavGap +
+        MediaQuery.paddingOf(context).bottom;
     return _CosmicPage(
       child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 106),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Timeline', style: AppTextStyles.display(fontSize: 36)),
-              const SizedBox(height: 4),
-              Text(
-                'Look back without turning it into a report.',
-                style: AppTextStyles.body(
-                  fontSize: 14,
-                  color: AppColors.shellstone.withValues(alpha: 0.72),
-                  fontStyle: FontStyle.italic,
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const calendarHeight = 190.0;
+            return Stack(
+              children: [
+                Positioned(
+                  left: _horizontalPadding,
+                  right: _horizontalPadding,
+                  top: _headerTop,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Timeline',
+                        style: AppTextStyles.display(fontSize: 36),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Look back without turning it into a report.',
+                        style: AppTextStyles.body(
+                          fontSize: 14,
+                          color: AppColors.shellstone.withValues(alpha: 0.72),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 26),
-              _ZoomHint(),
-              const SizedBox(height: 18),
-              for (int i = 0; i < _days.length; i++) ...[
-                _TimelineRow(
-                  day: _days[i],
-                  expanded: _expandedIndex == i && _days[i].hasEntry,
-                  onTap: () => setState(() => _expandedIndex = i),
+                Positioned(
+                  left: _horizontalPadding,
+                  right: _horizontalPadding,
+                  top: _timelinePanelTop,
+                  bottom: bottomPadding + calendarHeight + _sectionGap,
+                  child: _TimelineScrollPanel(
+                    child: ScrollbarTheme(
+                      data: ScrollbarThemeData(
+                        thumbColor: WidgetStatePropertyAll(
+                          AppColors.quicksand.withValues(alpha: 0.42),
+                        ),
+                        trackColor: WidgetStatePropertyAll(
+                          AppColors.shellstone.withValues(alpha: 0.08),
+                        ),
+                        trackBorderColor: WidgetStatePropertyAll(
+                          AppColors.shellstone.withValues(alpha: 0.04),
+                        ),
+                        thickness: const WidgetStatePropertyAll(3),
+                        radius: const Radius.circular(999),
+                      ),
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: true,
+                        interactive: true,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+                          child: Column(
+                            children: [
+                              for (int i = 0; i < days.length; i++) ...[
+                                KeyedSubtree(
+                                  key: days[i].isToday
+                                      ? _todayKey
+                                      : ValueKey<DateTime>(days[i].date),
+                                  child: _TimelineRow(
+                                    day: days[i],
+                                    expanded:
+                                        _expandedIndex == i && days[i].hasEntry,
+                                    onTap: () =>
+                                        setState(() => _expandedIndex = i),
+                                  ),
+                                ),
+                                if (i != days.length - 1)
+                                  const SizedBox(height: 12),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 14),
+                Positioned(
+                  left: _horizontalPadding,
+                  right: _horizontalPadding,
+                  bottom: bottomPadding,
+                  height: calendarHeight,
+                  child: const _MonthCalendarPreview(),
+                ),
               ],
-              const SizedBox(height: 10),
-              _MonthPatternPreview(days: _days),
-            ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  static DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+}
+
+class _TimelineScrollPanel extends StatelessWidget {
+  const _TimelineScrollPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.shellstone.withValues(alpha: 0.16),
+            ),
+            color: AppColors.royalBlue.withValues(alpha: 0.15),
           ),
+          child: child,
         ),
       ),
     );
@@ -132,16 +233,18 @@ class _TimelineRow extends StatelessWidget {
                 SizedBox(
                   width: 78,
                   child: Text(
-                    day.date,
+                    day.dateLabel,
                     style: AppTextStyles.mono(
                       fontSize: 11,
-                      color: AppColors.shellstone.withValues(alpha: 0.78),
+                      color: day.isToday
+                          ? AppColors.quicksand.withValues(alpha: 0.9)
+                          : AppColors.shellstone.withValues(alpha: 0.78),
                     ),
                   ),
                 ),
                 Icon(
                   day.hasEntry ? Icons.circle : Icons.circle_outlined,
-                  size: 13,
+                  size: day.isToday ? 15 : 13,
                   color: day.hasEntry
                       ? day.tint.withValues(alpha: 0.92)
                       : AppColors.shellstone.withValues(alpha: 0.52),
@@ -226,7 +329,7 @@ class _ExpandedDay extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Listen back',
+                    'Listen back later',
                     style: AppTextStyles.mono(
                       fontSize: 10,
                       color: AppColors.quicksand.withValues(alpha: 0.76),
@@ -267,81 +370,223 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _ZoomHint extends StatelessWidget {
+class _MonthCalendarPreview extends StatefulWidget {
+  const _MonthCalendarPreview();
+
+  @override
+  State<_MonthCalendarPreview> createState() => _MonthCalendarPreviewState();
+}
+
+class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
+  late DateTime _visibleMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final days = _calendarDays(_visibleMonth);
     return _Glass(
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.pinch_rounded,
-            size: 17,
-            color: AppColors.quicksand.withValues(alpha: 0.72),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Pinch out to see weeks and months as patterns.',
-              style: AppTextStyles.body(
-                fontSize: 13,
-                color: AppColors.shellstone.withValues(alpha: 0.72),
-                fontStyle: FontStyle.italic,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _monthLabel(_visibleMonth),
+                  style: AppTextStyles.body(
+                    fontSize: 14.5,
+                    color: AppColors.swanWing.withValues(alpha: 0.9),
+                  ),
+                ),
               ),
-            ),
+              _RoundIcon(
+                icon: Icons.chevron_left_rounded,
+                onTap: () => _changeMonth(-1),
+              ),
+              const SizedBox(width: 8),
+              _RoundIcon(
+                icon: Icons.chevron_right_rounded,
+                onTap: () => _changeMonth(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: const [
+              'M',
+              'T',
+              'W',
+              'T',
+              'F',
+              'S',
+              'S',
+            ].map((label) => Expanded(child: _Weekday(label))).toList(),
+          ),
+          const SizedBox(height: 4),
+          Column(
+            children: [
+              for (int week = 0; week < 6; week++) ...[
+                Row(
+                  children: [
+                    for (int weekday = 0; weekday < 7; weekday++)
+                      Expanded(
+                        child: SizedBox(
+                          height: 18,
+                          child: _CalendarCell(
+                            date: days[(week * 7) + weekday],
+                            inMonth:
+                                days[(week * 7) + weekday].month ==
+                                _visibleMonth.month,
+                            today: _isSameDay(
+                              days[(week * 7) + weekday],
+                              DateTime.now(),
+                            ),
+                            marked: _hasDummyEntry(days[(week * 7) + weekday]),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (week != 5) const SizedBox(height: 3),
+              ],
+            ],
           ),
         ],
       ),
     );
   }
+
+  static List<DateTime> _calendarDays(DateTime month) {
+    final first = DateTime(month.year, month.month);
+    final start = first.subtract(Duration(days: first.weekday - 1));
+    return List.generate(42, (index) => start.add(Duration(days: index)));
+  }
+
+  static bool _hasDummyEntry(DateTime date) {
+    return (date.day + date.month + date.year) % 5 != 2;
+  }
+
+  static bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static String _monthLabel(DateTime date) {
+    return '${_months[date.month - 1]} ${date.year}';
+  }
 }
 
-class _MonthPatternPreview extends StatelessWidget {
-  final List<_TimelineDay> days;
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({required this.icon, required this.onTap});
 
-  const _MonthPatternPreview({required this.days});
+  final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return _Glass(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Month view',
-            style: AppTextStyles.body(
-              fontSize: 17,
-              color: AppColors.swanWing.withValues(alpha: 0.9),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.sapphire.withValues(alpha: 0.16),
+          border: Border.all(
+            color: AppColors.shellstone.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: AppColors.shellstone.withValues(alpha: 0.78),
+        ),
+      ),
+    );
+  }
+}
+
+class _Weekday extends StatelessWidget {
+  const _Weekday(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      textAlign: TextAlign.center,
+      style: AppTextStyles.mono(
+        fontSize: 8,
+        color: AppColors.shellstone.withValues(alpha: 0.46),
+      ),
+    );
+  }
+}
+
+class _CalendarCell extends StatelessWidget {
+  const _CalendarCell({
+    required this.date,
+    required this.inMonth,
+    required this.today,
+    required this.marked,
+  });
+
+  final DateTime date;
+  final bool inMonth;
+  final bool today;
+  final bool marked;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = Color.lerp(
+      AppColors.sapphire,
+      AppColors.quicksand,
+      (date.day % 7) / 7,
+    )!;
+    return Center(
+      child: SizedBox.square(
+        dimension: 18,
+        child: AnimatedContainer(
+          duration: AppDurations.transition,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: today
+                ? AppColors.quicksand.withValues(alpha: 0.24)
+                : marked && inMonth
+                ? tint.withValues(alpha: 0.17)
+                : Colors.transparent,
+            border: Border.all(
+              color: today
+                  ? AppColors.quicksand.withValues(alpha: 0.58)
+                  : marked && inMonth
+                  ? tint.withValues(alpha: 0.24)
+                  : AppColors.shellstone.withValues(
+                      alpha: inMonth ? 0.12 : 0.05,
+                    ),
             ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: List.generate(28, (index) {
-              final active = index % 5 != 2;
-              final color = Color.lerp(
-                AppColors.sapphire,
-                AppColors.quicksand,
-                (index % 7) / 7,
-              )!;
-              return Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: active
-                      ? color.withValues(alpha: 0.72)
-                      : Colors.transparent,
-                  border: active
-                      ? null
-                      : Border.all(
-                          color: AppColors.shellstone.withValues(alpha: 0.32),
-                        ),
-                ),
-              );
-            }),
+          child: Text(
+            '${date.day}',
+            style: AppTextStyles.mono(
+              fontSize: 8,
+              color: today
+                  ? AppColors.quicksand.withValues(alpha: 0.95)
+                  : inMonth
+                  ? AppColors.shellstone.withValues(alpha: 0.72)
+                  : AppColors.shellstone.withValues(alpha: 0.22),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -383,8 +628,10 @@ class _FingerprintLinePainter extends CustomPainter {
 }
 
 class _TimelineDay {
-  final String date;
+  final DateTime date;
+  final String dateLabel;
   final bool hasEntry;
+  final bool isToday;
   final double length;
   final Color tint;
   final String observation;
@@ -392,13 +639,74 @@ class _TimelineDay {
 
   const _TimelineDay({
     required this.date,
+    required this.dateLabel,
     required this.hasEntry,
+    required this.isToday,
     required this.length,
     required this.tint,
     required this.observation,
     required this.tags,
   });
+
+  factory _TimelineDay.fromDate(
+    DateTime date, {
+    required int index,
+    required DateTime today,
+  }) {
+    final hasEntry = (date.day + date.month + date.year) % 5 != 2;
+    final palette = [
+      AppColors.quicksand,
+      AppColors.shellstone,
+      AppColors.sapphire,
+    ];
+    final observations = [
+      'A small signal sits here, waiting for a future entry.',
+      'This day has a softer shape in the pattern.',
+      'A future reflection can live here when you return.',
+      'There is room here for what the day becomes.',
+    ];
+    final tagSets = [
+      ['sleep', 'work', 'uncertainty'],
+      ['family', 'rest', 'something good'],
+      ['plans', 'change', 'timing'],
+      ['quiet', 'voice', 'noted'],
+    ];
+    return _TimelineDay(
+      date: date,
+      dateLabel: _dateLabel(date, today),
+      hasEntry: hasEntry,
+      isToday: _sameDay(date, today),
+      length: 0.38 + ((date.day * 17 + date.month * 3) % 52) / 100,
+      tint: palette[(date.day + index) % palette.length],
+      observation: observations[(date.day + date.month) % observations.length],
+      tags: tagSets[(date.day + index) % tagSets.length],
+    );
+  }
+
+  static String _dateLabel(DateTime date, DateTime today) {
+    if (_sameDay(date, today)) return 'Today';
+    return '${date.day} ${_months[date.month - 1]}';
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 }
+
+const _months = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 class _CosmicPage extends StatelessWidget {
   final Widget child;
@@ -427,8 +735,9 @@ class _CosmicPage extends StatelessWidget {
 
 class _Glass extends StatelessWidget {
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
-  const _Glass({required this.child});
+  const _Glass({required this.child, this.padding = const EdgeInsets.all(16)});
 
   @override
   Widget build(BuildContext context) {
@@ -438,7 +747,7 @@ class _Glass extends StatelessWidget {
         filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: padding,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             border: Border.all(

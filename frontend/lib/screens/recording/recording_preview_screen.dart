@@ -60,9 +60,17 @@ class _RecordingPreviewScreenState
       _error = null;
     });
     try {
+      debugPrint(
+        '[Solenne] Starting Cloudinary upload: '
+        'name=${widget.draft.file.name}, duration=${widget.draft.durationSeconds}s',
+      );
       final upload = await ref
           .read(cloudinaryUploadServiceProvider)
           .uploadVideo(widget.draft.file);
+      debugPrint(
+        '[Solenne] Cloudinary upload complete: '
+        'publicId=${upload.publicId}, url=${upload.secureUrl}',
+      );
       final id = DateTime.now().microsecondsSinceEpoch.toString();
       final entry = JournalEntry(
         id: id,
@@ -76,14 +84,20 @@ class _RecordingPreviewScreenState
         uploadStatus: 'saved',
         analysisStatus: 'not_started',
       );
+      debugPrint('[Solenne] Saving journal metadata to Firestore: id=$id');
       await ref.read(journalRepositoryProvider).saveJournal(entry);
+      debugPrint('[Solenne] Journal metadata saved: id=$id');
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const AppShell()),
         (_) => false,
       );
     } catch (error) {
-      setState(() => _error = error.toString());
+      debugPrint('[Solenne] Save entry failed: $error');
+      setState(
+        () => _error =
+            'Could not save this entry yet. Check your connection and Cloudinary setup, then try again.\n\n$error',
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
