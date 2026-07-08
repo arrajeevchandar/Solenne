@@ -17,7 +17,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
   static const double _navHeight = 62;
   static const double _navBottomMargin = 14;
   static const double _calendarToNavGap = 8;
-  static const double _sectionGap = 6;
+  static const double _sectionGap = 4;
   static const double _horizontalPadding = 20;
   static const double _headerTop = 20;
   static const double _timelinePanelTop = 102;
@@ -70,12 +70,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
         MediaQuery.paddingOf(context).bottom;
     return _CosmicPage(
       child: SafeArea(
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final calendarHeight = math.min(
-              238.0,
-              math.max(212.0, constraints.maxHeight * 0.34),
-            );
+            const calendarHeight = 190.0;
             return Stack(
               children: [
                 Positioned(
@@ -395,7 +393,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
   Widget build(BuildContext context) {
     final days = _calendarDays(_visibleMonth);
     return _Glass(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -421,7 +419,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Row(
             children: const [
               'M',
@@ -433,7 +431,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
               'S',
             ].map((label) => Expanded(child: _Weekday(label))).toList(),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 4),
           Column(
             children: [
               for (int week = 0; week < 6; week++) ...[
@@ -442,7 +440,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
                     for (int weekday = 0; weekday < 7; weekday++)
                       Expanded(
                         child: SizedBox(
-                          height: 22,
+                          height: 18,
                           child: _CalendarCell(
                             date: days[(week * 7) + weekday],
                             inMonth:
@@ -458,7 +456,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
                       ),
                   ],
                 ),
-                if (week != 5) const SizedBox(height: 5),
+                if (week != 5) const SizedBox(height: 3),
               ],
             ],
           ),
@@ -556,7 +554,7 @@ class _CalendarCell extends StatelessWidget {
     )!;
     return Center(
       child: SizedBox.square(
-        dimension: 22,
+        dimension: 18,
         child: AnimatedContainer(
           duration: AppDurations.transition,
           alignment: Alignment.center,
