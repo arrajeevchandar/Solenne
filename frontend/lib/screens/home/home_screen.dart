@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/auth/auth_providers.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../profile/profile_screen.dart';
@@ -114,13 +116,18 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-class _HomeHeader extends StatelessWidget {
+class _HomeHeader extends ConsumerWidget {
   final VoidCallback onProfileTap;
 
   const _HomeHeader({required this.onProfileTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(firebaseAuthProvider);
+    final firestore = ref.watch(firestoreProvider);
+    final user = auth.currentUser;
+    final directName = _cleanName(user?.displayName);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -128,7 +135,30 @@ class _HomeHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_greeting(), style: AppTextStyles.display(fontSize: 34)),
+              if (directName != null)
+                Text(
+                  _greeting(directName),
+                  style: AppTextStyles.display(fontSize: 34),
+                )
+              else if (user == null)
+                Text(
+                  _greeting('friend'),
+                  style: AppTextStyles.display(fontSize: 34),
+                )
+              else
+                FutureBuilder(
+                  future: firestore.collection('users').doc(user.uid).get(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data?.data();
+                    final fallbackName = _cleanName(
+                      data == null ? null : data['displayName'] as String?,
+                    );
+                    return Text(
+                      _greeting(fallbackName ?? 'friend'),
+                      style: AppTextStyles.display(fontSize: 34),
+                    );
+                  },
+                ),
               const SizedBox(height: 4),
               Text(
                 _formattedDate(DateTime.now()),
@@ -145,8 +175,14 @@ class _HomeHeader extends StatelessWidget {
     );
   }
 
-  static String _greeting() {
-    return 'Hello, username';
+  static String _greeting(String name) {
+    return 'Hello, $name';
+  }
+
+  static String? _cleanName(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
   }
 
   static String _formattedDate(DateTime date) {
