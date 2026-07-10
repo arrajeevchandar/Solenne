@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,14 +104,7 @@ class _RecordingPreviewScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF080E1C), Color(0xFF0A1628), AppColors.royalBlue],
-          ),
-        ),
+      body: SolenneBackground(
         child: Stack(
           children: [
             Positioned.fill(child: CustomPaint(painter: _PreviewSkyPainter())),
@@ -348,24 +339,7 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(26),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          width: double.infinity,
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.18),
-            ),
-            color: AppColors.royalBlue.withValues(alpha: 0.24),
-          ),
-          child: child,
-        ),
-      ),
-    );
+    return SolenneGlass(padding: padding, borderRadius: 26, child: child);
   }
 }
 
@@ -377,7 +351,7 @@ class _PreviewSkyPainter extends CustomPainter {
           RadialGradient(
             colors: [
               AppColors.sapphire.withValues(alpha: 0.24),
-              AppColors.quicksand.withValues(alpha: 0.06),
+              AppColors.royalBlue.withValues(alpha: 0.12),
               Colors.transparent,
             ],
           ).createShader(

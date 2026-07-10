@@ -1,6 +1,3 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 
@@ -73,7 +70,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
         bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            const calendarHeight = 190.0;
+            const calendarHeight = 224.0;
             return Stack(
               children: [
                 Positioned(
@@ -178,22 +175,10 @@ class _TimelineScrollPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.16),
-            ),
-            color: AppColors.royalBlue.withValues(alpha: 0.15),
-          ),
-          child: child,
-        ),
-      ),
+    return SolenneGlass(
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      child: child,
     );
   }
 }
@@ -356,8 +341,8 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: AppColors.quicksand.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.18)),
+        color: AppColors.sapphire.withValues(alpha: 0.14),
+        border: Border.all(color: AppColors.shellstone.withValues(alpha: 0.12)),
       ),
       child: Text(
         label,
@@ -378,86 +363,104 @@ class _MonthCalendarPreview extends StatefulWidget {
 }
 
 class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
+  _CalendarMode _mode = _CalendarMode.monthly;
   late DateTime _visibleMonth = DateTime(
     DateTime.now().year,
     DateTime.now().month,
   );
+  late DateTime _visibleWeekFocus = _dateOnly(DateTime.now());
 
-  void _changeMonth(int delta) {
+  void _changePeriod(int delta) {
     setState(() {
-      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta);
+      if (_mode == _CalendarMode.monthly) {
+        _visibleMonth = DateTime(
+          _visibleMonth.year,
+          _visibleMonth.month + delta,
+        );
+        return;
+      }
+      _visibleWeekFocus = _visibleWeekFocus.add(Duration(days: delta * 7));
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final days = _calendarDays(_visibleMonth);
+    final focusDate = _mode == _CalendarMode.monthly
+        ? _focusDateForMonth(_visibleMonth)
+        : _visibleWeekFocus;
+    final days = _weekDays(focusDate);
+    final title = _mode == _CalendarMode.monthly
+        ? _months[_visibleMonth.month - 1]
+        : 'Week';
+    final trailingLabel = _mode == _CalendarMode.monthly
+        ? '${focusDate.day}'
+        : _weekRangeLabel(days);
+    final activeYear = _mode == _CalendarMode.monthly
+        ? _visibleMonth.year
+        : focusDate.year;
+    final activeMonth = _mode == _CalendarMode.monthly
+        ? _visibleMonth.month
+        : focusDate.month;
     return _Glass(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  _monthLabel(_visibleMonth),
-                  style: AppTextStyles.body(
-                    fontSize: 14.5,
-                    color: AppColors.swanWing.withValues(alpha: 0.9),
-                  ),
-                ),
+              _CalendarModeToggle(
+                mode: _mode,
+                onChanged: (mode) => setState(() => _mode = mode),
               ),
+              const Spacer(),
               _RoundIcon(
                 icon: Icons.chevron_left_rounded,
-                onTap: () => _changeMonth(-1),
+                onTap: () => _changePeriod(-1),
               ),
               const SizedBox(width: 8),
               _RoundIcon(
                 icon: Icons.chevron_right_rounded,
-                onTap: () => _changeMonth(1),
+                onTap: () => _changePeriod(1),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Row(
-            children: const [
-              'M',
-              'T',
-              'W',
-              'T',
-              'F',
-              'S',
-              'S',
-            ].map((label) => Expanded(child: _Weekday(label))).toList(),
-          ),
-          const SizedBox(height: 4),
-          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (int week = 0; week < 6; week++) ...[
-                Row(
-                  children: [
-                    for (int weekday = 0; weekday < 7; weekday++)
-                      Expanded(
-                        child: SizedBox(
-                          height: 18,
-                          child: _CalendarCell(
-                            date: days[(week * 7) + weekday],
-                            inMonth:
-                                days[(week * 7) + weekday].month ==
-                                _visibleMonth.month,
-                            today: _isSameDay(
-                              days[(week * 7) + weekday],
-                              DateTime.now(),
-                            ),
-                            marked: _hasDummyEntry(days[(week * 7) + weekday]),
-                          ),
-                        ),
-                      ),
-                  ],
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.display(
+                    fontSize: 42,
+                    color: AppColors.swanWing.withValues(alpha: 0.9),
+                  ),
                 ),
-                if (week != 5) const SizedBox(height: 3),
-              ],
+              ),
+              Text(
+                trailingLabel,
+                style: AppTextStyles.display(
+                  fontSize: _mode == _CalendarMode.monthly ? 42 : 34,
+                  color: AppColors.swanWing.withValues(alpha: 0.92),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (int i = 0; i < days.length; i++)
+                Expanded(
+                  child: _CalendarDateTile(
+                    weekday: _weekdayLabels[i],
+                    date: days[i],
+                    inMonth:
+                        days[i].year == activeYear &&
+                        days[i].month == activeMonth,
+                    today: _isSameDay(days[i], DateTime.now()),
+                    marked: _hasDummyEntry(days[i]),
+                  ),
+                ),
             ],
           ),
         ],
@@ -465,10 +468,21 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
     );
   }
 
-  static List<DateTime> _calendarDays(DateTime month) {
-    final first = DateTime(month.year, month.month);
-    final start = first.subtract(Duration(days: first.weekday - 1));
-    return List.generate(42, (index) => start.add(Duration(days: index)));
+  static DateTime _focusDateForMonth(DateTime month) {
+    final today = DateTime.now();
+    if (today.year == month.year && today.month == month.month) {
+      return DateTime(today.year, today.month, today.day);
+    }
+    return DateTime(month.year, month.month);
+  }
+
+  static List<DateTime> _weekDays(DateTime focusDate) {
+    final start = focusDate.subtract(Duration(days: focusDate.weekday % 7));
+    return List.generate(7, (index) => start.add(Duration(days: index)));
+  }
+
+  static DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
   }
 
   static bool _hasDummyEntry(DateTime date) {
@@ -479,8 +493,91 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  static String _monthLabel(DateTime date) {
-    return '${_months[date.month - 1]} ${date.year}';
+  static String _weekRangeLabel(List<DateTime> days) {
+    final start = days.first;
+    final end = days.last;
+    if (start.month == end.month) return '${start.day}-${end.day}';
+    return '${start.day} ${_shortMonths[start.month - 1]}-${end.day} ${_shortMonths[end.month - 1]}';
+  }
+}
+
+enum _CalendarMode { weekly, monthly }
+
+class _CalendarModeToggle extends StatelessWidget {
+  const _CalendarModeToggle({required this.mode, required this.onChanged});
+
+  final _CalendarMode mode;
+  final ValueChanged<_CalendarMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 30,
+      width: 166,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.sapphire.withValues(alpha: 0.16),
+        border: Border.all(color: AppColors.shellstone.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _CalendarModeSegment(
+              label: 'Weekly',
+              selected: mode == _CalendarMode.weekly,
+              onTap: () => onChanged(_CalendarMode.weekly),
+            ),
+          ),
+          Expanded(
+            child: _CalendarModeSegment(
+              label: 'Monthly',
+              selected: mode == _CalendarMode.monthly,
+              onTap: () => onChanged(_CalendarMode.monthly),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarModeSegment extends StatelessWidget {
+  const _CalendarModeSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: AppDurations.transition,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(9),
+          color: selected
+              ? AppColors.swanWing.withValues(alpha: 0.94)
+              : Colors.transparent,
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.body(
+            fontSize: 12,
+            color: selected
+                ? AppColors.royalBlue
+                : AppColors.shellstone.withValues(alpha: 0.46),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -514,32 +611,16 @@ class _RoundIcon extends StatelessWidget {
   }
 }
 
-class _Weekday extends StatelessWidget {
-  const _Weekday(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      textAlign: TextAlign.center,
-      style: AppTextStyles.mono(
-        fontSize: 8,
-        color: AppColors.shellstone.withValues(alpha: 0.46),
-      ),
-    );
-  }
-}
-
-class _CalendarCell extends StatelessWidget {
-  const _CalendarCell({
+class _CalendarDateTile extends StatelessWidget {
+  const _CalendarDateTile({
+    required this.weekday,
     required this.date,
     required this.inMonth,
     required this.today,
     required this.marked,
   });
 
+  final String weekday;
   final DateTime date;
   final bool inMonth;
   final bool today;
@@ -547,50 +628,75 @@ class _CalendarCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = Color.lerp(
-      AppColors.sapphire,
-      AppColors.quicksand,
-      (date.day % 7) / 7,
-    )!;
-    return Center(
-      child: SizedBox.square(
-        dimension: 18,
-        child: AnimatedContainer(
+    final isRecordedDay = marked && inMonth;
+    final tileColor = today
+        ? AppColors.swanWing.withValues(alpha: 0.96)
+        : isRecordedDay
+        ? AppColors.sapphire.withValues(alpha: 0.24)
+        : Colors.transparent;
+    final borderColor = today
+        ? AppColors.swanWing.withValues(alpha: 0.76)
+        : isRecordedDay
+        ? AppColors.sapphire.withValues(alpha: 0.42)
+        : Colors.transparent;
+    final labelColor = inMonth
+        ? AppColors.shellstone.withValues(alpha: 0.56)
+        : AppColors.shellstone.withValues(alpha: 0.24);
+    final numberColor = today
+        ? AppColors.royalBlue
+        : isRecordedDay
+        ? AppColors.swanWing.withValues(alpha: 0.92)
+        : AppColors.shellstone.withValues(alpha: inMonth ? 0.82 : 0.26);
+
+    return Column(
+      children: [
+        Text(
+          weekday,
+          style: AppTextStyles.mono(fontSize: 10, color: labelColor),
+        ),
+        const SizedBox(height: 8),
+        AnimatedContainer(
           duration: AppDurations.transition,
+          width: 36,
+          height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: today
-                ? AppColors.quicksand.withValues(alpha: 0.24)
-                : marked && inMonth
-                ? tint.withValues(alpha: 0.17)
-                : Colors.transparent,
-            border: Border.all(
-              color: today
-                  ? AppColors.quicksand.withValues(alpha: 0.58)
-                  : marked && inMonth
-                  ? tint.withValues(alpha: 0.24)
-                  : AppColors.shellstone.withValues(
-                      alpha: inMonth ? 0.12 : 0.05,
+            borderRadius: BorderRadius.circular(10),
+            color: tileColor,
+            border: Border.all(color: borderColor),
+            boxShadow: today
+                ? [
+                    BoxShadow(
+                      color: AppColors.sapphire.withValues(alpha: 0.4),
+                      blurRadius: 18,
+                      offset: const Offset(0, 5),
                     ),
-            ),
+                  ]
+                : null,
           ),
           child: Text(
             '${date.day}',
-            style: AppTextStyles.mono(
-              fontSize: 8,
-              color: today
-                  ? AppColors.quicksand.withValues(alpha: 0.95)
-                  : inMonth
-                  ? AppColors.shellstone.withValues(alpha: 0.72)
-                  : AppColors.shellstone.withValues(alpha: 0.22),
-            ),
+            style: AppTextStyles.body(fontSize: 17, color: numberColor),
           ),
         ),
-      ),
+        const SizedBox(height: 7),
+        AnimatedContainer(
+          duration: AppDurations.transition,
+          width: 3.5,
+          height: 3.5,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isRecordedDay
+                ? AppColors.sapphire.withValues(alpha: today ? 0.0 : 0.86)
+                : Colors.transparent,
+          ),
+        ),
+      ],
     );
   }
 }
+
+const _weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 class _FingerprintLinePainter extends CustomPainter {
   final double length;
@@ -708,6 +814,21 @@ const _months = [
   'December',
 ];
 
+const _shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
 class _CosmicPage extends StatelessWidget {
   final Widget child;
 
@@ -715,21 +836,7 @@ class _CosmicPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF071127), Color(0xFF0D2147), Color(0xFF143765)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _SkyDustPainter())),
-          child,
-        ],
-      ),
-    );
+    return SolenneBackground(child: child);
   }
 }
 
@@ -741,46 +848,6 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.18),
-            ),
-            color: AppColors.royalBlue.withValues(alpha: 0.2),
-          ),
-          child: child,
-        ),
-      ),
-    );
+    return SolenneGlass(padding: padding, borderRadius: 22, child: child);
   }
-}
-
-class _SkyDustPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = math.Random(17);
-    for (int i = 0; i < 120; i++) {
-      canvas.drawCircle(
-        Offset(
-          random.nextDouble() * size.width,
-          random.nextDouble() * size.height,
-        ),
-        0.25 + random.nextDouble() * 0.7,
-        Paint()
-          ..color = AppColors.shellstone.withValues(
-            alpha: 0.06 + random.nextDouble() * 0.15,
-          ),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

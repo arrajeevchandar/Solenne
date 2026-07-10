@@ -9,6 +9,7 @@ class AppColors {
   static const sapphire = Color(0xFF3C507D);
   static const royalBlue = Color(0xFF112250);
   static const quicksand = Color(0xFFE0C68F);
+  static const electricGold = Color(0xFFFFD86B);
   static const swanWing = Color(0xFFF5F0E9);
   static const shellstone = Color(0xFFD8CBC2);
   static const aqua = Color(0xFF6DE6D5);

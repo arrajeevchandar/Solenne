@@ -49,5 +49,7 @@
 	<string>Solenne uses the camera to record your private video reflections.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Solenne uses the microphone to capture audio in your video reflections.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Solenne uses your photo library only when you choose a profile photo.</string>
 </dict>
 </plist>

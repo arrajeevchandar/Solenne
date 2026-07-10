@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import '../../routing/fade_through_route.dart';
@@ -52,20 +51,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen>
       body: SizedBox.expand(
         child: Stack(
           children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF080E1C),
-                    Color(0xFF0A1628),
-                    AppColors.royalBlue,
-                  ],
-                ),
-              ),
-              child: SizedBox.expand(),
-            ),
+            const SolenneBackground(child: SizedBox.expand()),
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _skyController,
@@ -85,101 +71,60 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                          child: Container(
-                            width: cardWidth,
-                            height: cardHeight,
-                            padding: EdgeInsets.fromLTRB(
-                              compact ? 24 : 28,
-                              compact ? 26 : 32,
-                              compact ? 24 : 28,
-                              compact ? 24 : 30,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: AppColors.sapphire.withValues(
-                                  alpha: 0.5,
-                                ),
-                                width: 1,
-                              ),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.sapphire.withValues(alpha: 0.36),
-                                  AppColors.royalBlue.withValues(alpha: 0.24),
-                                  const Color(
-                                    0xFF0A1628,
-                                  ).withValues(alpha: 0.3),
-                                ],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.royalBlue.withValues(
-                                    alpha: 0.34,
-                                  ),
-                                  blurRadius: 36,
-                                  offset: const Offset(0, 22),
-                                ),
-                                BoxShadow(
+                      SolenneGlass(
+                        width: cardWidth,
+                        height: cardHeight,
+                        borderRadius: 24,
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 24 : 28,
+                          compact ? 26 : 32,
+                          compact ? 24 : 28,
+                          compact ? 24 : 30,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 34,
+                                height: 2,
+                                decoration: BoxDecoration(
                                   color: AppColors.quicksand.withValues(
-                                    alpha: 0.1,
+                                    alpha: 0.62,
                                   ),
-                                  blurRadius: 44,
-                                  spreadRadius: -6,
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
-                              ],
+                              ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Center(
-                                  child: Container(
-                                    width: 34,
-                                    height: 2,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.quicksand.withValues(
-                                        alpha: 0.62,
-                                      ),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: compact ? 24 : 32),
-                                Text(
-                                  'Solenne learns you\nspecifically.',
-                                  style: AppTextStyles.display(
-                                    fontSize: compact ? 30 : 34,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'This takes about two weeks of entries to build your personal baseline. Until then, it simply listens.',
-                                  style: AppTextStyles.body(
-                                    fontSize: compact ? 15 : 16,
-                                    color: AppColors.textPrimary.withValues(
-                                      alpha: 0.88,
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  'Your first entry can be about anything. There is no wrong entry.',
-                                  style: AppTextStyles.body(
-                                    fontSize: compact ? 13 : 14,
-                                    color: AppColors.textSecondary.withValues(
-                                      alpha: 0.78,
-                                    ),
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
+                            SizedBox(height: compact ? 24 : 32),
+                            Text(
+                              'Solenne learns you\nspecifically.',
+                              style: AppTextStyles.display(
+                                fontSize: compact ? 30 : 34,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'This takes about two weeks of entries to build your personal baseline. Until then, it simply listens.',
+                              style: AppTextStyles.body(
+                                fontSize: compact ? 15 : 16,
+                                color: AppColors.textPrimary.withValues(
+                                  alpha: 0.88,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'Your first entry can be about anything. There is no wrong entry.',
+                              style: AppTextStyles.body(
+                                fontSize: compact ? 13 : 14,
+                                color: AppColors.textSecondary.withValues(
+                                  alpha: 0.78,
+                                ),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -286,12 +231,12 @@ class _RoyalCosmicPainter extends CustomPainter {
           );
     canvas.drawRect(Offset.zero & size, sapphireGlow);
 
-    final goldGlow = Paint()
+    final blueGlow = Paint()
       ..shader =
           RadialGradient(
             colors: [
-              AppColors.quicksand.withValues(alpha: 0.11),
-              AppColors.sapphire.withValues(alpha: 0.08),
+              AppColors.sapphire.withValues(alpha: 0.14),
+              AppColors.royalBlue.withValues(alpha: 0.1),
               Colors.transparent,
             ],
           ).createShader(
@@ -300,7 +245,7 @@ class _RoyalCosmicPainter extends CustomPainter {
               radius: size.shortestSide * 0.78,
             ),
           );
-    canvas.drawRect(Offset.zero & size, goldGlow);
+    canvas.drawRect(Offset.zero & size, blueGlow);
 
     final random = math.Random(311);
     for (int i = 0; i < 190; i++) {

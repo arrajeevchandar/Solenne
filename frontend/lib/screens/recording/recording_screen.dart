@@ -182,25 +182,15 @@ class _RecordingScreenState extends State<RecordingScreen>
     final isStopped = _state == _RecordingState.stopped;
     final isReceived = _state == _RecordingState.received;
     final screenSize = MediaQuery.of(context).size;
+    final compact = screenSize.height < 740;
     final previewHeight = math.min(
-      screenSize.height * 0.52,
-      screenSize.width * 1.18,
+      screenSize.height * (compact ? 0.54 : 0.62),
+      screenSize.width * (compact ? 1.1 : 1.42),
     );
 
     return Scaffold(
       body: SizedBox.expand(
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF080E1C),
-                Color(0xFF0A1628),
-                AppColors.royalBlue,
-              ],
-            ),
-          ),
+        child: SolenneBackground(
           child: Stack(
             children: [
               Positioned.fill(
@@ -341,14 +331,10 @@ class _SoftPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SolenneGlass(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.sapphire.withValues(alpha: 0.24)),
-        color: AppColors.sapphire.withValues(alpha: 0.09),
-      ),
+      borderRadius: 20,
       child: Text(
         "What's been on your mind today?",
         style: AppTextStyles.body(
