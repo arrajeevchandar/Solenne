@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
@@ -64,20 +63,7 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
       body: SizedBox.expand(
         child: Stack(
           children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF080E1C),
-                    Color(0xFF0A1628),
-                    AppColors.royalBlue,
-                  ],
-                ),
-              ),
-              child: SizedBox.expand(),
-            ),
+            const SolenneBackground(child: SizedBox.expand()),
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _skyController,
@@ -92,81 +78,44 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
             ),
             SafeArea(
               child: Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: Container(
-                      width: cardWidth,
-                      height: cardHeight,
-                      padding: EdgeInsets.fromLTRB(
-                        compact ? 22 : 26,
-                        compact ? 22 : 30,
-                        compact ? 22 : 26,
-                        compact ? 18 : 24,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: AppColors.sapphire.withValues(alpha: 0.48),
-                          width: 1,
+                child: SolenneGlass(
+                  width: cardWidth,
+                  height: cardHeight,
+                  borderRadius: 22,
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 22 : 26,
+                    compact ? 22 : 30,
+                    compact ? 22 : 26,
+                    compact ? 18 : 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 34,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: AppColors.quicksand.withValues(alpha: 0.62),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppColors.sapphire.withValues(alpha: 0.34),
-                            AppColors.royalBlue.withValues(alpha: 0.24),
-                            const Color(0xFF0A1628).withValues(alpha: 0.3),
-                          ],
+                      ),
+                      SizedBox(height: compact ? 18 : 28),
+                      Text(
+                        'What brings you\nto Solenne?',
+                        style: AppTextStyles.display(
+                          fontSize: compact ? 28 : 32,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.royalBlue.withValues(alpha: 0.32),
-                            blurRadius: 34,
-                            offset: const Offset(0, 22),
-                          ),
-                          BoxShadow(
-                            color: AppColors.sapphire.withValues(alpha: 0.18),
-                            blurRadius: 46,
-                            spreadRadius: -4,
-                          ),
-                        ],
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 34,
-                              height: 2,
-                              decoration: BoxDecoration(
-                                color: AppColors.quicksand.withValues(
-                                  alpha: 0.62,
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: compact ? 18 : 28),
-                          Text(
-                            'What brings you\nto Solenne?',
-                            style: AppTextStyles.display(
-                              fontSize: compact ? 28 : 32,
-                            ),
-                          ),
-                          SizedBox(height: compact ? 18 : 28),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: Intention.values
-                                  .map(_buildOption)
-                                  .toList(),
-                            ),
-                          ),
-                        ],
+                      SizedBox(height: compact ? 18 : 28),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: Intention.values.map(_buildOption).toList(),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -226,12 +175,12 @@ class _CosmicQuestionPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final warmGlow = Paint()
+    final lowerBlueGlow = Paint()
       ..shader =
           RadialGradient(
             colors: [
-              AppColors.quicksand.withValues(alpha: 0.1),
-              AppColors.sapphire.withValues(alpha: 0.08),
+              AppColors.sapphire.withValues(alpha: 0.14),
+              AppColors.royalBlue.withValues(alpha: 0.1),
               Colors.transparent,
             ],
             stops: const [0.0, 0.48, 1.0],
@@ -241,9 +190,9 @@ class _CosmicQuestionPainter extends CustomPainter {
               radius: size.shortestSide * 0.82,
             ),
           );
-    canvas.drawRect(Offset.zero & size, warmGlow);
+    canvas.drawRect(Offset.zero & size, lowerBlueGlow);
 
-    final blueGlow = Paint()
+    final upperBlueGlow = Paint()
       ..shader =
           RadialGradient(
             colors: [
@@ -258,7 +207,7 @@ class _CosmicQuestionPainter extends CustomPainter {
               radius: size.shortestSide * 0.7,
             ),
           );
-    canvas.drawRect(Offset.zero & size, blueGlow);
+    canvas.drawRect(Offset.zero & size, upperBlueGlow);
 
     final random = math.Random(31);
     for (int i = 0; i < 180; i++) {

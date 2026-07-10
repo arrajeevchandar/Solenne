@@ -42,18 +42,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: SizedBox.expand(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF0A1628), // deepest navy
-                Color(0xFF112250), // royal blue
-                Color(0xFF3C507D), // sapphire — warm lift at bottom
-              ],
-            ),
-          ),
+        child: SolenneBackground(
           child: SafeArea(
             child: FadeTransition(
               opacity: _fadeIn,

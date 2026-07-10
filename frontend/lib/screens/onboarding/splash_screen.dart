@@ -17,7 +17,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _skyController;
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
-  late final Animation<double> _screenFade;
 
   @override
   void initState() {
@@ -47,18 +46,11 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _screenFade = Tween<double>(begin: 1, end: 0).animate(
-      CurvedAnimation(
-        parent: _fadeController,
-        curve: const Interval(0.82, 1.0, curve: Curves.easeIn),
-      ),
-    );
-
     _fadeController.forward().then((_) {
       if (mounted) {
         Navigator.of(
           context,
-        ).pushReplacement(fadeThroughRoute(const WalkthroughScreen()));
+        ).pushReplacement(splashRevealRoute(const WalkthroughScreen()));
       }
     });
   }
@@ -81,89 +73,69 @@ class _SplashScreenState extends State<SplashScreen>
             310.0,
           );
 
-          return FadeTransition(
-            opacity: _screenFade,
-            child: SizedBox.expand(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF050914),
-                      Color(0xFF0A1628),
-                      AppColors.royalBlue,
-                    ],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: AnimatedBuilder(
-                        animation: _skyController,
-                        builder: (context, _) {
-                          return CustomPaint(
-                            painter: _StarlitSkyPainter(
-                              progress: _skyController.value,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Center(
-                      child: FadeTransition(
-                        opacity: _logoFade,
-                        child: ScaleTransition(
-                          scale: _logoScale,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: logoWidth * 1.34,
-                                height: logoWidth * 1.34,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      AppColors.quicksand.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      AppColors.sapphire.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      Colors.transparent,
-                                    ],
-                                    stops: const [0.0, 0.45, 1.0],
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                width: logoWidth * 1.02,
-                                height: logoWidth * 1.02,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      AppColors.sapphire.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Image.asset(
-                                'assets/images/logo.png',
-                                width: logoWidth,
-                                fit: BoxFit.contain,
-                              ),
-                            ],
+          return SizedBox.expand(
+            child: SolenneBackground(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _skyController,
+                      builder: (context, _) {
+                        return CustomPaint(
+                          painter: _StarlitSkyPainter(
+                            progress: _skyController.value,
                           ),
+                        );
+                      },
+                    ),
+                  ),
+                  Center(
+                    child: FadeTransition(
+                      opacity: _logoFade,
+                      child: ScaleTransition(
+                        scale: _logoScale,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: logoWidth * 1.34,
+                              height: logoWidth * 1.34,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    AppColors.quicksand.withValues(alpha: 0.15),
+                                    AppColors.sapphire.withValues(alpha: 0.12),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.0, 0.45, 1.0],
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: logoWidth * 1.02,
+                              height: logoWidth * 1.02,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    AppColors.sapphire.withValues(alpha: 0.18),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Image.asset(
+                              'assets/images/logo.png',
+                              width: logoWidth,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );

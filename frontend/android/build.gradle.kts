@@ -16,6 +16,14 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
+    if (name == "camera_android_camerax") {
+        plugins.withId("com.android.library") {
+            // CameraX exposes this type from camera-core compile-time annotations.
+            dependencies.add("implementation", "androidx.concurrent:concurrent-futures:1.1.0")
+        }
+    }
+}
+subprojects {
     project.evaluationDependsOn(":app")
 }
 

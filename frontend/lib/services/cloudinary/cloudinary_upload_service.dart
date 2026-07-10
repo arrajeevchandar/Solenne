@@ -42,7 +42,30 @@ class CloudinaryUploadResult {
 }
 
 class CloudinaryUploadService {
+  Future<CloudinaryUploadResult> uploadImage(XFile file) {
+    return _uploadMedia(
+      file: file,
+      resourceType: 'image',
+      folder: '${AppConfig.cloudinaryUploadFolder}/profiles',
+      fallbackFilename: 'profile-photo.jpg',
+    );
+  }
+
   Future<CloudinaryUploadResult> uploadVideo(XFile file) async {
+    return _uploadMedia(
+      file: file,
+      resourceType: 'video',
+      folder: AppConfig.cloudinaryUploadFolder,
+      fallbackFilename: 'reflection.mp4',
+    );
+  }
+
+  Future<CloudinaryUploadResult> _uploadMedia({
+    required XFile file,
+    required String resourceType,
+    required String folder,
+    required String fallbackFilename,
+  }) async {
     if (!AppConfig.hasCloudinaryConfig) {
       throw StateError(
         'Cloudinary is not configured. Missing: '
@@ -53,16 +76,16 @@ class CloudinaryUploadService {
 
     final uri = Uri.https(
       'api.cloudinary.com',
-      '/v1_1/${AppConfig.cloudinaryCloudName}/video/upload',
+      '/v1_1/${AppConfig.cloudinaryCloudName}/$resourceType/upload',
     );
     final request = http.MultipartRequest('POST', uri)
       ..fields['upload_preset'] = AppConfig.cloudinaryUploadPreset
-      ..fields['folder'] = AppConfig.cloudinaryUploadFolder
+      ..fields['folder'] = folder
       ..files.add(
         http.MultipartFile.fromBytes(
           'file',
           await file.readAsBytes(),
-          filename: file.name.isEmpty ? 'reflection.mp4' : file.name,
+          filename: file.name.isEmpty ? fallbackFilename : file.name,
         ),
       );
 

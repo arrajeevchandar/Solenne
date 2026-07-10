@@ -70,18 +70,7 @@ class _StartupLoadingApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const Scaffold(
-        body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF080E1C),
-                Color(0xFF0A1628),
-                AppColors.royalBlue,
-              ],
-            ),
-          ),
+        body: SolenneBackground(
           child: Center(
             child: CircularProgressIndicator(
               color: AppColors.quicksand,
@@ -114,18 +103,7 @@ class _StartupErrorApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: Scaffold(
-        body: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF080E1C),
-                Color(0xFF0A1628),
-                AppColors.royalBlue,
-              ],
-            ),
-          ),
+        body: SolenneBackground(
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24),

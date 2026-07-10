@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import '../routing/fade_through_route.dart';
 import '../theme/app_theme.dart';
@@ -43,46 +41,35 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: Padding(
         padding: EdgeInsets.fromLTRB(18, 0, 18, 14 + bottomPadding),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              height: 62,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: AppColors.shellstone.withValues(alpha: 0.22),
-                ),
-                color: AppColors.royalBlue.withValues(alpha: 0.54),
+        child: SolenneGlass(
+          height: 62,
+          padding: EdgeInsets.zero,
+          borderRadius: 28,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Icons.home_rounded,
+                selected: _index == 0,
+                onTap: () => setState(() => _index = 0),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.home_rounded,
-                    selected: _index == 0,
-                    onTap: () => setState(() => _index = 0),
-                  ),
-                  _NavItem(
-                    icon: Icons.timeline_rounded,
-                    selected: _index == 1,
-                    onTap: () => setState(() => _index = 1),
-                  ),
-                  _RecordNavButton(onTap: _openRecording),
-                  _NavItem(
-                    icon: Icons.auto_awesome_rounded,
-                    selected: _index == 2,
-                    onTap: () => setState(() => _index = 2),
-                  ),
-                  _NavItem(
-                    icon: Icons.person_rounded,
-                    selected: _index == 3,
-                    onTap: () => setState(() => _index = 3),
-                  ),
-                ],
+              _NavItem(
+                icon: Icons.timeline_rounded,
+                selected: _index == 1,
+                onTap: () => setState(() => _index = 1),
               ),
-            ),
+              _RecordNavButton(onTap: _openRecording),
+              _NavItem(
+                icon: Icons.auto_awesome_rounded,
+                selected: _index == 2,
+                onTap: () => setState(() => _index = 2),
+              ),
+              _NavItem(
+                icon: Icons.person_rounded,
+                selected: _index == 3,
+                onTap: () => setState(() => _index = 3),
+              ),
+            ],
           ),
         ),
       ),

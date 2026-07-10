@@ -1,9 +1,9 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../routing/fade_through_route.dart';
+import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
 import '../auth/auth_screen.dart';
@@ -17,6 +17,47 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _voice = 'Observational';
+  bool _photoUploading = false;
+  String? _photoError;
+
+  Future<void> _uploadProfilePhoto() async {
+    if (_photoUploading) return;
+    final user = ref.read(firebaseAuthProvider).currentUser;
+    if (user == null) return;
+
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 86,
+      maxWidth: 1200,
+    );
+    if (image == null) return;
+
+    setState(() {
+      _photoUploading = true;
+      _photoError = null;
+    });
+
+    try {
+      final upload = await ref
+          .read(cloudinaryUploadServiceProvider)
+          .uploadImage(image);
+      await user.updatePhotoURL(upload.secureUrl);
+      await ref.read(firestoreProvider).collection('users').doc(user.uid).set({
+        'photoUrl': upload.secureUrl,
+        'photoPublicId': upload.publicId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await user.reload();
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) {
+        setState(() => _photoError = error.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _photoUploading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,16 +74,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: Text(
                       'Profile',
                       style: AppTextStyles.display(fontSize: 36),
-                    ),
-                  ),
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.quicksand.withValues(
-                      alpha: 0.18,
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: AppColors.quicksand.withValues(alpha: 0.86),
                     ),
                   ),
                 ],
@@ -63,7 +94,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: [
                     const _SectionTitle('Account'),
                     const SizedBox(height: 14),
-                    const _ProfileSummary(),
+                    _ProfileSummary(
+                      uploading: _photoUploading,
+                      onUploadPhoto: _uploadProfilePhoto,
+                    ),
+                    if (_photoError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _photoError!,
+                        style: AppTextStyles.body(
+                          fontSize: 12,
+                          color: AppColors.electricGold.withValues(alpha: 0.88),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     const _SettingsRow(
                       icon: Icons.edit_rounded,
@@ -180,26 +225,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 }
 
 class _ProfileSummary extends ConsumerWidget {
-  const _ProfileSummary();
+  const _ProfileSummary({required this.uploading, required this.onUploadPhoto});
+
+  final bool uploading;
+  final VoidCallback onUploadPhoto;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(firebaseAuthProvider).currentUser;
-    return Container(
+    final photoUrl = user?.photoURL;
+    return SolenneGlass(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: AppColors.royalBlue.withValues(alpha: 0.18),
-        border: Border.all(color: AppColors.shellstone.withValues(alpha: 0.14)),
-      ),
+      borderRadius: 20,
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.quicksand.withValues(alpha: 0.18),
-            child: Icon(
-              Icons.person_rounded,
-              color: AppColors.quicksand.withValues(alpha: 0.86),
+          GestureDetector(
+            onTap: uploading ? null : onUploadPhoto,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: AppColors.sapphire.withValues(alpha: 0.32),
+                  backgroundImage: photoUrl == null || photoUrl.isEmpty
+                      ? null
+                      : NetworkImage(photoUrl),
+                  child: photoUrl == null || photoUrl.isEmpty
+                      ? Icon(
+                          Icons.person_rounded,
+                          color: AppColors.shellstone.withValues(alpha: 0.86),
+                        )
+                      : null,
+                ),
+                Positioned(
+                  right: -3,
+                  bottom: -3,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.electricGold.withValues(alpha: 0.95),
+                      border: Border.all(
+                        color: AppColors.royalBlue.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    child: uploading
+                        ? Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.6,
+                              color: AppColors.royalBlue.withValues(alpha: 0.9),
+                            ),
+                          )
+                        : Icon(
+                            Icons.add_a_photo_rounded,
+                            size: 12,
+                            color: AppColors.royalBlue.withValues(alpha: 0.92),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 13),
@@ -219,6 +305,17 @@ class _ProfileSummary extends ConsumerWidget {
                   style: AppTextStyles.mono(
                     fontSize: 9,
                     color: AppColors.shellstone.withValues(alpha: 0.54),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: uploading ? null : onUploadPhoto,
+                  child: Text(
+                    uploading ? 'uploading photo...' : 'upload profile photo',
+                    style: AppTextStyles.mono(
+                      fontSize: 9,
+                      color: AppColors.electricGold.withValues(alpha: 0.78),
+                    ),
                   ),
                 ),
               ],
@@ -311,11 +408,11 @@ class _VoiceOption extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
-                ? AppColors.quicksand.withValues(alpha: 0.44)
+                ? AppColors.sapphire.withValues(alpha: 0.48)
                 : AppColors.shellstone.withValues(alpha: 0.13),
           ),
           color: selected
-              ? AppColors.quicksand.withValues(alpha: 0.09)
+              ? AppColors.sapphire.withValues(alpha: 0.22)
               : AppColors.royalBlue.withValues(alpha: 0.16),
         ),
         child: Row(
@@ -403,8 +500,8 @@ class _SoftButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: AppColors.quicksand.withValues(alpha: 0.1),
-        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.26)),
+        color: AppColors.sapphire.withValues(alpha: 0.2),
+        border: Border.all(color: AppColors.shellstone.withValues(alpha: 0.18)),
       ),
       child: Text(
         label,
@@ -441,21 +538,7 @@ class _CosmicPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF071127), Color(0xFF0D2147), Color(0xFF143765)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _SkyDustPainter())),
-          child,
-        ],
-      ),
-    );
+    return SolenneBackground(child: child);
   }
 }
 
@@ -466,46 +549,10 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.18),
-            ),
-            color: AppColors.royalBlue.withValues(alpha: 0.22),
-          ),
-          child: child,
-        ),
-      ),
+    return SolenneGlass(
+      padding: const EdgeInsets.all(18),
+      borderRadius: 24,
+      child: child,
     );
   }
-}
-
-class _SkyDustPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = math.Random(39);
-    for (int i = 0; i < 120; i++) {
-      canvas.drawCircle(
-        Offset(
-          random.nextDouble() * size.width,
-          random.nextDouble() * size.height,
-        ),
-        0.25 + random.nextDouble() * 0.7,
-        Paint()
-          ..color = AppColors.shellstone.withValues(
-            alpha: 0.06 + random.nextDouble() * 0.15,
-          ),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -1,11 +1,11 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
+import '../auth/auth_screen.dart';
 import '../profile/profile_screen.dart';
 import '../recording/recording_screen.dart';
 
@@ -60,14 +60,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: SizedBox.expand(
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF071127), Color(0xFF0D2147), Color(0xFF143765)],
-            ),
-          ),
+        child: SolenneBackground(
           child: Stack(
             children: [
               Positioned.fill(
@@ -170,8 +163,58 @@ class _HomeHeader extends ConsumerWidget {
             ],
           ),
         ),
-        _GlassIconButton(icon: Icons.person_rounded, onTap: onProfileTap),
+        _GlassIconButton(
+          icon: Icons.person_rounded,
+          onTap: () => _showProfileMenu(context, ref),
+        ),
       ],
+    );
+  }
+
+  Future<void> _showProfileMenu(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.36),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: SolenneGlass(
+              borderRadius: 24,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ProfileMenuRow(
+                    icon: Icons.edit_rounded,
+                    label: 'Edit profile',
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      onProfileTap();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _ProfileMenuRow(
+                    icon: Icons.logout_rounded,
+                    label: 'Log out',
+                    isDestructive: true,
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      await ref.read(authRepositoryProvider).signOut();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pushAndRemoveUntil(
+                        fadeThroughRoute(const AuthScreen()),
+                        (_) => false,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -201,6 +244,58 @@ class _HomeHeader extends ConsumerWidget {
       'December',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}.';
+  }
+}
+
+class _ProfileMenuRow extends StatelessWidget {
+  const _ProfileMenuRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive
+        ? AppColors.electricGold.withValues(alpha: 0.9)
+        : AppColors.shellstone.withValues(alpha: 0.9);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: AppColors.sapphire.withValues(alpha: 0.16),
+          border: Border.all(
+            color: AppColors.shellstone.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.body(fontSize: 14, color: color),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.shellstone.withValues(alpha: 0.42),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -500,7 +595,7 @@ class _JournalRow extends StatelessWidget {
           height: 30,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.quicksand.withValues(alpha: 0.15),
+            color: AppColors.sapphire.withValues(alpha: 0.22),
           ),
           child: Icon(
             icon,
@@ -602,16 +697,11 @@ class _GlassIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: SolenneGlass(
         width: 38,
         height: 38,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: AppColors.shellstone.withValues(alpha: 0.22),
-          ),
-          color: AppColors.sapphire.withValues(alpha: 0.14),
-        ),
+        padding: EdgeInsets.zero,
+        borderRadius: 19,
         child: Icon(
           icon,
           size: 18,
@@ -635,31 +725,10 @@ class _GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.2),
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.sapphire.withValues(alpha: 0.24),
-                AppColors.royalBlue.withValues(alpha: 0.2),
-                Colors.black.withValues(alpha: 0.08),
-              ],
-            ),
-          ),
-          child: child,
-        ),
-      ),
+    return SolenneGlass(
+      padding: padding,
+      borderRadius: borderRadius,
+      child: child,
     );
   }
 }
@@ -681,7 +750,7 @@ class _ReflectionCurvePainter extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              AppColors.quicksand.withValues(alpha: 0.22),
+              AppColors.sapphire.withValues(alpha: 0.24),
               Colors.transparent,
             ],
           ).createShader(
@@ -857,7 +926,7 @@ class _DailySkyPainter extends CustomPainter {
           RadialGradient(
             colors: [
               AppColors.sapphire.withValues(alpha: 0.34),
-              AppColors.quicksand.withValues(alpha: 0.12),
+              AppColors.royalBlue.withValues(alpha: 0.16),
               Colors.transparent,
             ],
           ).createShader(
@@ -874,7 +943,7 @@ class _DailySkyPainter extends CustomPainter {
         end: Alignment.bottomCenter,
         colors: [
           Colors.transparent,
-          AppColors.quicksand.withValues(alpha: 0.1),
+          AppColors.sapphire.withValues(alpha: 0.14),
           AppColors.sapphire.withValues(alpha: 0.1),
           Colors.transparent,
         ],

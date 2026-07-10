@@ -97,20 +97,7 @@ class _WalkthroughScreenState extends State<WalkthroughScreen>
       body: SizedBox.expand(
         child: Stack(
           children: [
-            // Deep navy base
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF080E1C),
-                    Color(0xFF0F1E3F),
-                    Color(0xFF0A1628),
-                  ],
-                ),
-              ),
-            ),
+            const SolenneBackground(child: SizedBox.expand()),
 
             // Orbital rings — centered at screen center
             AnimatedBuilder(

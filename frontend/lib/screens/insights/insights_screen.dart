@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
@@ -55,7 +54,7 @@ class InsightsScreen extends StatelessWidget {
                     _PatternCard(
                       text:
                           "Over the last three weeks, you've used future-tense language more than usual.",
-                      tint: AppColors.quicksand,
+                      tint: AppColors.sapphire,
                     ),
                     _PatternCard(
                       text:
@@ -83,7 +82,7 @@ class _GentleNudge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Glass(
-      tint: AppColors.quicksand.withValues(alpha: 0.1),
+      tint: AppColors.sapphire.withValues(alpha: 0.18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -102,9 +101,9 @@ class _GentleNudge extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
-                color: AppColors.quicksand.withValues(alpha: 0.16),
+                color: AppColors.sapphire.withValues(alpha: 0.22),
                 border: Border.all(
-                  color: AppColors.quicksand.withValues(alpha: 0.3),
+                  color: AppColors.shellstone.withValues(alpha: 0.18),
                 ),
               ),
               child: Text(
@@ -162,20 +161,10 @@ class _PatternCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
-      child: Container(
+      child: SolenneGlass(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              tint.withValues(alpha: 0.2),
-              AppColors.royalBlue.withValues(alpha: 0.34),
-            ],
-          ),
-          border: Border.all(color: tint.withValues(alpha: 0.22)),
-        ),
+        borderRadius: 24,
+        tint: tint,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
@@ -242,21 +231,7 @@ class _CosmicPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF071127), Color(0xFF0D2147), Color(0xFF143765)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _SkyDustPainter())),
-          child,
-        ],
-      ),
-    );
+    return SolenneBackground(child: child);
   }
 }
 
@@ -268,46 +243,11 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: AppColors.shellstone.withValues(alpha: 0.18),
-            ),
-            color: tint ?? AppColors.royalBlue.withValues(alpha: 0.22),
-          ),
-          child: child,
-        ),
-      ),
+    return SolenneGlass(
+      padding: const EdgeInsets.all(18),
+      borderRadius: 24,
+      tint: tint,
+      child: child,
     );
   }
-}
-
-class _SkyDustPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = math.Random(29);
-    for (int i = 0; i < 120; i++) {
-      canvas.drawCircle(
-        Offset(
-          random.nextDouble() * size.width,
-          random.nextDouble() * size.height,
-        ),
-        0.25 + random.nextDouble() * 0.7,
-        Paint()
-          ..color = AppColors.shellstone.withValues(
-            alpha: 0.06 + random.nextDouble() * 0.15,
-          ),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
