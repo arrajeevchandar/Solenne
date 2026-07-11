@@ -11,6 +11,13 @@ import 'recording_preview_screen.dart';
 
 enum _RecordingState { idle, recording, stopped, received }
 
+@visibleForTesting
+bool recordingCompletionActionsVisible({
+  required bool isStopped,
+  required bool isReceived,
+}) =>
+    isStopped || isReceived;
+
 class RecordingScreen extends StatefulWidget {
   const RecordingScreen({super.key});
 
@@ -181,6 +188,10 @@ class _RecordingScreenState extends State<RecordingScreen>
     final isRecording = _state == _RecordingState.recording;
     final isStopped = _state == _RecordingState.stopped;
     final isReceived = _state == _RecordingState.received;
+    final showCompletionActions = recordingCompletionActionsVisible(
+      isStopped: isStopped,
+      isReceived: isReceived,
+    );
     final screenSize = MediaQuery.of(context).size;
     final compact = screenSize.height < 740;
     final previewHeight = math.min(
@@ -305,7 +316,7 @@ class _RecordingScreenState extends State<RecordingScreen>
                                   key: const ValueKey('waveform'),
                                   progress: _roomController.value,
                                 )
-                              : isStopped
+                              : showCompletionActions
                               ? _DoneChoices(
                                   key: const ValueKey('choices'),
                                   onDone: _reviewRecording,
