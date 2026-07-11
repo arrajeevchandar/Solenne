@@ -9,7 +9,7 @@ import '../../features/recording/local_video_controller.dart';
 import '../../features/recording/recording_draft.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
-import '../app_shell.dart';
+import 'entry_saved_screen.dart';
 import 'recording_screen.dart';
 
 class RecordingPreviewScreen extends ConsumerStatefulWidget {
@@ -25,6 +25,7 @@ class RecordingPreviewScreen extends ConsumerStatefulWidget {
 class _RecordingPreviewScreenState
     extends ConsumerState<RecordingPreviewScreen> {
   late final VideoPlayerController _controller;
+  late final TextEditingController _titleController;
   bool _saving = false;
   String? _error;
 
@@ -39,11 +40,13 @@ class _RecordingPreviewScreenState
           .catchError((Object error) {
             if (mounted) setState(() => _error = error.toString());
           });
+    _titleController = TextEditingController();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _titleController.dispose();
     super.dispose();
   }
 
@@ -81,13 +84,14 @@ class _RecordingPreviewScreenState
         thumbnailUrl: upload.thumbnailUrl,
         uploadStatus: 'saved',
         analysisStatus: 'not_started',
+        title: _titleController.text.trim(),
       );
       debugPrint('[Solenne] Saving journal metadata to Firestore: id=$id');
       await ref.read(journalRepositoryProvider).saveJournal(entry);
       debugPrint('[Solenne] Journal metadata saved: id=$id');
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const AppShell()),
+        MaterialPageRoute<void>(builder: (_) => EntrySavedScreen(entryId: id)),
         (_) => false,
       );
     } catch (error) {
@@ -203,6 +207,33 @@ class _RecordingPreviewScreenState
                                     ),
                                   ),
                                 ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _Glass(
+                      child: TextField(
+                        controller: _titleController,
+                        enabled: !_saving,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: AppTextStyles.body(
+                          fontSize: 16,
+                          color: AppColors.swanWing.withValues(alpha: 0.9),
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Name this recording',
+                          hintText: 'e.g. A quieter morning',
+                          labelStyle: AppTextStyles.mono(
+                            fontSize: 10,
+                            color: AppColors.quicksand.withValues(alpha: 0.72),
+                          ),
+                          hintStyle: AppTextStyles.body(
+                            fontSize: 14,
+                            color: AppColors.shellstone.withValues(alpha: 0.42),
+                            fontStyle: FontStyle.italic,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
                         ),
                       ),
                     ),

@@ -3,9 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/journals/journal_entry.dart';
+import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_screen.dart';
+import '../journals/journal_detail_screen.dart';
 import '../profile/profile_screen.dart';
 import '../recording/recording_screen.dart';
 
@@ -522,38 +525,100 @@ class _ReflectionCurveCard extends StatelessWidget {
   }
 }
 
-class _RecentJournalsCard extends StatelessWidget {
+class _RecentJournalsCard extends ConsumerWidget {
   const _RecentJournalsCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final journalState = ref.watch(journalStreamProvider);
+    final savedEntries = journalState is AsyncData<List<JournalEntry>>
+        ? journalState.value
+        : null;
+    final journals = savedEntries == null || savedEntries.isEmpty
+        ? _JournalPreview.examples
+        : savedEntries.take(3).map(_JournalPreview.fromEntry).toList();
     return _GlassSurface(
       borderRadius: 24,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _SectionTitle(title: 'Recent journals'),
-          SizedBox(height: 14),
-          _JournalRow(
-            title: 'A quieter morning',
-            detail: 'Today, 8 min',
-            icon: Icons.wb_twilight_rounded,
-          ),
-          SizedBox(height: 12),
-          _JournalRow(
-            title: 'Sleep and timing',
-            detail: 'Yesterday, 6 min',
-            icon: Icons.nights_stay_rounded,
-          ),
-          SizedBox(height: 12),
-          _JournalRow(
-            title: 'Decision I kept avoiding',
-            detail: '2 days ago, 11 min',
-            icon: Icons.blur_on_rounded,
-          ),
+        children: [
+          const _SectionTitle(title: 'Recent journals'),
+          const SizedBox(height: 14),
+          for (int index = 0; index < journals.length; index++) ...[
+            _JournalRow(
+              title: journals[index].title,
+              detail: journals[index].detail,
+              icon: journals[index].icon,
+              onTap: () => Navigator.of(context).push(
+                fadeThroughRoute(
+                  JournalDetailScreen(
+                    title: journals[index].title,
+                    detail: journals[index].detail,
+                    entry: journals[index].entry,
+                  ),
+                ),
+              ),
+            ),
+            if (index != journals.length - 1) const SizedBox(height: 12),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _JournalPreview {
+  const _JournalPreview({
+    required this.title,
+    required this.detail,
+    required this.icon,
+    this.entry,
+  });
+
+  final String title;
+  final String detail;
+  final IconData icon;
+  final JournalEntry? entry;
+
+  static const examples = [
+    _JournalPreview(
+      title: 'A quieter morning',
+      detail: 'Today, 8 min',
+      icon: Icons.wb_twilight_rounded,
+    ),
+    _JournalPreview(
+      title: 'Sleep and timing',
+      detail: 'Yesterday, 6 min',
+      icon: Icons.nights_stay_rounded,
+    ),
+    _JournalPreview(
+      title: 'Decision I kept avoiding',
+      detail: '2 days ago, 11 min',
+      icon: Icons.blur_on_rounded,
+    ),
+  ];
+
+  factory _JournalPreview.fromEntry(JournalEntry entry) {
+    final now = DateTime.now();
+    final difference = DateTime(now.year, now.month, now.day).difference(
+      DateTime(
+        entry.recordedAt.year,
+        entry.recordedAt.month,
+        entry.recordedAt.day,
+      ),
+    );
+    final dayLabel = switch (difference.inDays) {
+      0 => 'Today',
+      1 => 'Yesterday',
+      final days => '$days days ago',
+    };
+    final minutes = math.max(1, (entry.durationSeconds / 60).ceil());
+    return _JournalPreview(
+      title: entry.displayTitle,
+      detail: '$dayLabel, $minutes min',
+      icon: Icons.videocam_outlined,
+      entry: entry,
     );
   }
 }
@@ -579,61 +644,67 @@ class _JournalRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String detail;
+  final VoidCallback onTap;
 
   const _JournalRow({
     required this.icon,
     required this.title,
     required this.detail,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.sapphire.withValues(alpha: 0.22),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.sapphire.withValues(alpha: 0.22),
+            ),
+            child: Icon(
+              icon,
+              size: 16,
+              color: AppColors.quicksand.withValues(alpha: 0.82),
+            ),
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: AppColors.quicksand.withValues(alpha: 0.82),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: AppTextStyles.body(
-                  fontSize: 14,
-                  color: AppColors.shellstone.withValues(alpha: 0.9),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.body(
+                    fontSize: 14,
+                    color: AppColors.shellstone.withValues(alpha: 0.9),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                detail,
-                style: AppTextStyles.mono(
-                  fontSize: 9,
-                  color: AppColors.shellstone.withValues(alpha: 0.5),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: AppTextStyles.mono(
+                    fontSize: 9,
+                    color: AppColors.shellstone.withValues(alpha: 0.5),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Icon(
-          Icons.chevron_right_rounded,
-          size: 18,
-          color: AppColors.shellstone.withValues(alpha: 0.45),
-        ),
-      ],
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: AppColors.shellstone.withValues(alpha: 0.45),
+          ),
+        ],
+      ),
     );
   }
 }
