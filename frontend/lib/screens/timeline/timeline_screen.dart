@@ -14,10 +14,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
   static const double _navHeight = 62;
   static const double _navBottomMargin = 14;
   static const double _calendarToNavGap = 8;
-  static const double _sectionGap = 4;
+  static const double _sectionGap = 14;
   static const double _horizontalPadding = 20;
   static const double _headerTop = 20;
-  static const double _timelinePanelTop = 102;
+  static const double _timelinePanelTop = 94;
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _todayKey = GlobalKey();
@@ -70,7 +70,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
         bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            const calendarHeight = 224.0;
+            final calendarHeight = constraints.maxHeight < 720 ? 246.0 : 258.0;
             return Stack(
               children: [
                 Positioned(
@@ -388,7 +388,10 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
     final focusDate = _mode == _CalendarMode.monthly
         ? _focusDateForMonth(_visibleMonth)
         : _visibleWeekFocus;
-    final days = _weekDays(focusDate);
+    final weeks = _mode == _CalendarMode.monthly
+        ? _monthPreviewWeeks(focusDate)
+        : [_weekDays(focusDate)];
+    final days = weeks.first;
     final title = _mode == _CalendarMode.monthly
         ? _months[_visibleMonth.month - 1]
         : 'Week';
@@ -402,7 +405,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
         ? _visibleMonth.month
         : focusDate.month;
     return _Glass(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -424,7 +427,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -432,7 +435,7 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
                 child: Text(
                   title,
                   style: AppTextStyles.display(
-                    fontSize: 42,
+                    fontSize: 36,
                     color: AppColors.swanWing.withValues(alpha: 0.9),
                   ),
                 ),
@@ -440,27 +443,44 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
               Text(
                 trailingLabel,
                 style: AppTextStyles.display(
-                  fontSize: _mode == _CalendarMode.monthly ? 42 : 34,
+                  fontSize: _mode == _CalendarMode.monthly ? 36 : 30,
                   color: AppColors.swanWing.withValues(alpha: 0.92),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
-              for (int i = 0; i < days.length; i++)
-                Expanded(
-                  child: _CalendarDateTile(
-                    weekday: _weekdayLabels[i],
-                    date: days[i],
-                    inMonth:
-                        days[i].year == activeYear &&
-                        days[i].month == activeMonth,
-                    today: _isSameDay(days[i], DateTime.now()),
-                    marked: _hasDummyEntry(days[i]),
-                  ),
+              for (final label in _weekdayLabels)
+                Expanded(child: _CalendarWeekdayLabel(label: label)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Column(
+            children: [
+              for (
+                int weekIndex = 0;
+                weekIndex < weeks.length;
+                weekIndex++
+              ) ...[
+                Row(
+                  children: [
+                    for (final date in weeks[weekIndex])
+                      Expanded(
+                        child: _CalendarDateTile(
+                          date: date,
+                          inMonth:
+                              date.year == activeYear &&
+                              date.month == activeMonth,
+                          today: _isSameDay(date, DateTime.now()),
+                          marked: _hasDummyEntry(date),
+                        ),
+                      ),
+                  ],
                 ),
+                if (weekIndex != weeks.length - 1) const SizedBox(height: 8),
+              ],
             ],
           ),
         ],
@@ -479,6 +499,11 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
   static List<DateTime> _weekDays(DateTime focusDate) {
     final start = focusDate.subtract(Duration(days: focusDate.weekday % 7));
     return List.generate(7, (index) => start.add(Duration(days: index)));
+  }
+
+  static List<List<DateTime>> _monthPreviewWeeks(DateTime focusDate) {
+    final firstWeek = _weekDays(focusDate);
+    return [firstWeek, _weekDays(firstWeek.first.add(const Duration(days: 7)))];
   }
 
   static DateTime _dateOnly(DateTime value) {
@@ -613,14 +638,12 @@ class _RoundIcon extends StatelessWidget {
 
 class _CalendarDateTile extends StatelessWidget {
   const _CalendarDateTile({
-    required this.weekday,
     required this.date,
     required this.inMonth,
     required this.today,
     required this.marked,
   });
 
-  final String weekday;
   final DateTime date;
   final bool inMonth;
   final bool today;
@@ -639,9 +662,6 @@ class _CalendarDateTile extends StatelessWidget {
         : isRecordedDay
         ? AppColors.sapphire.withValues(alpha: 0.42)
         : Colors.transparent;
-    final labelColor = inMonth
-        ? AppColors.shellstone.withValues(alpha: 0.56)
-        : AppColors.shellstone.withValues(alpha: 0.24);
     final numberColor = today
         ? AppColors.royalBlue
         : isRecordedDay
@@ -650,11 +670,6 @@ class _CalendarDateTile extends StatelessWidget {
 
     return Column(
       children: [
-        Text(
-          weekday,
-          style: AppTextStyles.mono(fontSize: 10, color: labelColor),
-        ),
-        const SizedBox(height: 8),
         AnimatedContainer(
           duration: AppDurations.transition,
           width: 36,
@@ -692,6 +707,25 @@ class _CalendarDateTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CalendarWeekdayLabel extends StatelessWidget {
+  const _CalendarWeekdayLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        label,
+        style: AppTextStyles.mono(
+          fontSize: 10,
+          color: AppColors.shellstone.withValues(alpha: 0.6),
+        ),
+      ),
     );
   }
 }

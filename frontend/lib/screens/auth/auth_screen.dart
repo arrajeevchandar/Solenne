@@ -27,6 +27,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   _AuthMode _mode = _AuthMode.signUp;
   bool _loading = false;
   String? _error;
+  bool _emailError = false;
+  bool _passwordError = false;
+  bool _usernameError = false;
+  bool _confirmPasswordError = false;
 
   @override
   void initState() {
@@ -55,26 +59,45 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
+    setState(() {
+      _emailError = false;
+      _passwordError = false;
+      _usernameError = false;
+      _confirmPasswordError = false;
+      _error = null;
+    });
+
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter a valid email address.');
+      setState(() {
+        _error = 'Enter a valid email address.';
+        _emailError = true;
+      });
       return;
     }
     if (password.length < 6) {
-      setState(() => _error = 'Use at least 6 characters.');
+      setState(() {
+        _error = 'Use at least 6 characters.';
+        _passwordError = true;
+      });
       return;
     }
     if (isSignUp && name.length < 2) {
-      setState(() => _error = 'Enter a username.');
+      setState(() {
+        _error = 'Enter a username.';
+        _usernameError = true;
+      });
       return;
     }
     if (isSignUp && password != confirmPassword) {
-      setState(() => _error = 'Passwords do not match.');
+      setState(() {
+        _error = 'Passwords do not match.';
+        _confirmPasswordError = true;
+      });
       return;
     }
 
     setState(() {
       _loading = true;
-      _error = null;
     });
 
     try {
@@ -90,7 +113,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         context,
       ).pushAndRemoveUntil(fadeThroughRoute(const AppShell()), (_) => false);
     } on FirebaseAuthException catch (error) {
-      setState(() => _error = error.message ?? 'Authentication failed.');
+      setState(() {
+        if (error.code == 'wrong-password') {
+          _error = 'Incorrect email or password';
+          _passwordError = true;
+        } else if (error.code == 'user-not-found') {
+          _error = 'Incorrect email or password';
+          _emailError = true;
+        } else if (error.code == 'invalid-credential') {
+          _error = 'Incorrect email or password';
+          _emailError = true;
+          _passwordError = true;
+        } else if (error.code == 'invalid-email') {
+          _error = 'Enter a valid email address.';
+          _emailError = true;
+        } else if (error.code == 'weak-password') {
+          _error = 'Password is too weak.';
+          _passwordError = true;
+        } else if (error.code == 'email-already-in-use') {
+          _error = 'Email is already in use.';
+          _emailError = true;
+        } else {
+          _error = error.message ?? 'Authentication failed.';
+        }
+      });
     } catch (error) {
       setState(() => _error = error.toString());
     } finally {
@@ -100,19 +146,38 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
   Future<void> _resetPassword() async {
     final email = _emailController.text.trim();
+    setState(() {
+      _emailError = false;
+      _passwordError = false;
+      _usernameError = false;
+      _confirmPasswordError = false;
+      _error = null;
+    });
+
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter your email first.');
+      setState(() {
+        _error = 'Enter your email first.';
+        _emailError = true;
+      });
       return;
     }
     setState(() {
       _loading = true;
-      _error = null;
     });
     try {
       await ref.read(authRepositoryProvider).sendPasswordReset(email);
       if (mounted) {
         setState(() => _error = 'Password reset email sent.');
       }
+    } on FirebaseAuthException catch (error) {
+      setState(() {
+        if (error.code == 'user-not-found' || error.code == 'invalid-email') {
+          _error = 'Incorrect email address.';
+          _emailError = true;
+        } else {
+          _error = error.message ?? 'Failed to reset password.';
+        }
+      });
     } catch (error) {
       setState(() => _error = error.toString());
     } finally {
@@ -196,7 +261,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
                         _AuthModeSwitch(
                           mode: _mode,
-                          onChanged: (mode) => setState(() => _mode = mode),
+                          onChanged: (mode) => setState(() {
+                            _mode = mode;
+                            _error = null;
+                            _emailError = false;
+                            _passwordError = false;
+                            _usernameError = false;
+                            _confirmPasswordError = false;
+                          }),
                         ),
 
                         const SizedBox(height: 16),
@@ -206,6 +278,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                             controller: _usernameController,
                             label: 'username',
                             textInputAction: TextInputAction.next,
+                            hasError: _usernameError,
                           ),
                           const SizedBox(height: 10),
                         ],
@@ -215,6 +288,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           label: 'email',
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          hasError: _emailError,
                         ),
 
                         const SizedBox(height: 10),
@@ -226,6 +300,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           textInputAction: isSignUp
                               ? TextInputAction.next
                               : TextInputAction.done,
+                          hasError: _passwordError,
                         ),
 
                         if (isSignUp) ...[
@@ -235,6 +310,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                             label: 'confirm password',
                             obscureText: true,
                             textInputAction: TextInputAction.done,
+                            hasError: _confirmPasswordError,
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -297,11 +373,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         Center(
                           child: _AuthFooterSwitch(
                             isSignUp: isSignUp,
-                            onTap: () => setState(
-                              () => _mode = isSignUp
+                            onTap: () => setState(() {
+                              _mode = isSignUp
                                   ? _AuthMode.login
-                                  : _AuthMode.signUp,
-                            ),
+                                  : _AuthMode.signUp;
+                              _error = null;
+                              _emailError = false;
+                              _passwordError = false;
+                              _usernameError = false;
+                              _confirmPasswordError = false;
+                            }),
                           ),
                         ),
                       ],
@@ -399,6 +480,7 @@ class _LiquidTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final bool hasError;
 
   const _LiquidTextField({
     required this.controller,
@@ -406,6 +488,7 @@ class _LiquidTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.textInputAction,
+    this.hasError = false,
   });
 
   @override
@@ -424,7 +507,9 @@ class _LiquidTextField extends StatelessWidget {
         labelText: label.toUpperCase(),
         labelStyle: AppTextStyles.mono(
           fontSize: 10,
-          color: AppColors.quicksand.withValues(alpha: 0.6),
+          color: hasError
+              ? Colors.red.withValues(alpha: 0.8)
+              : AppColors.quicksand.withValues(alpha: 0.6),
         ),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.06),
@@ -435,13 +520,17 @@ class _LiquidTextField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: AppColors.sapphire.withValues(alpha: 0.35),
+            color: hasError
+                ? Colors.red.withValues(alpha: 0.5)
+                : AppColors.sapphire.withValues(alpha: 0.35),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: AppColors.quicksand.withValues(alpha: 0.55),
+            color: hasError
+                ? Colors.red.withValues(alpha: 0.8)
+                : AppColors.quicksand.withValues(alpha: 0.55),
             width: 1.4,
           ),
         ),
