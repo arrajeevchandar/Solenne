@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/journals/journal_dashboard.dart';
 import '../../features/journals/journal_day.dart';
+import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
@@ -12,21 +14,19 @@ import '../journals/journal_day_navigation.dart';
 import '../profile/profile_screen.dart';
 import '../recording/recording_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final VoidCallback? onOpenRecording;
   final VoidCallback? onOpenProfile;
 
   const HomeScreen({super.key, this.onOpenRecording, this.onOpenProfile});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
+class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _roomController;
-
-  static const _reflection = 'Something in your voice today was lighter.';
 
   @override
   void initState() {
@@ -61,6 +61,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final entries = ref
+        .watch(journalStreamProvider)
+        .when(
+          data: (value) => value,
+          loading: () => const <JournalEntry>[],
+          error: (_, _) => const <JournalEntry>[],
+        );
+    final dashboard = JournalDashboard(entries);
     return Scaffold(
       body: SizedBox.expand(
         child: SolenneBackground(
@@ -88,16 +96,22 @@ class _HomeScreenState extends State<HomeScreen>
                       const SizedBox(height: 18),
                       _PromptRecordCard(onTap: _openRecording),
                       const SizedBox(height: 22),
-                      const _MetricTiles(),
+                      _MetricTiles(dashboard: dashboard),
                       const SizedBox(height: 22),
-                      _ReflectionCurveCard(reflection: _reflection),
+                      _ReflectionCurveCard(
+                        reflection: dashboard.reflectionText,
+                        points: dashboard.valencePoints,
+                      ),
                       const SizedBox(height: 14),
                       const _RecentJournalsCard(),
                       const SizedBox(height: 14),
                       AnimatedBuilder(
                         animation: _roomController,
                         builder: (context, _) {
-                          return _QuietOrbCard(progress: _roomController.value);
+                          return _QuietOrbCard(
+                            progress: _roomController.value,
+                            weather: dashboard.weatherText,
+                          );
                         },
                       ),
                     ],
@@ -388,33 +402,35 @@ class _PromptRecordCard extends StatelessWidget {
 }
 
 class _MetricTiles extends StatelessWidget {
-  const _MetricTiles();
+  const _MetricTiles({required this.dashboard});
+
+  final JournalDashboard dashboard;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _MetricTile(
             icon: Icons.video_library_outlined,
             label: 'Sessions',
-            value: '12',
+            value: '${dashboard.sessions}',
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _MetricTile(
             icon: Icons.local_fire_department_outlined,
             label: 'Streak',
-            value: '4 days',
+            value: '${dashboard.streak} days',
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _MetricTile(
             icon: Icons.auto_awesome_motion_outlined,
             label: 'This week',
-            value: '3',
+            value: '${dashboard.thisWeek}',
           ),
         ),
       ],
@@ -473,8 +489,9 @@ class _MetricTile extends StatelessWidget {
 
 class _ReflectionCurveCard extends StatelessWidget {
   final String reflection;
+  final List<double> points;
 
-  const _ReflectionCurveCard({required this.reflection});
+  const _ReflectionCurveCard({required this.reflection, required this.points});
 
   @override
   Widget build(BuildContext context) {
@@ -517,7 +534,7 @@ class _ReflectionCurveCard extends StatelessWidget {
           SizedBox(
             height: 116,
             width: double.infinity,
-            child: CustomPaint(painter: _ReflectionCurvePainter()),
+            child: CustomPaint(painter: _ReflectionCurvePainter(points)),
           ),
         ],
       ),
@@ -742,8 +759,9 @@ class _JournalRow extends StatelessWidget {
 
 class _QuietOrbCard extends StatelessWidget {
   final double progress;
+  final String weather;
 
-  const _QuietOrbCard({required this.progress});
+  const _QuietOrbCard({required this.progress, required this.weather});
 
   @override
   Widget build(BuildContext context) {
@@ -773,7 +791,7 @@ class _QuietOrbCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'Soft, a little brighter than yesterday.',
+                  weather,
                   style: AppTextStyles.body(
                     fontSize: 14,
                     color: AppColors.shellstone.withValues(alpha: 0.8),
@@ -836,6 +854,10 @@ class _GlassSurface extends StatelessWidget {
 }
 
 class _ReflectionCurvePainter extends CustomPainter {
+  const _ReflectionCurvePainter(this.points);
+
+  final List<double> points;
+
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
@@ -863,19 +885,25 @@ class _ReflectionCurvePainter extends CustomPainter {
           );
     canvas.drawRect(Offset.zero & size, glow);
 
-    final path = Path();
-    for (int i = 0; i <= 90; i++) {
-      final t = i / 90;
-      final x = t * size.width;
-      final y =
-          size.height * (0.56 - 0.24 * t) +
-          math.sin(t * math.pi * 3.1) * size.height * 0.08 +
-          math.sin(t * math.pi * 8.4) * size.height * 0.025;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    if (points.length < 2) return;
+    final offsets = List.generate(points.length, (index) {
+      final x = index * size.width / (points.length - 1);
+      final y = size.height * (0.9 - points[index] * 0.8);
+      return Offset(x, y);
+    });
+    final path = Path()..moveTo(offsets.first.dx, offsets.first.dy);
+    for (int i = 1; i < offsets.length; i++) {
+      final previous = offsets[i - 1];
+      final current = offsets[i];
+      final controlX = (previous.dx + current.dx) / 2;
+      path.cubicTo(
+        controlX,
+        previous.dy,
+        controlX,
+        current.dy,
+        current.dx,
+        current.dy,
+      );
     }
 
     canvas.drawPath(
@@ -904,7 +932,8 @@ class _ReflectionCurvePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ReflectionCurvePainter oldDelegate) =>
+      oldDelegate.points != points;
 }
 
 class _EmotionalOrbPainter extends CustomPainter {

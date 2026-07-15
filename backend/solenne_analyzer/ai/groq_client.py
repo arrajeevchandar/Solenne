@@ -71,10 +71,27 @@ def _chat_completion(
         "Authorization": f"Bearer {config.groq_api_key}",
         "Content-Type": "application/json",
     }
-    with httpx.Client(timeout=config.llm_timeout_seconds) as client:
-        response = client.post(GROQ_CHAT_COMPLETIONS_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            with httpx.Client(timeout=config.llm_timeout_seconds) as client:
+                response = client.post(
+                    GROQ_CHAT_COMPLETIONS_URL, headers=headers, json=payload
+                )
+                response.raise_for_status()
+                data = response.json()
+            break
+        except httpx.HTTPStatusError as error:
+            last_error = error
+            if error.response.status_code not in {429, 500, 502, 503, 504}:
+                raise
+        except httpx.TransportError as error:
+            last_error = error
+        if attempt == 0:
+            time.sleep(1)
+    else:
+        assert last_error is not None
+        raise last_error
     return data["choices"][0]["message"]["content"]
 
 

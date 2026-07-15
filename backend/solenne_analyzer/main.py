@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .config import AnalyzerConfig, DEFAULT_OUTPUT_DIR
 from .pipeline.orchestrator import PipelineRunner
+from .worker.config import WorkerConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,6 +56,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the full analysis result JSON to stdout.",
     )
+
+    worker = subparsers.add_parser(
+        "worker", help="Process Firestore-backed Solenne analysis jobs."
+    )
+    mode = worker.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--watch", action="store_true", help="Poll continuously.")
+    mode.add_argument("--once", action="store_true", help="Process one queued job.")
+    mode.add_argument("--job-id", help="Process one specific queued job id.")
     return parser
 
 
@@ -78,4 +87,22 @@ def main(argv: list[str] | None = None) -> int:
             if result.errorMessage:
                 print(f"error={result.errorMessage}")
         return 0 if result.status == "complete" else 1
+    if args.command == "worker":
+        import logging
+
+        from .worker.runner import AnalysisWorker
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+        worker = AnalysisWorker(WorkerConfig.from_env())
+        if args.watch:
+            worker.watch()
+            return 0
+        processed = (
+            worker.process_job(args.job_id) if args.job_id else worker.process_next()
+        )
+        print("processed=1" if processed else "processed=0")
+        return 0
     return 2

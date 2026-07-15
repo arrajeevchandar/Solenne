@@ -12,6 +12,19 @@ class JournalEntry {
     required this.thumbnailUrl,
     required this.uploadStatus,
     required this.analysisStatus,
+    this.analysisStep = '',
+    this.analysisVersion = '',
+    this.analysisError,
+    this.analysisStartedAt,
+    this.analysisCompletedAt,
+    this.transcript = const JournalTranscript(),
+    this.facial = const {},
+    this.voice = const {},
+    this.nlp = const {},
+    this.fused = const {},
+    this.templateInsights = const [],
+    this.insightProvider = '',
+    this.llmDiagnostics = const {},
     this.title = '',
     this.moodLabel,
     this.aiInsights = const [],
@@ -27,6 +40,19 @@ class JournalEntry {
   final String thumbnailUrl;
   final String uploadStatus;
   final String analysisStatus;
+  final String analysisStep;
+  final String analysisVersion;
+  final String? analysisError;
+  final DateTime? analysisStartedAt;
+  final DateTime? analysisCompletedAt;
+  final JournalTranscript transcript;
+  final Map<String, dynamic> facial;
+  final Map<String, dynamic> voice;
+  final Map<String, dynamic> nlp;
+  final Map<String, dynamic> fused;
+  final List<Map<String, dynamic>> templateInsights;
+  final String insightProvider;
+  final Map<String, dynamic> llmDiagnostics;
   final String title;
   final String? moodLabel;
   final List<AiInsight> aiInsights;
@@ -75,6 +101,19 @@ class JournalEntry {
       thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
       uploadStatus: data['uploadStatus'] as String? ?? 'saved',
       analysisStatus: data['analysisStatus'] as String? ?? 'not_started',
+      analysisStep: data['analysisStep'] as String? ?? '',
+      analysisVersion: data['analysisVersion'] as String? ?? '',
+      analysisError: data['analysisError'] as String?,
+      analysisStartedAt: _nullableDate(data['analysisStartedAt']),
+      analysisCompletedAt: _nullableDate(data['analysisCompletedAt']),
+      transcript: JournalTranscript.fromMap(_dynamicMap(data['transcript'])),
+      facial: _dynamicMap(data['facial']),
+      voice: _dynamicMap(data['voice']),
+      nlp: _dynamicMap(data['nlp']),
+      fused: _dynamicMap(data['fused']),
+      templateInsights: _mapList(data['templateInsights']),
+      insightProvider: data['insightProvider'] as String? ?? '',
+      llmDiagnostics: _dynamicMap(data['llmDiagnostics']),
       title: data['title'] as String? ?? '',
       moodLabel: data['moodLabel'] as String?,
       aiInsights:
@@ -102,6 +141,23 @@ class JournalEntry {
       'thumbnailUrl': thumbnailUrl,
       'uploadStatus': uploadStatus,
       'analysisStatus': analysisStatus,
+      'analysisStep': analysisStep,
+      'analysisVersion': analysisVersion,
+      'analysisError': analysisError,
+      'analysisStartedAt': analysisStartedAt == null
+          ? null
+          : Timestamp.fromDate(analysisStartedAt!),
+      'analysisCompletedAt': analysisCompletedAt == null
+          ? null
+          : Timestamp.fromDate(analysisCompletedAt!),
+      'transcript': transcript.toMap(),
+      'facial': facial,
+      'voice': voice,
+      'nlp': nlp,
+      'fused': fused,
+      'templateInsights': templateInsights,
+      'insightProvider': insightProvider,
+      'llmDiagnostics': llmDiagnostics,
       'title': title,
       'moodLabel': moodLabel,
       'aiInsights': aiInsights.map((e) => e.toMap()).toList(),
@@ -115,6 +171,61 @@ class JournalEntry {
     if (value is DateTime) return value;
     return DateTime.now();
   }
+
+  static DateTime? _nullableDate(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  static Map<String, dynamic> _dynamicMap(Object? value) {
+    if (value is! Map) return const {};
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+
+  static List<Map<String, dynamic>> _mapList(Object? value) {
+    if (value is! Iterable) return const [];
+    return value
+        .whereType<Map>()
+        .map(
+          (item) => item.map(
+            (key, nestedValue) => MapEntry(key.toString(), nestedValue),
+          ),
+        )
+        .toList(growable: false);
+  }
+}
+
+class JournalTranscript {
+  const JournalTranscript({
+    this.text = '',
+    this.wordCount = 0,
+    this.language,
+    this.confidence = 0.0,
+  });
+
+  final String text;
+  final int wordCount;
+  final String? language;
+  final double confidence;
+
+  bool get isAvailable => text.trim().isNotEmpty;
+
+  factory JournalTranscript.fromMap(Map<String, dynamic> map) {
+    return JournalTranscript(
+      text: map['text'] as String? ?? '',
+      wordCount: (map['wordCount'] as num?)?.toInt() ?? 0,
+      language: map['language'] as String?,
+      confidence: (map['confidence'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'text': text,
+    'wordCount': wordCount,
+    'language': language,
+    'confidence': confidence,
+  };
 }
 
 class AiInsight {
