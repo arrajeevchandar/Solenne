@@ -16,6 +16,37 @@ final journalStreamProvider = StreamProvider<List<JournalEntry>>((ref) {
   return ref.watch(journalRepositoryProvider).watchJournals();
 });
 
+final journalByIdStreamProvider = StreamProvider.family<JournalEntry?, String>((
+  ref,
+  entryId,
+) {
+  return ref.watch(journalRepositoryProvider).watchJournal(entryId);
+});
+
+final journalRangeStreamProvider =
+    StreamProvider.family<List<JournalEntry>, JournalDateRange>((ref, range) {
+      return ref
+          .watch(journalRepositoryProvider)
+          .watchJournalsInRange(range.start, range.end);
+    });
+
+class JournalDateRange {
+  const JournalDateRange({required this.start, required this.end});
+
+  final DateTime start;
+  final DateTime end;
+
+  @override
+  bool operator ==(Object other) {
+    return other is JournalDateRange &&
+        other.start == start &&
+        other.end == end;
+  }
+
+  @override
+  int get hashCode => Object.hash(start, end);
+}
+
 class JournalRepository {
   JournalRepository({required this.firestore, required this.auth});
 
@@ -26,12 +57,28 @@ class JournalRepository {
     return firestore.collection('users').doc(uid).collection('journals');
   }
 
-  Stream<List<JournalEntry>> watchJournals({int limit = 50}) {
+  Stream<List<JournalEntry>> watchJournals({int limit = 200}) {
     final user = auth.currentUser;
     if (user == null) return const Stream.empty();
     return _collection(user.uid)
         .orderBy('recordedAt', descending: true)
         .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map(JournalEntry.fromFirestore).toList(),
+        );
+  }
+
+  Stream<List<JournalEntry>> watchJournalsInRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    final user = auth.currentUser;
+    if (user == null) return const Stream.empty();
+    return _collection(user.uid)
+        .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('recordedAt', isLessThan: Timestamp.fromDate(end))
+        .orderBy('recordedAt', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.map(JournalEntry.fromFirestore).toList(),

@@ -32,7 +32,7 @@ class JournalEntry {
   final List<AiInsight> aiInsights;
 
   bool get hasImageThumbnail {
-    final path = Uri.tryParse(thumbnailUrl)?.path.toLowerCase() ?? '';
+    final path = Uri.tryParse(effectiveThumbnailUrl)?.path.toLowerCase() ?? '';
     return path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png') ||
@@ -42,6 +42,22 @@ class JournalEntry {
   String get displayTitle {
     final trimmedTitle = title.trim();
     return trimmedTitle.isEmpty ? prompt : trimmedTitle;
+  }
+
+  String get effectiveThumbnailUrl {
+    final savedThumbnail = thumbnailUrl.trim();
+    if (savedThumbnail.isNotEmpty) return savedThumbnail;
+
+    final source = videoUrl.trim();
+    if (source.isEmpty || !source.contains('/video/upload/')) return '';
+    final transformed = source.replaceFirst(
+      '/video/upload/',
+      '/video/upload/so_0,f_jpg/',
+    );
+    return transformed.replaceFirstMapped(
+      RegExp(r'\.(mp4|mov|webm|m4v)(\?.*)?$', caseSensitive: false),
+      (match) => '.jpg${match.group(2) ?? ''}',
+    );
   }
 
   factory JournalEntry.fromFirestore(
@@ -63,7 +79,12 @@ class JournalEntry {
       moodLabel: data['moodLabel'] as String?,
       aiInsights:
           (data['aiInsights'] as List<dynamic>?)
-              ?.map((e) => AiInsight.fromMap(e as Map<String, dynamic>))
+              ?.whereType<Map>()
+              .map(
+                (item) => AiInsight.fromMap(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              )
               .toList() ??
           const [],
     );
@@ -104,6 +125,7 @@ class AiInsight {
     this.dayThemes = const [],
     this.suggestions = const [],
     this.reflectionQuestions = const [],
+    this.evidence = const {},
     this.confidence = 0.0,
     this.safetyNote = "",
   });
@@ -114,6 +136,7 @@ class AiInsight {
   final List<String> dayThemes;
   final List<String> suggestions;
   final List<String> reflectionQuestions;
+  final Map<String, dynamic> evidence;
   final double confidence;
   final String safetyNote;
 
@@ -122,13 +145,10 @@ class AiInsight {
       title: map['title'] as String? ?? '',
       summary: map['summary'] as String? ?? '',
       moodLabel: map['moodLabel'] as String? ?? '',
-      dayThemes:
-          (map['dayThemes'] as List<dynamic>?)?.cast<String>() ?? const [],
-      suggestions:
-          (map['suggestions'] as List<dynamic>?)?.cast<String>() ?? const [],
-      reflectionQuestions:
-          (map['reflectionQuestions'] as List<dynamic>?)?.cast<String>() ??
-          const [],
+      dayThemes: _stringList(map['dayThemes']),
+      suggestions: _stringList(map['suggestions']),
+      reflectionQuestions: _stringList(map['reflectionQuestions']),
+      evidence: _dynamicMap(map['evidence']),
       confidence: (map['confidence'] as num?)?.toDouble() ?? 0.0,
       safetyNote: map['safetyNote'] as String? ?? '',
     );
@@ -142,8 +162,23 @@ class AiInsight {
       'dayThemes': dayThemes,
       'suggestions': suggestions,
       'reflectionQuestions': reflectionQuestions,
+      'evidence': evidence,
       'confidence': confidence,
       'safetyNote': safetyNote,
     };
+  }
+
+  static List<String> _stringList(Object? value) {
+    if (value is! Iterable) return const [];
+    return value
+        .whereType<Object>()
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static Map<String, dynamic> _dynamicMap(Object? value) {
+    if (value is! Map) return const {};
+    return value.map((key, item) => MapEntry(key.toString(), item));
   }
 }

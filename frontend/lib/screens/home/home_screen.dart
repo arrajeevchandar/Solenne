@@ -3,12 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_providers.dart';
-import '../../features/journals/journal_entry.dart';
+import '../../features/journals/journal_day.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_screen.dart';
-import '../journals/journal_detail_screen.dart';
+import '../journals/journal_day_navigation.dart';
 import '../profile/profile_screen.dart';
 import '../recording/recording_screen.dart';
 
@@ -531,12 +531,6 @@ class _RecentJournalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final journalState = ref.watch(journalStreamProvider);
-    final savedEntries = journalState is AsyncData<List<JournalEntry>>
-        ? journalState.value
-        : null;
-    final journals = savedEntries == null || savedEntries.isEmpty
-        ? _JournalPreview.examples
-        : savedEntries.take(3).map(_JournalPreview.fromEntry).toList();
     return _GlassSurface(
       borderRadius: 24,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -545,80 +539,88 @@ class _RecentJournalsCard extends ConsumerWidget {
         children: [
           const _SectionTitle(title: 'Recent journals'),
           const SizedBox(height: 14),
-          for (int index = 0; index < journals.length; index++) ...[
-            _JournalRow(
-              title: journals[index].title,
-              detail: journals[index].detail,
-              icon: journals[index].icon,
-              onTap: () => Navigator.of(context).push(
-                fadeThroughRoute(
-                  JournalDetailScreen(
-                    title: journals[index].title,
-                    detail: journals[index].detail,
-                    entry: journals[index].entry,
-                  ),
-                ),
-              ),
+          journalState.when(
+            loading: () => const _RecentJournalState(
+              icon: Icons.hourglass_top_rounded,
+              message: 'Gathering your recent reflections…',
+              loading: true,
             ),
-            if (index != journals.length - 1) const SizedBox(height: 12),
-          ],
+            error: (_, _) => const _RecentJournalState(
+              icon: Icons.cloud_off_outlined,
+              message: 'Recent reflections could not be reached.',
+            ),
+            data: (entries) {
+              final days = groupJournalEntries(entries).take(3).toList();
+              if (days.isEmpty) {
+                return const _RecentJournalState(
+                  icon: Icons.video_call_outlined,
+                  message: 'Your first recorded day will appear here.',
+                );
+              }
+              return Column(
+                children: [
+                  for (int index = 0; index < days.length; index++) ...[
+                    _JournalRow(
+                      day: days[index],
+                      onTap: () => openJournalDay(context, days[index]),
+                    ),
+                    if (index != days.length - 1) const SizedBox(height: 12),
+                  ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 }
 
-class _JournalPreview {
-  const _JournalPreview({
-    required this.title,
-    required this.detail,
+class _RecentJournalState extends StatelessWidget {
+  const _RecentJournalState({
     required this.icon,
-    this.entry,
+    required this.message,
+    this.loading = false,
   });
 
-  final String title;
-  final String detail;
   final IconData icon;
-  final JournalEntry? entry;
+  final String message;
+  final bool loading;
 
-  static const examples = [
-    _JournalPreview(
-      title: 'A quieter morning',
-      detail: 'Today, 8 min',
-      icon: Icons.wb_twilight_rounded,
-    ),
-    _JournalPreview(
-      title: 'Sleep and timing',
-      detail: 'Yesterday, 6 min',
-      icon: Icons.nights_stay_rounded,
-    ),
-    _JournalPreview(
-      title: 'Decision I kept avoiding',
-      detail: '2 days ago, 11 min',
-      icon: Icons.blur_on_rounded,
-    ),
-  ];
-
-  factory _JournalPreview.fromEntry(JournalEntry entry) {
-    final now = DateTime.now();
-    final difference = DateTime(now.year, now.month, now.day).difference(
-      DateTime(
-        entry.recordedAt.year,
-        entry.recordedAt.month,
-        entry.recordedAt.day,
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          if (loading)
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.3,
+                color: AppColors.quicksand.withValues(alpha: 0.68),
+              ),
+            )
+          else
+            Icon(
+              icon,
+              size: 20,
+              color: AppColors.quicksand.withValues(alpha: 0.66),
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.body(
+                fontSize: 12,
+                color: AppColors.shellstone.withValues(alpha: 0.66),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-    final dayLabel = switch (difference.inDays) {
-      0 => 'Today',
-      1 => 'Yesterday',
-      final days => '$days days ago',
-    };
-    final minutes = math.max(1, (entry.durationSeconds / 60).ceil());
-    return _JournalPreview(
-      title: entry.displayTitle,
-      detail: '$dayLabel, $minutes min',
-      icon: Icons.videocam_outlined,
-      entry: entry,
     );
   }
 }
@@ -641,36 +643,65 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _JournalRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String detail;
+  final JournalDay day;
   final VoidCallback onTap;
 
-  const _JournalRow({
-    required this.icon,
-    required this.title,
-    required this.detail,
-    required this.onTap,
-  });
+  const _JournalRow({required this.day, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final entry = day.latestEntry;
+    final thumbnail = entry.effectiveThumbnailUrl;
+    final now = DateTime.now();
+    final difference = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(day.date);
+    final dayLabel = switch (difference.inDays) {
+      0 => 'Today',
+      1 => 'Yesterday',
+      final days => '$days days ago',
+    };
+    final minutes = math.max(1, (entry.durationSeconds / 60).ceil());
+    final insightMood = entry.aiInsights.isEmpty
+        ? null
+        : entry.aiInsights.first.moodLabel.trim();
+    final mood = entry.moodLabel?.trim().isNotEmpty == true
+        ? entry.moodLabel!.trim()
+        : insightMood;
+    final detail = [
+      dayLabel,
+      '$minutes min',
+      if (day.entryCount > 1) '${day.entryCount} entries',
+      if (mood?.isNotEmpty == true) mood!,
+    ].join('  ·  ');
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Row(
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 48,
+              height: 40,
               color: AppColors.sapphire.withValues(alpha: 0.22),
-            ),
-            child: Icon(
-              icon,
-              size: 16,
-              color: AppColors.quicksand.withValues(alpha: 0.82),
+              child: thumbnail.isEmpty
+                  ? Icon(
+                      Icons.videocam_outlined,
+                      size: 18,
+                      color: AppColors.quicksand.withValues(alpha: 0.82),
+                    )
+                  : Image.network(
+                      thumbnail,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.videocam_outlined,
+                        size: 18,
+                        color: AppColors.quicksand.withValues(alpha: 0.82),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -679,7 +710,7 @@ class _JournalRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  entry.displayTitle,
                   style: AppTextStyles.body(
                     fontSize: 14,
                     color: AppColors.shellstone.withValues(alpha: 0.9),
