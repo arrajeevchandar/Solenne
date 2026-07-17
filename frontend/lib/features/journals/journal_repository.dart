@@ -48,6 +48,8 @@ class JournalDateRange {
 }
 
 class JournalRepository {
+  static const analysisVersion = '2026-07-v1';
+
   JournalRepository({required this.firestore, required this.auth});
 
   final FirebaseFirestore firestore;
@@ -103,11 +105,34 @@ class JournalRepository {
   }
 
   Future<void> saveJournal(JournalEntry entry) async {
-    await _collection(entry.userId).doc(entry.id).set(entry.toFirestore());
-    await firestore.collection('users').doc(entry.userId).set({
-      'lastJournalAt': Timestamp.fromDate(entry.recordedAt),
-      'streakCount': FieldValue.increment(1),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final journalRef = _collection(entry.userId).doc(entry.id);
+    final jobRef = firestore.collection('analysis_jobs').doc(entry.id);
+    final userRef = firestore.collection('users').doc(entry.userId);
+    await firestore.runTransaction((transaction) async {
+      final existingJournal = await transaction.get(journalRef);
+      if (existingJournal.exists) {
+        return;
+      }
+
+      transaction.set(journalRef, entry.toFirestore());
+      if (entry.analysisStatus == 'queued') {
+        transaction.set(jobRef, {
+          'userId': entry.userId,
+          'journalId': entry.id,
+          'status': 'queued',
+          'processingStep': 'queued',
+          'retryCount': 0,
+          'analysisVersion': analysisVersion,
+          'createdAt': FieldValue.serverTimestamp(),
+          'startedAt': null,
+          'completedAt': null,
+          'errorMessage': null,
+        });
+      }
+      transaction.set(userRef, {
+        'lastJournalAt': Timestamp.fromDate(entry.recordedAt),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
   }
 }

@@ -199,7 +199,7 @@ class _DailyEntryView extends StatelessWidget {
                   color: AppColors.shellstone.withValues(alpha: 0.76),
                 ),
                 const Spacer(),
-                _StatusPill(status: entry.analysisStatus),
+                _StatusPill(entry: entry),
               ],
             ),
             const SizedBox(height: 12),
@@ -238,6 +238,8 @@ class _DailyEntryView extends StatelessWidget {
             JournalVideoPlayer(entry: entry),
             const SizedBox(height: 12),
             _EntryMetadata(entry: entry),
+            const SizedBox(height: 12),
+            _TranscriptAction(entry: entry),
             const SizedBox(height: 26),
             _AnalysisBody(entry: entry),
           ],
@@ -248,20 +250,22 @@ class _DailyEntryView extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
+  const _StatusPill({required this.entry});
 
-  final String status;
+  final JournalEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final normalized = status.toLowerCase();
+    final normalized = entry.analysisStatus.toLowerCase();
     final complete = normalized == 'complete';
     final failed = normalized == 'failed';
     final label = complete
         ? 'INSIGHTS READY'
         : failed
         ? 'ANALYSIS PAUSED'
-        : 'SAVED · ANALYSIS PENDING';
+        : normalized == 'processing'
+        ? 'ANALYZING · ${_analysisStepLabel(entry.analysisStep)}'
+        : 'QUEUED FOR ANALYSIS';
     final color = failed ? AppColors.shellstone : AppColors.quicksand;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -342,6 +346,123 @@ class _MetadataItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TranscriptAction extends StatelessWidget {
+  const _TranscriptAction({required this.entry});
+
+  final JournalEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final available = entry.transcript.isAvailable;
+    final failed = entry.analysisStatus.toLowerCase() == 'failed';
+    final label = available
+        ? 'Show transcript'
+        : failed
+        ? 'Transcript unavailable'
+        : 'Transcript is being prepared';
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: available ? () => _showTranscript(context, entry) : null,
+      child: SolenneGlass(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        borderRadius: 18,
+        tint: AppColors.sapphire,
+        child: Row(
+          children: [
+            Icon(
+              available ? Icons.subject_rounded : Icons.graphic_eq_rounded,
+              size: 17,
+              color: AppColors.quicksand.withValues(
+                alpha: available ? 0.82 : 0.48,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.mono(
+                  fontSize: 9,
+                  color: AppColors.shellstone.withValues(
+                    alpha: available ? 0.78 : 0.5,
+                  ),
+                ),
+              ),
+            ),
+            if (available)
+              Icon(
+                Icons.expand_more_rounded,
+                size: 18,
+                color: AppColors.shellstone.withValues(alpha: 0.55),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTranscript(BuildContext context, JournalEntry entry) async {
+    final transcript = entry.transcript;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.72),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.78,
+        minChildSize: 0.48,
+        maxChildSize: 0.94,
+        expand: false,
+        builder: (context, controller) => Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: SolenneGlass(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+            borderRadius: 28,
+            tint: AppColors.sapphire,
+            child: ListView(
+              controller: controller,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: AppColors.shellstone.withValues(alpha: 0.28),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text('Your words', style: AppTextStyles.display(fontSize: 31)),
+                const SizedBox(height: 5),
+                Text(
+                  [
+                    if (transcript.language?.trim().isNotEmpty == true)
+                      transcript.language!.toUpperCase(),
+                    '${transcript.wordCount} WORDS',
+                  ].join(' · '),
+                  style: AppTextStyles.mono(
+                    fontSize: 8,
+                    color: AppColors.quicksand.withValues(alpha: 0.68),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SelectableText(
+                  transcript.text,
+                  style: AppTextStyles.body(
+                    fontSize: 15,
+                    color: AppColors.shellstone.withValues(alpha: 0.86),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -748,14 +869,54 @@ class _AnalysisBody extends StatelessWidget {
             'The analysis finished without a reliable reflection to show. Your journal remains here, exactly as you recorded it.',
       );
     }
+    if (status == 'processing') {
+      return _AnalysisStateCard(
+        icon: Icons.auto_awesome_rounded,
+        eyebrow: 'ANALYSIS IN PROGRESS',
+        title: _analysisStepTitle(entry.analysisStep),
+        message:
+            'Solenne will update this page automatically when the next stage is ready.',
+      );
+    }
     return const _AnalysisStateCard(
       icon: Icons.auto_awesome_rounded,
       eyebrow: 'INSIGHTS ARE STILL SETTLING',
       title: 'Your reflection is saved.',
       message:
-          'When the analysis service is connected, observations will appear here automatically. No sample insights are being substituted.',
+          'Your reflection is waiting for the private analysis worker. This page will update automatically.',
     );
   }
+}
+
+String _analysisStepLabel(String step) {
+  final normalized = step.trim().toLowerCase();
+  return switch (normalized) {
+    'downloading' => 'DOWNLOADING',
+    'validate' => 'CHECKING VIDEO',
+    'media' => 'PREPARING AUDIO',
+    'transcribe' || 'transcribing' => 'TRANSCRIBING',
+    'face' => 'READING EXPRESSION',
+    'voice' => 'LISTENING TO RHYTHM',
+    'nlp' => 'UNDERSTANDING WORDS',
+    'fusion' => 'CONNECTING SIGNALS',
+    'insights' || 'ai_insights' => 'FORMING INSIGHTS',
+    _ => 'PREPARING',
+  };
+}
+
+String _analysisStepTitle(String step) {
+  return switch (_analysisStepLabel(step)) {
+    'DOWNLOADING' => 'Bringing your reflection into the room.',
+    'CHECKING VIDEO' => 'Making sure the recording arrived clearly.',
+    'PREPARING AUDIO' => 'Preparing the sound of your reflection.',
+    'TRANSCRIBING' => 'Turning your voice into words.',
+    'READING EXPRESSION' => 'Noticing expression with care.',
+    'LISTENING TO RHYTHM' => 'Listening for pace and energy.',
+    'UNDERSTANDING WORDS' => 'Finding the themes in what you shared.',
+    'CONNECTING SIGNALS' => 'Bringing the different signals together.',
+    'FORMING INSIGHTS' => 'Shaping a few gentle observations.',
+    _ => 'Your reflection is beginning to settle.',
+  };
 }
 
 class _AnalysisStateCard extends StatelessWidget {

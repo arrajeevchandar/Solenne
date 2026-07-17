@@ -8,6 +8,7 @@ import '../../features/journals/journal_repository.dart';
 import '../../features/recording/local_video_controller.dart';
 import '../../features/recording/recording_draft.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
+import '../../services/cloudinary/cloudinary_upload_service.dart';
 import '../../theme/app_theme.dart';
 import 'entry_saved_screen.dart';
 import 'recording_screen.dart';
@@ -26,12 +27,17 @@ class _RecordingPreviewScreenState
     extends ConsumerState<RecordingPreviewScreen> {
   late final VideoPlayerController _controller;
   late final TextEditingController _titleController;
+  late final String _journalId;
+  late final DateTime _recordedAt;
+  CloudinaryUploadResult? _uploadedVideo;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _journalId = DateTime.now().microsecondsSinceEpoch.toString();
+    _recordedAt = DateTime.now();
     _controller = createLocalVideoController(widget.draft.file)
       ..initialize()
           .then((_) {
@@ -65,33 +71,41 @@ class _RecordingPreviewScreenState
         '[Solenne] Starting Cloudinary upload: '
         'name=${widget.draft.file.name}, duration=${widget.draft.durationSeconds}s',
       );
-      final upload = await ref
-          .read(cloudinaryUploadServiceProvider)
-          .uploadVideo(widget.draft.file);
+      final upload =
+          _uploadedVideo ??
+          await ref
+              .read(cloudinaryUploadServiceProvider)
+              .uploadVideo(widget.draft.file);
+      _uploadedVideo = upload;
       debugPrint(
         '[Solenne] Cloudinary upload complete: '
         'publicId=${upload.publicId}, url=${upload.secureUrl}',
       );
-      final id = DateTime.now().microsecondsSinceEpoch.toString();
       final entry = JournalEntry(
-        id: id,
+        id: _journalId,
         userId: user.uid,
         prompt: widget.draft.prompt,
-        recordedAt: DateTime.now(),
+        recordedAt: _recordedAt,
         durationSeconds: widget.draft.durationSeconds,
         cloudinaryPublicId: upload.publicId,
         videoUrl: upload.secureUrl,
         thumbnailUrl: upload.thumbnailUrl,
         uploadStatus: 'saved',
-        analysisStatus: 'not_started',
+        analysisStatus: 'queued',
+        analysisStep: 'queued',
+        analysisVersion: JournalRepository.analysisVersion,
         title: _titleController.text.trim(),
       );
-      debugPrint('[Solenne] Saving journal metadata to Firestore: id=$id');
+      debugPrint(
+        '[Solenne] Saving journal metadata and analysis job: id=$_journalId',
+      );
       await ref.read(journalRepositoryProvider).saveJournal(entry);
-      debugPrint('[Solenne] Journal metadata saved: id=$id');
+      debugPrint('[Solenne] Journal metadata saved: id=$_journalId');
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => EntrySavedScreen(entryId: id)),
+        MaterialPageRoute<void>(
+          builder: (_) => EntrySavedScreen(entryId: _journalId),
+        ),
         (_) => false,
       );
     } catch (error) {

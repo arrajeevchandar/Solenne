@@ -16,10 +16,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Evening reflection'), findsOneWidget);
-    expect(find.text('SAVED · ANALYSIS PENDING'), findsOneWidget);
+    expect(find.text('QUEUED FOR ANALYSIS'), findsOneWidget);
     expect(find.text('Your reflection is saved.'), findsOneWidget);
-    expect(find.textContaining('No sample insights'), findsOneWidget);
+    expect(find.textContaining('private analysis worker'), findsOneWidget);
+    expect(find.text('Transcript is being prepared'), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
+  });
+
+  testWidgets('opens the completed transcript in a styled sheet', (
+    tester,
+  ) async {
+    final entry = _entry(
+      analysisStatus: 'complete',
+      transcript: const JournalTranscript(
+        text: 'I made space for a slower evening.',
+        wordCount: 7,
+        language: 'en',
+        confidence: 0.94,
+      ),
+    );
+
+    await tester.pumpWidget(_app(entry));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Show transcript'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show transcript'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your words'), findsOneWidget);
+    expect(find.text('EN · 7 WORDS'), findsOneWidget);
+    expect(find.text('I made space for a slower evening.'), findsOneWidget);
   });
 
   testWidgets('renders all AI insight fields and expandable evidence', (
@@ -87,6 +113,7 @@ Widget _app(JournalEntry entry) {
 JournalEntry _entry({
   required String analysisStatus,
   List<AiInsight> insights = const [],
+  JournalTranscript transcript = const JournalTranscript(),
 }) {
   return JournalEntry(
     id: 'entry-1',
@@ -100,6 +127,7 @@ JournalEntry _entry({
     thumbnailUrl: '',
     uploadStatus: 'saved',
     analysisStatus: analysisStatus,
+    transcript: transcript,
     moodLabel: 'grounded',
     aiInsights: insights,
   );

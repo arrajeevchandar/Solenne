@@ -1,8 +1,8 @@
 # Solenne Backend ML Analyzer
 
-Local-first Python backend for analyzing a Solenne video journal. This milestone
-does not call Cloudinary, Firebase, Firestore, or the Flutter app. Put a video in
-`backend/input_videos/`, run the analyzer, and inspect the output JSON/report.
+Local-first Python backend for analyzing Solenne video journals. It supports
+direct local files and a Firestore worker that consumes Cloudinary-backed
+analysis jobs created by the Flutter app.
 
 ## Setup
 
@@ -47,6 +47,36 @@ python -m solenne_analyzer analyze input_videos/sample.mp4 --whisper-model base 
 If the key is missing or Groq fails, the analyzer still completes and writes
 fallback AI insight cards.
 
+## Firestore Worker
+
+Generate a Firebase Admin private key from Firebase Console, save it as
+`backend/serviceAccountKey.json`, and never commit it. Add these values to
+`backend/.env`:
+
+```dotenv
+FIREBASE_PROJECT_ID=solenne-9324d
+FIREBASE_SERVICE_ACCOUNT=serviceAccountKey.json
+POLL_INTERVAL_SECONDS=5
+CLOUDINARY_CLOUD_NAME=dqjd3lszl
+CLOUDINARY_UPLOAD_FOLDER=solenne/journals
+WHISPER_MODEL=base
+MAX_VIDEO_SECONDS=180
+```
+
+Process one queued journal or keep the worker running:
+
+```powershell
+.\.venv\Scripts\python.exe -m solenne_analyzer worker --once
+.\.venv\Scripts\python.exe -m solenne_analyzer worker --watch
+.\.venv\Scripts\python.exe -m solenne_analyzer worker --job-id JOURNAL_ID
+```
+
+The worker validates the Cloudinary source, downloads into a temporary folder,
+runs the full pipeline with Groq enabled, writes transcript/metrics/insights to
+the journal document, and removes all temporary media. In Cloud Run, omit
+`FIREBASE_SERVICE_ACCOUNT` and use the runtime service account through
+Application Default Credentials.
+
 ## Test
 
 ```powershell
@@ -77,6 +107,8 @@ Each run writes:
 
 - This is not a medical or diagnostic system.
 - Face analysis is intentionally lightweight and quality-aware for the MVP.
-- The output schema is shaped so it can later be written to Firestore journal
-  fields when Cloudinary/Firebase integration resumes.
+- The Flutter app creates `analysis_jobs/{journalId}` atomically with each new
+  journal. Existing unqueued journals are not backfilled automatically.
+- The current unsigned Cloudinary upload preset is suitable only for this
+  prototype. Production should use signed, private uploads.
 - Do not commit videos, outputs, `.env`, or Firebase service account files.

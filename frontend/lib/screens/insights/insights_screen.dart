@@ -1,16 +1,28 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/journals/journal_dashboard.dart';
+import '../../features/journals/journal_entry.dart';
+import '../../features/journals/journal_repository.dart';
 import '../../theme/app_theme.dart';
 
-class InsightsScreen extends StatelessWidget {
+class InsightsScreen extends ConsumerWidget {
   final VoidCallback onTalkAboutIt;
 
   const InsightsScreen({super.key, required this.onTalkAboutIt});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entries = ref
+        .watch(journalStreamProvider)
+        .when(
+          data: (value) => value,
+          loading: () => const <JournalEntry>[],
+          error: (_, _) => const <JournalEntry>[],
+        );
+    final dashboard = JournalDashboard(entries);
     return _CosmicPage(
       child: SafeArea(
         child: SingleChildScrollView(
@@ -29,9 +41,9 @@ class InsightsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-              const _WeekSnapshot(),
+              _WeekSnapshot(dashboard: dashboard),
               const SizedBox(height: 16),
-              const _MetricGrid(),
+              _MetricGrid(dashboard: dashboard),
               const SizedBox(height: 22),
               Text(
                 'Patterns',
@@ -41,11 +53,14 @@ class InsightsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              const _PatternsCarousel(),
+              _PatternsCarousel(dashboard: dashboard),
               const SizedBox(height: 18),
-              _GentleNudge(onTalkAboutIt: onTalkAboutIt),
+              _GentleNudge(
+                onTalkAboutIt: onTalkAboutIt,
+                message: dashboard.latestSuggestion,
+              ),
               const SizedBox(height: 16),
-              const _LanguageField(),
+              _LanguageField(terms: dashboard.languageTerms),
             ],
           ),
         ),
@@ -55,10 +70,23 @@ class InsightsScreen extends StatelessWidget {
 }
 
 class _WeekSnapshot extends StatelessWidget {
-  const _WeekSnapshot();
+  const _WeekSnapshot({required this.dashboard});
+
+  final JournalDashboard dashboard;
 
   @override
   Widget build(BuildContext context) {
+    final points = dashboard.valencePoints;
+    final average = points.isEmpty
+        ? null
+        : points.reduce((a, b) => a + b) / points.length;
+    final label = average == null
+        ? 'More reflections needed'
+        : average >= 0.62
+        ? 'Leaning brighter'
+        : average <= 0.38
+        ? 'A quieter week'
+        : 'Holding steady';
     return _Glass(
       tint: AppColors.sapphire,
       child: Column(
@@ -91,10 +119,7 @@ class _WeekSnapshot extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'More settled',
-                      style: AppTextStyles.display(fontSize: 30),
-                    ),
+                    Text(label, style: AppTextStyles.display(fontSize: 30)),
                     const SizedBox(height: 2),
                     Text(
                       'Your overall rhythm',
@@ -107,7 +132,7 @@ class _WeekSnapshot extends StatelessWidget {
                 ),
               ),
               Text(
-                '68',
+                average == null ? '—' : '${(average * 100).round()}',
                 style: AppTextStyles.display(
                   fontSize: 44,
                   color: AppColors.quicksand,
@@ -116,9 +141,9 @@ class _WeekSnapshot extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const SizedBox(
+          SizedBox(
             height: 66,
-            child: CustomPaint(painter: _WeekPulsePainter()),
+            child: CustomPaint(painter: _WeekPulsePainter(points)),
           ),
           const SizedBox(height: 6),
           Row(
@@ -157,44 +182,63 @@ class _DayLabel extends StatelessWidget {
 }
 
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid();
+  const _MetricGrid({required this.dashboard});
+
+  final JournalDashboard dashboard;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final itemWidth = (constraints.maxWidth - 12) / 2;
+        final voice = dashboard.latestVoiceEnergy;
+        final stress = dashboard.latestStress;
+        final outlook = dashboard.latestOutlook;
+        final voiceLabel = voice == null
+            ? '—'
+            : voice > 0.03
+            ? 'Lively'
+            : voice < 0.01
+            ? 'Soft'
+            : 'Steady';
+        final outlookLabel = outlook == null
+            ? '—'
+            : outlook > 0.25
+            ? 'Brighter'
+            : outlook < -0.25
+            ? 'Heavier'
+            : 'Balanced';
         return Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: const [
+          children: [
             _MetricCard(
               icon: Icons.graphic_eq_rounded,
               label: 'VOICE ENERGY',
-              value: 'Steady',
-              detail: 'Up 12%',
-              points: [0.38, 0.54, 0.46, 0.64, 0.6],
+              value: voiceLabel,
+              detail: voice == null ? 'Awaiting analysis' : 'Latest entry',
+              points: dashboard.voiceEnergyPoints,
             ),
             _MetricCard(
-              icon: Icons.nights_stay_outlined,
-              label: 'REST',
-              value: '6.8h',
-              detail: '3 mentions',
-              points: [0.7, 0.58, 0.5, 0.42, 0.56],
+              icon: Icons.waves_outlined,
+              label: 'TENSION CUES',
+              value: stress == null ? '—' : '${(stress * 100).round()}%',
+              detail: stress == null ? 'Awaiting analysis' : 'From your words',
+              points: dashboard.stressPoints,
             ),
             _MetricCard(
               icon: Icons.explore_outlined,
               label: 'OUTLOOK',
-              value: 'Forward',
-              detail: '42% future',
-              points: [0.34, 0.38, 0.52, 0.7, 0.76],
+              value: outlookLabel,
+              detail: outlook == null ? 'Awaiting analysis' : 'Latest entry',
+              points: dashboard.outlookPoints,
             ),
             _MetricCard(
               icon: Icons.mic_none_rounded,
               label: 'CHECK-INS',
-              value: '4 / 7',
+              value: '${dashboard.thisWeek} / 7',
               detail: 'This week',
-              points: [0.3, 0.7, 0.32, 0.72, 0.72],
+              points: dashboard.valencePoints,
             ),
           ].map((card) => SizedBox(width: itemWidth, child: card)).toList(),
         );
@@ -268,37 +312,49 @@ class _MetricCard extends StatelessWidget {
 }
 
 class _PatternsCarousel extends StatelessWidget {
-  const _PatternsCarousel();
+  const _PatternsCarousel({required this.dashboard});
+
+  final JournalDashboard dashboard;
 
   @override
   Widget build(BuildContext context) {
+    final themes = dashboard.recurringThemes;
+    if (themes.isEmpty) {
+      return SizedBox(
+        height: 132,
+        child: _Glass(
+          tint: AppColors.sapphire,
+          child: Center(
+            child: Text(
+              'A few analyzed reflections are needed before a pattern can be named.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.body(
+                fontSize: 12,
+                color: AppColors.shellstone.withValues(alpha: 0.68),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    final points = dashboard.valencePoints.length >= 2
+        ? dashboard.valencePoints
+        : const [0.5, 0.5];
     return SizedBox(
       height: 184,
       child: PageView(
         controller: PageController(viewportFraction: 0.84),
         padEnds: false,
-        children: const [
-          _PatternCard(
-            label: 'ENERGY + WORK',
-            value: '28%',
-            direction: 'lower',
-            caption: 'On work-heavy days',
-            points: [0.74, 0.66, 0.7, 0.42, 0.38, 0.44],
-          ),
-          _PatternCard(
-            label: 'LANGUAGE',
-            value: '42%',
-            direction: 'future-facing',
-            caption: 'More than your usual',
-            points: [0.24, 0.34, 0.39, 0.56, 0.68, 0.76],
-          ),
-          _PatternCard(
-            label: 'CONNECTION',
-            value: '11d',
-            direction: 'since mentioned',
-            caption: 'Your sister',
-            points: [0.7, 0.66, 0.52, 0.4, 0.27, 0.18],
-          ),
+        children: [
+          for (final theme in themes)
+            _PatternCard(
+              label: theme.key.toUpperCase(),
+              value: '${theme.value}×',
+              direction: 'noticed',
+              caption: 'Across your analyzed reflections',
+              points: points,
+            ),
         ],
       ),
     );
@@ -378,8 +434,9 @@ class _PatternCard extends StatelessWidget {
 
 class _GentleNudge extends StatelessWidget {
   final VoidCallback onTalkAboutIt;
+  final String message;
 
-  const _GentleNudge({required this.onTalkAboutIt});
+  const _GentleNudge({required this.onTalkAboutIt, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +472,7 @@ class _GentleNudge extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '3 days felt quieter than usual',
+                  message,
                   style: AppTextStyles.body(
                     fontSize: 11,
                     color: AppColors.shellstone.withValues(alpha: 0.68),
@@ -437,7 +494,9 @@ class _GentleNudge extends StatelessWidget {
 }
 
 class _LanguageField extends StatelessWidget {
-  const _LanguageField();
+  const _LanguageField({required this.terms});
+
+  final List<String> terms;
 
   @override
   Widget build(BuildContext context) {
@@ -458,16 +517,27 @@ class _LanguageField extends StatelessWidget {
             child: CustomPaint(painter: _LanguageFieldPainter()),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: const [
-              _ThemeChip(label: 'sleep', strength: 0.94),
-              _ThemeChip(label: 'work', strength: 0.76),
-              _ThemeChip(label: 'change', strength: 0.58),
-              _ThemeChip(label: 'rest', strength: 0.46),
-            ],
-          ),
+          if (terms.isEmpty)
+            Text(
+              'Words and themes will gather here after analysis.',
+              style: AppTextStyles.body(
+                fontSize: 11,
+                color: AppColors.shellstone.withValues(alpha: 0.62),
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (int index = 0; index < terms.length; index++)
+                  _ThemeChip(
+                    label: terms[index],
+                    strength: (1 - index * 0.11).clamp(0.42, 1.0),
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -503,11 +573,13 @@ class _ThemeChip extends StatelessWidget {
 }
 
 class _WeekPulsePainter extends CustomPainter {
-  const _WeekPulsePainter();
+  const _WeekPulsePainter(this.values);
+
+  final List<double> values;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const values = [0.42, 0.5, 0.36, 0.58, 0.65, 0.6, 0.74];
+    if (values.length < 2) return;
     final points = _pointsFor(values, size, verticalPadding: 6);
     final fillPath = Path()
       ..moveTo(points.first.dx, size.height)
@@ -564,7 +636,8 @@ class _WeekPulsePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _WeekPulsePainter oldDelegate) =>
+      oldDelegate.values != values;
 }
 
 class _MiniTrendPainter extends CustomPainter {
@@ -575,6 +648,7 @@ class _MiniTrendPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
     final offsets = _pointsFor(
       points,
       size,
@@ -610,6 +684,7 @@ List<Offset> _pointsFor(
   Size size, {
   required double verticalPadding,
 }) {
+  if (values.length < 2) return const [];
   return List.generate(values.length, (index) {
     final x = index * size.width / (values.length - 1);
     final y =

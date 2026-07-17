@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, create, update: if signedInAs(userId);
+      allow delete: if false;
+
+      match /journals/{journalId} {
+        allow read: if signedInAs(userId);
+        allow create: if signedInAs(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.id == journalId
+          && request.resource.data.analysisStatus == 'queued';
+        allow update, delete: if false;
+      }
+    }
+
+    match /analysis_jobs/{jobId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.journalId == jobId
+        && request.resource.data.status == 'queued'
+        && request.resource.data.processingStep == 'queued'
+        && request.resource.data.retryCount == 0
+        && getAfter(
+          /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
+        ).data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

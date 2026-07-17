@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -19,8 +20,13 @@ from .voice import analyze_voice
 
 
 class PipelineRunner:
-    def __init__(self, config: AnalyzerConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: AnalyzerConfig | None = None,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> None:
         self.config = config or AnalyzerConfig()
+        self.on_progress = on_progress
 
     def analyze(self, video_path: Path, run_id: str | None = None) -> AnalysisResult:
         video_path = video_path.resolve()
@@ -109,6 +115,8 @@ class PipelineRunner:
 
     def _log(self, log_lines: list[str], step: str, message: str) -> None:
         log_lines.append(f"{utc_now_iso()} [{step}] {message}")
+        if self.on_progress is not None:
+            self.on_progress(step)
 
 
 def render_summary(result: AnalysisResult) -> str:
