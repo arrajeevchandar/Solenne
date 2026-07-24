@@ -93,29 +93,32 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    height: calendarHeight,
-                    child: state.when(
-                      loading: () => const _TimelineState(
+                  state.when(
+                    loading: () => const SizedBox(
+                      height: 260,
+                      child: _TimelineState(
                         loading: true,
                         message: 'Preparing the calendar…',
                       ),
-                      error: (_, _) => const _TimelineState(
+                    ),
+                    error: (_, _) => const SizedBox(
+                      height: 260,
+                      child: _TimelineState(
                         message: 'The calendar could not be reached.',
                       ),
-                      data: (entries) {
-                        final byKey = {
-                          for (final group in groupJournalEntries(entries))
-                            group.key: group,
-                        };
-                        return _MonthCalendarPreview(
-                          journalDays: byKey,
-                          minimumDate: start,
-                          maximumDate: today,
-                          onOpenDay: (day) => openJournalDay(context, day),
-                        );
-                      },
                     ),
+                    data: (entries) {
+                      final byKey = {
+                        for (final group in groupJournalEntries(entries))
+                          group.key: group,
+                      };
+                      return _MonthCalendarPreview(
+                        journalDays: byKey,
+                        minimumDate: start,
+                        maximumDate: today,
+                        onOpenDay: (day) => openJournalDay(context, day),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -402,16 +405,19 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
     final focusDate = _mode == _CalendarMode.monthly
         ? _focusDateForMonth(_visibleMonth)
         : _visibleWeekFocus;
-    final weeks = _mode == _CalendarMode.monthly
-        ? _monthPreviewWeeks(focusDate)
-        : [_weekDays(focusDate)];
-    final days = weeks.first;
+    // Monthly: full-month rows. Weekly: a single month-clamped week padded to 7
+    // slots so the days stay aligned under the S-M-T-W-T-F-S header.
+    final clampedWeek = _clampedWeekDays(focusDate);
+    final List<List<DateTime?>> weeks = _mode == _CalendarMode.monthly
+        ? _fullMonthWeeks(_visibleMonth)
+        : [_padWeekToSlots(clampedWeek)];
     final title = _mode == _CalendarMode.monthly
         ? _months[_visibleMonth.month - 1]
-        : 'Week';
+        : 'Week ${_weekOfMonth(focusDate)}';
+    // Monthly needs no trailing number; weekly shows the month-qualified range.
     final trailing = _mode == _CalendarMode.monthly
-        ? '${focusDate.day}'
-        : _weekRangeLabel(days);
+        ? ''
+        : _weekRangeLabel(clampedWeek);
 
     return SolenneGlass(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
@@ -439,6 +445,8 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
           ),
           const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Expanded(
                 child: Text(
@@ -449,13 +457,14 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
                   ),
                 ),
               ),
-              Text(
-                trailing,
-                style: AppTextStyles.display(
-                  fontSize: _mode == _CalendarMode.monthly ? 36 : 29,
-                  color: AppColors.swanWing.withValues(alpha: 0.92),
+              if (trailing.isNotEmpty)
+                Text(
+                  trailing,
+                  style: AppTextStyles.display(
+                    fontSize: _mode == _CalendarMode.monthly ? 36 : 22,
+                    color: AppColors.swanWing.withValues(alpha: 0.92),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -471,15 +480,18 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
               children: [
                 for (final date in weeks[weekIndex])
                   Expanded(
-                    child: _CalendarDateTile(
-                      date: date,
-                      inMonth:
-                          _mode == _CalendarMode.weekly ||
-                          date.month == focusDate.month,
-                      today: _sameDay(date, DateTime.now()),
-                      journalDay: widget.journalDays[journalDateKey(date)],
-                      onOpenDay: widget.onOpenDay,
-                    ),
+                    child: date == null
+                        ? const SizedBox(height: 42)
+                        : _CalendarDateTile(
+                            date: date,
+                            inMonth:
+                                _mode == _CalendarMode.weekly ||
+                                date.month == _visibleMonth.month,
+                            today: _sameDay(date, DateTime.now()),
+                            journalDay:
+                                widget.journalDays[journalDateKey(date)],
+                            onOpenDay: widget.onOpenDay,
+                          ),
                   ),
               ],
             ),
@@ -498,14 +510,52 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
     return DateTime(month.year, month.month);
   }
 
-  static List<DateTime> _weekDays(DateTime focusDate) {
-    final start = focusDate.subtract(Duration(days: focusDate.weekday % 7));
-    return List.generate(7, (index) => start.add(Duration(days: index)));
+  /// All calendar rows (Sun-Sat) needed to cover every day of [month].
+  static List<List<DateTime?>> _fullMonthWeeks(DateTime month) {
+    final firstOfMonth = DateTime(month.year, month.month, 1);
+    final lastOfMonth = DateTime(month.year, month.month + 1, 0);
+    var cursor = firstOfMonth.subtract(
+      Duration(days: firstOfMonth.weekday % 7),
+    );
+    final weeks = <List<DateTime?>>[];
+    while (cursor.isBefore(lastOfMonth) || _sameDay(cursor, lastOfMonth)) {
+      weeks.add(List.generate(7, (i) => cursor.add(Duration(days: i))));
+      cursor = cursor.add(const Duration(days: 7));
+    }
+    return weeks;
   }
 
-  static List<List<DateTime>> _monthPreviewWeeks(DateTime focusDate) {
-    final firstWeek = _weekDays(focusDate);
-    return [firstWeek, _weekDays(firstWeek.first.add(const Duration(days: 7)))];
+  /// 1-based week-of-month index for [date] (matches the month-clamped rows).
+  static int _weekOfMonth(DateTime date) {
+    final firstOfMonth = DateTime(date.year, date.month, 1);
+    final offset = firstOfMonth.weekday % 7; // days before the 1st in row 1
+    return ((date.day + offset - 1) ~/ 7) + 1;
+  }
+
+  /// The days of [date]'s week, clamped so a week never crosses into another
+  /// month (e.g. the last week of June is 28-30 Jun, not 28 Jun-4 Jul).
+  static List<DateTime> _clampedWeekDays(DateTime date) {
+    final weekStart = date.subtract(Duration(days: date.weekday % 7));
+    final firstOfMonth = DateTime(date.year, date.month, 1);
+    final lastOfMonth = DateTime(date.year, date.month + 1, 0);
+    final days = <DateTime>[];
+    for (var i = 0; i < 7; i++) {
+      final day = weekStart.add(Duration(days: i));
+      if (!day.isBefore(firstOfMonth) && !day.isAfter(lastOfMonth)) {
+        days.add(day);
+      }
+    }
+    return days;
+  }
+
+  /// Expands a clamped week to 7 weekday slots (Sun-Sat), leaving out-of-month
+  /// positions null so the visible days line up under the weekday header.
+  static List<DateTime?> _padWeekToSlots(List<DateTime> clampedWeek) {
+    final slots = List<DateTime?>.filled(7, null);
+    for (final day in clampedWeek) {
+      slots[day.weekday % 7] = day;
+    }
+    return slots;
   }
 
   static DateTime _dateOnly(DateTime value) {
@@ -519,8 +569,11 @@ class _MonthCalendarPreviewState extends State<_MonthCalendarPreview> {
   static String _weekRangeLabel(List<DateTime> days) {
     final start = days.first;
     final end = days.last;
-    if (start.month == end.month) return '${start.day}-${end.day}';
-    return '${start.day} ${_shortMonths[start.month - 1]}-${end.day} ${_shortMonths[end.month - 1]}';
+    // Always name the month on both ends so the week is unambiguous,
+    // e.g. "Jul 12-Jul 18". Weeks are month-clamped so both share a month.
+    final startLabel = '${_shortMonths[start.month - 1]} ${start.day}';
+    final endLabel = '${_shortMonths[end.month - 1]} ${end.day}';
+    return '$startLabel-$endLabel';
   }
 }
 
@@ -652,15 +705,19 @@ class _CalendarDateTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final recorded = journalDay != null && inMonth;
-    final tileColor = today
-        ? AppColors.swanWing.withValues(alpha: 0.96)
-        : recorded
-        ? AppColors.sapphire.withValues(alpha: 0.24)
+    // Recorded days get a solid fill so they read at a glance. Today keeps its
+    // fill (if recorded) but is marked with a golden border instead of masking
+    // the day; non-recorded days stay plain.
+    final tileColor = recorded
+        ? AppColors.quicksand.withValues(alpha: 0.9)
         : Colors.transparent;
-    final numberColor = today
-        ? AppColors.royalBlue
+    final borderColor = today
+        ? AppColors.electricGold.withValues(alpha: 0.95)
         : recorded
-        ? AppColors.swanWing.withValues(alpha: 0.92)
+        ? AppColors.quicksand.withValues(alpha: 0.9)
+        : Colors.transparent;
+    final numberColor = recorded
+        ? AppColors.royalBlue
         : AppColors.shellstone.withValues(alpha: inMonth ? 0.82 : 0.26);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -676,11 +733,8 @@ class _CalendarDateTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               color: tileColor,
               border: Border.all(
-                color: today
-                    ? AppColors.swanWing.withValues(alpha: 0.76)
-                    : recorded
-                    ? AppColors.sapphire.withValues(alpha: 0.42)
-                    : Colors.transparent,
+                color: borderColor,
+                width: today ? 2 : 1,
               ),
             ),
             child: Text(
@@ -688,17 +742,27 @@ class _CalendarDateTile extends StatelessWidget {
               style: AppTextStyles.body(fontSize: 17, color: numberColor),
             ),
           ),
-          const SizedBox(height: 6),
-          Container(
-            width: 3.5,
-            height: 3.5,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: recorded && !today
-                  ? AppColors.quicksand.withValues(alpha: 0.84)
-                  : Colors.transparent,
+          const SizedBox(height: 4),
+          if (today)
+            Text(
+              'today',
+              style: AppTextStyles.mono(
+                fontSize: 7,
+                color: AppColors.electricGold.withValues(alpha: 0.9),
+              ),
+            )
+          else
+            Container(
+              width: 3.5,
+              height: 3.5,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: recorded
+                    ? AppColors.quicksand.withValues(alpha: 0.84)
+                    : Colors.transparent,
+              ),
             ),
-          ),
         ],
       ),
     );

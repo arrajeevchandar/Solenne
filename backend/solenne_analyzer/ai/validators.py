@@ -41,7 +41,7 @@ def validate_ai_insight_payload(payload: dict[str, Any]) -> list[AiInsight]:
             reflectionQuestions=_clean_list(
                 normalized["reflectionQuestions"], max_items=3, max_len=140
             ),
-            evidence=normalized["evidence"] if isinstance(normalized["evidence"], dict) else {},
+            evidence=_sanitize_evidence(normalized["evidence"]),
             confidence=clamp(float(normalized["confidence"]), 0.0, 1.0),
             safetyNote=_clean_text(normalized["safetyNote"], max_len=260),
         )
@@ -83,9 +83,15 @@ def crisis_language_present(text: str) -> bool:
             "kill myself",
             "end my life",
             "self harm",
+            "self-harm",
             "suicide",
             "hurt myself",
             "not safe",
+            "want to die",
+            "don't want to live",
+            "do not want to live",
+            "can't go on",
+            "cannot go on",
         ]
     )
 
@@ -100,6 +106,51 @@ def _clean_list(value: Any, *, max_items: int, max_len: int) -> list[str]:
     if not isinstance(value, list):
         raise ValueError("AI insight list fields must be arrays.")
     return [_clean_text(item, max_len=max_len) for item in value if isinstance(item, str)][:max_items]
+
+
+def _sanitize_evidence(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+
+    blocked_keys = {
+        "runid",
+        "journalid",
+        "entryid",
+        "userid",
+        "sourcevideo",
+        "videourl",
+        "thumbnailurl",
+        "transcript",
+        "transcripttext",
+    }
+
+    def sanitize(item: Any, *, key: str = "") -> Any:
+        normalized_key = "".join(
+            character for character in key.lower() if character.isalnum()
+        )
+        if normalized_key in blocked_keys:
+            return None
+        if isinstance(item, dict):
+            cleaned = {
+                str(child_key): sanitize(child_value, key=str(child_key))
+                for child_key, child_value in item.items()
+            }
+            return {
+                child_key: child_value
+                for child_key, child_value in cleaned.items()
+                if child_value is not None
+            }
+        if isinstance(item, list):
+            cleaned_items = [sanitize(child) for child in item[:12]]
+            return [child for child in cleaned_items if child is not None]
+        if isinstance(item, str):
+            return " ".join(item.split())[:320]
+        if isinstance(item, (int, float, bool)) or item is None:
+            return item
+        return str(item)[:160]
+
+    cleaned = sanitize(value)
+    return cleaned if isinstance(cleaned, dict) else {}
 
 
 def _reject_blocked_language(insight: AiInsight) -> None:

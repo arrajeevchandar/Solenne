@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .config import AnalyzerConfig, DEFAULT_OUTPUT_DIR
+from .grounding.catalog import catalog_report, load_catalog, validate_catalog_file
 from .pipeline.orchestrator import PipelineRunner
 from .worker.config import WorkerConfig
 
@@ -64,6 +65,25 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--watch", action="store_true", help="Poll continuously.")
     mode.add_argument("--once", action="store_true", help="Process one queued job.")
     mode.add_argument("--job-id", help="Process one specific queued job id.")
+
+    catalog = subparsers.add_parser(
+        "catalog", help="Validate or summarize the curated grounding catalog."
+    )
+    catalog_mode = catalog.add_subparsers(dest="catalog_command", required=True)
+    for command in ["validate", "report"]:
+        item = catalog_mode.add_parser(command)
+        item.add_argument(
+            "--path",
+            type=Path,
+            default=None,
+            help="Catalog path. Defaults to GROUNDING_CATALOG_PATH.",
+        )
+
+    reprocess = subparsers.add_parser(
+        "reprocess", help="Requeue one selected Firestore journal for analysis."
+    )
+    reprocess.add_argument("--user-id", required=True)
+    reprocess.add_argument("--journal-id", required=True)
     return parser
 
 
@@ -104,5 +124,25 @@ def main(argv: list[str] | None = None) -> int:
             worker.process_job(args.job_id) if args.job_id else worker.process_next()
         )
         print("processed=1" if processed else "processed=0")
+        return 0
+    if args.command == "catalog":
+        config = AnalyzerConfig.from_env()
+        path = (args.path or config.grounding_catalog_path).resolve()
+        if args.catalog_command == "validate":
+            errors = validate_catalog_file(path)
+            if errors:
+                for error in errors:
+                    print(f"error={error}")
+                return 1
+            print(f"valid=1\npath={path}")
+            return 0
+        print(json.dumps(catalog_report(load_catalog(path)), indent=2))
+        return 0
+    if args.command == "reprocess":
+        from .worker.firebase_gateway import FirebaseGateway
+
+        gateway = FirebaseGateway(WorkerConfig.from_env())
+        gateway.requeue_journal(args.user_id, args.journal_id)
+        print(f"requeued=1\nuserId={args.user_id}\njournalId={args.journal_id}")
         return 0
     return 2

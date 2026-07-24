@@ -7,10 +7,10 @@ from ..schemas import AnalysisResult
 
 
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
-    return {
+    payload = {
         "analysisStatus": "complete",
         "analysisStep": "complete",
-        "analysisVersion": "2026-07-v1",
+        "analysisVersion": "2026-07-v2-grounded",
         "analysisError": None,
         "transcript": {
             "text": result.transcript.text,
@@ -27,3 +27,8 @@ def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
         "insightProvider": result.insightProvider,
         "llmDiagnostics": asdict(result.llmDiagnostics),
     }
+    if result.groundingShadowInsights:
+        payload["groundingShadowInsights"] = [
+            asdict(insight) for insight in result.groundingShadowInsights
+        ]
+    return payload

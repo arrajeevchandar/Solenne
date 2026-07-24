@@ -21,6 +21,8 @@ class AiContextTest(unittest.TestCase):
         context = build_insight_context(result)
 
         self.assertEqual(context["sourceLabel"], "sample.mp4")
+        self.assertNotIn("runId", context)
+        self.assertNotIn("run-1", str(context))
         self.assertNotIn("private/path", str(context))
         self.assertEqual(context["metrics"]["fused"]["overallValence"], 0.4)
         self.assertGreater(estimate_tokens(context), 0)

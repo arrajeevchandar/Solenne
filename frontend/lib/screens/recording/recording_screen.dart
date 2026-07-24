@@ -9,14 +9,14 @@ import '../../theme/app_theme.dart';
 import '../../features/recording/recording_draft.dart';
 import 'recording_preview_screen.dart';
 
-enum _RecordingState { idle, recording, stopped, received }
+enum _RecordingState { idle, recording, paused, stopped, received }
 
 @visibleForTesting
 bool recordingCompletionActionsVisible({
-  required bool isStopped,
+  required bool isPaused,
   required bool isReceived,
 }) =>
-    isStopped || isReceived;
+    isPaused || isReceived;
 
 class RecordingScreen extends StatefulWidget {
   const RecordingScreen({super.key});
@@ -120,21 +120,89 @@ class _RecordingScreenState extends State<RecordingScreen>
         _state = _RecordingState.recording;
       });
       _listenController.repeat(reverse: true);
-      _recordingTimer?.cancel();
-      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-        if (!mounted) return;
-        if (_elapsedSeconds + 1 >= _maxSeconds) {
-          await _stop();
-        } else {
-          setState(() => _elapsedSeconds++);
-        }
-      });
+      _startElapsedTimer();
     } on CameraException catch (error) {
       if (mounted) setState(() => _cameraError = error.description);
     }
   }
 
-  Future<void> _stop() async {
+  void _startElapsedTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (!mounted) return;
+      if (_elapsedSeconds + 1 >= _maxSeconds) {
+        await _finalize();
+      } else {
+        setState(() => _elapsedSeconds++);
+      }
+    });
+  }
+
+  /// Pauses the in-progress recording without discarding it. Tapping "keep
+  /// going" later resumes the same file from this exact point.
+  Future<void> _pause() async {
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isRecordingVideo) return;
+    try {
+      await controller.pauseVideoRecording();
+    } on CameraException catch (error) {
+      if (mounted) setState(() => _cameraError = error.description);
+      return;
+    }
+    _listenController.stop();
+    _recordingTimer?.cancel();
+    _receivedTimer?.cancel();
+    setState(() => _state = _RecordingState.paused);
+  }
+
+  /// Resumes a paused recording, continuing the same file and elapsed time.
+  Future<void> _keepGoing() async {
+    final controller = _cameraController;
+    if (controller == null) return;
+    _receivedTimer?.cancel();
+    if (!controller.value.isRecordingVideo) {
+      // Nothing is paused to resume (e.g. camera was reset) — start fresh.
+      await _begin();
+      return;
+    }
+    try {
+      await controller.resumeVideoRecording();
+    } on CameraException catch (error) {
+      if (mounted) setState(() => _cameraError = error.description);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _state = _RecordingState.recording);
+    _listenController.repeat(reverse: true);
+    _startElapsedTimer();
+  }
+
+  /// Discards any in-progress or paused recording and returns to the start so
+  /// the whole video can be recorded again.
+  Future<void> _retake() async {
+    final controller = _cameraController;
+    _receivedTimer?.cancel();
+    _recordingTimer?.cancel();
+    _listenController.stop();
+    _listenController.reset();
+    if (controller != null && controller.value.isRecordingVideo) {
+      try {
+        // Stop and drop the partial file; we do not keep the result.
+        await controller.stopVideoRecording();
+      } on CameraException catch (_) {
+        // Ignore — we are discarding this recording regardless.
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _recordedVideo = null;
+      _elapsedSeconds = 0;
+      _state = _RecordingState.idle;
+    });
+  }
+
+  /// Finalizes the recording into a single file ready for review/upload.
+  Future<void> _finalize() async {
     final controller = _cameraController;
     if (controller == null || !controller.value.isRecordingVideo) return;
 
@@ -153,17 +221,7 @@ class _RecordingScreenState extends State<RecordingScreen>
       _recordedVideo = video;
       _state = _RecordingState.stopped;
     });
-    _receivedTimer?.cancel();
-    _receivedTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted && _state == _RecordingState.stopped) {
-        setState(() => _state = _RecordingState.received);
-      }
-    });
-  }
-
-  void _keepGoing() {
-    _receivedTimer?.cancel();
-    _begin();
+    _reviewRecording();
   }
 
   void _reviewRecording() {
@@ -186,10 +244,10 @@ class _RecordingScreenState extends State<RecordingScreen>
   @override
   Widget build(BuildContext context) {
     final isRecording = _state == _RecordingState.recording;
-    final isStopped = _state == _RecordingState.stopped;
+    final isPaused = _state == _RecordingState.paused;
     final isReceived = _state == _RecordingState.received;
     final showCompletionActions = recordingCompletionActionsVisible(
-      isStopped: isStopped,
+      isPaused: isPaused,
       isReceived: isReceived,
     );
     final screenSize = MediaQuery.of(context).size;
@@ -264,10 +322,10 @@ class _RecordingScreenState extends State<RecordingScreen>
                         animation: _listenController,
                         builder: (context, _) {
                           return GestureDetector(
-                            onTap: isReceived
-                                ? null
-                                : isRecording
-                                ? _stop
+                            onTap: isRecording
+                                ? _pause
+                                : isPaused
+                                ? _keepGoing
                                 : _begin,
                             child: _CameraPresence(
                               controller: _cameraController,
@@ -275,6 +333,7 @@ class _RecordingScreenState extends State<RecordingScreen>
                               cameraError: _cameraError,
                               progress: _listenController.value,
                               isRecording: isRecording,
+                              isPaused: isPaused,
                               isReceived: isReceived,
                               height: previewHeight,
                             ),
@@ -294,6 +353,8 @@ class _RecordingScreenState extends State<RecordingScreen>
                             : Text(
                                 isRecording
                                     ? 'Solenne is listening.'
+                                    : isPaused
+                                    ? 'Paused.'
                                     : 'Tap to begin.',
                                 key: ValueKey(_state),
                                 style: AppTextStyles.body(
@@ -319,8 +380,9 @@ class _RecordingScreenState extends State<RecordingScreen>
                               : showCompletionActions
                               ? _DoneChoices(
                                   key: const ValueKey('choices'),
-                                  onDone: _reviewRecording,
+                                  onDone: _finalize,
                                   onKeepGoing: _keepGoing,
+                                  onRetake: _retake,
                                 )
                               : const SizedBox(key: ValueKey('empty')),
                         ),
@@ -365,6 +427,7 @@ class _CameraPresence extends StatelessWidget {
   final String? cameraError;
   final double progress;
   final bool isRecording;
+  final bool isPaused;
   final bool isReceived;
   final double height;
 
@@ -374,6 +437,7 @@ class _CameraPresence extends StatelessWidget {
     required this.cameraError,
     required this.progress,
     required this.isRecording,
+    required this.isPaused,
     required this.isReceived,
     required this.height,
   });
@@ -410,7 +474,9 @@ class _CameraPresence extends StatelessWidget {
                     isReceived
                         ? Icons.check_rounded
                         : isRecording
-                        ? Icons.stop_rounded
+                        ? Icons.pause_rounded
+                        : isPaused
+                        ? Icons.play_arrow_rounded
                         : Icons.videocam_outlined,
                     size: 38,
                     color: AppColors.quicksand.withValues(alpha: 0.78),
@@ -603,11 +669,13 @@ class _WaveformPainter extends CustomPainter {
 class _DoneChoices extends StatelessWidget {
   final VoidCallback onDone;
   final VoidCallback onKeepGoing;
+  final VoidCallback onRetake;
 
   const _DoneChoices({
     super.key,
     required this.onDone,
     required this.onKeepGoing,
+    required this.onRetake,
   });
 
   @override
@@ -625,16 +693,39 @@ class _DoneChoices extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        GestureDetector(
-          onTap: onKeepGoing,
-          child: Text(
-            'or keep going',
-            style: AppTextStyles.body(
-              fontSize: 13,
-              color: AppColors.shellstone.withValues(alpha: 0.62),
-              fontStyle: FontStyle.italic,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: onKeepGoing,
+              child: Text(
+                'keep going',
+                style: AppTextStyles.body(
+                  fontSize: 13,
+                  color: AppColors.shellstone.withValues(alpha: 0.62),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
-          ),
+            Text(
+              '  ·  ',
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.shellstone.withValues(alpha: 0.4),
+              ),
+            ),
+            GestureDetector(
+              onTap: onRetake,
+              child: Text(
+                'retake',
+                style: AppTextStyles.body(
+                  fontSize: 13,
+                  color: AppColors.shellstone.withValues(alpha: 0.62),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

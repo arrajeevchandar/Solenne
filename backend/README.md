@@ -47,6 +47,45 @@ python -m solenne_analyzer analyze input_videos/sample.mp4 --whisper-model base 
 If the key is missing or Groq fails, the analyzer still completes and writes
 fallback AI insight cards.
 
+## Source-supported insight grounding
+
+The curated grounding layer is disabled by default. It uses transcript topics
+and key phrases only; voice, face, fused metrics, and the rule-based stress
+score never select research context.
+
+Configure `backend/.env` with:
+
+```env
+GROUNDING_MODE=off
+GROUNDING_CATALOG_PATH=solenne_analyzer/grounding/catalog.json
+```
+
+- `off` keeps the legacy insight path.
+- `shadow` keeps legacy `aiInsights` and stores private
+  `groundingShadowInsights` for comparison.
+- `enforce` writes only validated evidence-v2 insights.
+
+Validate or inspect the catalog before starting a worker:
+
+```bash
+python -m solenne_analyzer catalog validate
+python -m solenne_analyzer catalog report
+```
+
+The bundled catalog contains research candidates in `draft` state. A claim or
+suggestion becomes runtime-eligible only after two distinct human reviewers
+approve it, set `status` to `approved`, and set `active` to `true`. Do not mark
+AI-prepared drafts as human-approved. After review, replace the draft catalog
+version with a release version such as `2026-07-v1` before enabling `enforce`.
+
+Requeue one selected journal without backfilling history:
+
+```bash
+python -m solenne_analyzer reprocess \
+  --user-id <firebase-uid> \
+  --journal-id <journal-id>
+```
+
 ## Firestore Worker
 
 Generate a Firebase Admin private key from Firebase Console, save it as

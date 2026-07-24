@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-07-v1';
+  static const analysisVersion = '2026-07-v2-grounded';
 
   JournalRepository({required this.firestore, required this.auth});
 
@@ -134,5 +134,22 @@ class JournalRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });
+  }
+
+  /// Removes a journal entry and its analysis job from Firestore.
+  ///
+  /// The Cloudinary video asset is intentionally left in place for now; purging
+  /// it requires Admin API credentials that must live server-side.
+  Future<void> deleteJournal(String id) async {
+    final user = auth.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to delete a journal.');
+    }
+    final journalRef = _collection(user.uid).doc(id);
+    final jobRef = firestore.collection('analysis_jobs').doc(id);
+    final batch = firestore.batch();
+    batch.delete(journalRef);
+    batch.delete(jobRef);
+    await batch.commit();
   }
 }

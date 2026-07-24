@@ -48,7 +48,7 @@ void main() {
     expect(find.text('I made space for a slower evening.'), findsOneWidget);
   });
 
-  testWidgets('renders all AI insight fields and expandable evidence', (
+  testWidgets('explains legacy evidence and hides transcript and run ID', (
     tester,
   ) async {
     final entry = _entry(
@@ -64,7 +64,14 @@ void main() {
           confidence: 0.82,
           safetyNote: 'Treat this as a gentle observation, not a diagnosis.',
           evidence: {
-            'metrics': {'pauseRatio': 0.42},
+            'transcript': 'This raw transcript must not be repeated here.',
+            'runId': '1784270734328000',
+            'metrics': {
+              'pauseRatio': 0.42,
+              'overallArousal': 0.34,
+              'congruence': 0.79,
+              'overallValence': 0.5,
+            },
           },
         ),
       ],
@@ -85,23 +92,165 @@ void main() {
       find.text('Treat this as a gentle observation, not a diagnosis.'),
       findsOneWidget,
     );
-    expect(find.text('82%'), findsOneWidget);
+    expect(find.text('82%'), findsNothing);
 
     await tester.ensureVisible(find.text('WHY THIS APPEARED'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('WHY THIS APPEARED'));
     await tester.pumpAndSettle();
-    expect(find.text('METRICS / PAUSE RATIO'), findsOneWidget);
-    expect(find.text('0.42'), findsOneWidget);
+    expect(find.text('REASON FOR THIS INSIGHT'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'The combined language, voice, and visual tone leaned more positive.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'The available words, voice, and visual tone were broadly aligned.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('SIGNALS USED'), findsNothing);
+    expect(find.text('42%'), findsNothing);
+    expect(find.text('34%'), findsNothing);
+    expect(find.text('79%'), findsNothing);
+    expect(find.text('+0.50'), findsNothing);
+    expect(
+      find.text('This raw transcript must not be repeated here.'),
+      findsNothing,
+    );
+    expect(find.text('1784270734328000'), findsNothing);
+    expect(find.textContaining('RUN ID'), findsNothing);
+  });
+
+  testWidgets('renders source-supported evidence and opens an HTTPS source', (
+    tester,
+  ) async {
+    Uri? opened;
+    final entry = _entry(
+      analysisStatus: 'complete',
+      insights: const [
+        AiInsight(
+          title: 'Work was present',
+          summary: 'Work and a deadline appeared in this reflection.',
+          moodLabel: 'reflective',
+          suggestions: ['Take one short pause away from the task.'],
+          confidence: 0.8,
+          safetyNote:
+              'Solenne offers wellness reflections, not medical advice.',
+          evidence: {
+            'schemaVersion': 2,
+            'userEvidence': [
+              {
+                'evidenceId': 'fact-work',
+                'label': 'Theme present in this reflection',
+                'value': 'work',
+                'sourcePath': 'nlp.topics',
+                'journalIds': ['entry-1'],
+                'confidence': 0.9,
+              },
+            ],
+            'externalReferences': [
+              {
+                'claimCardId': 'claim-work',
+                'sourceId': 'source-work',
+                'title': 'Reviewed work-break source',
+                'publisher': 'Example Journal',
+                'year': 2024,
+                'url': 'https://example.org/work-breaks',
+                'doi': null,
+                'pmid': null,
+                'matchedClaim': 'Work-break research studies brief pauses.',
+                'limitations': 'General context only.',
+                'supportLevel': 'moderate',
+              },
+            ],
+            'verification': {
+              'status': 'source_supported',
+              'method': 'curated_claim_match',
+              'catalogVersion': 'test-v1',
+              'reason': null,
+            },
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _app(
+        entry,
+        launcher: (uri) async {
+          opened = uri;
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SOURCE-SUPPORTED'), findsOneWidget);
+    await tester.ensureVisible(find.text('WHY THIS APPEARED'));
+    await tester.tap(find.text('WHY THIS APPEARED'));
+    await tester.pumpAndSettle();
+    expect(find.text('FROM YOUR REFLECTION'), findsOneWidget);
+    expect(find.text('PUBLIC RESEARCH CONTEXT'), findsOneWidget);
+    expect(find.text('Reviewed work-break source'), findsOneWidget);
+    expect(find.textContaining('General context only.'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('OPEN SOURCE'));
+    await tester.tap(find.text('OPEN SOURCE'));
+    await tester.pump();
+    expect(opened, Uri.parse('https://example.org/work-breaks'));
+  });
+
+  testWidgets('safety bypass hides mood confidence and ordinary evidence', (
+    tester,
+  ) async {
+    final entry = _entry(
+      analysisStatus: 'complete',
+      insights: const [
+        AiInsight(
+          title: 'You deserve immediate support',
+          summary: 'Please contact immediate local help.',
+          moodLabel: 'heavy',
+          suggestions: ['This must stay hidden.'],
+          reflectionQuestions: ['This must also stay hidden?'],
+          confidence: 0.99,
+          safetyNote: 'Solenne is not an emergency service.',
+          evidence: {
+            'schemaVersion': 2,
+            'userEvidence': [],
+            'externalReferences': [],
+            'verification': {
+              'status': 'fallback',
+              'method': 'deterministic_safety_bypass',
+              'catalogVersion': null,
+              'reason': 'safety_bypass',
+            },
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(_app(entry));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SUPPORT FIRST'), findsOneWidget);
+    expect(find.text('SIGNAL CONFIDENCE'), findsNothing);
+    expect(find.text('heavy'), findsNothing);
+    expect(find.text('This must stay hidden.'), findsNothing);
+    expect(find.text('This must also stay hidden?'), findsNothing);
+    expect(find.text('WHY THIS APPEARED'), findsNothing);
   });
 }
 
-Widget _app(JournalEntry entry) {
+Widget _app(JournalEntry entry, {SourceLauncher? launcher}) {
   return ProviderScope(
     overrides: [
       journalByIdStreamProvider.overrideWith(
         (ref, entryId) => Stream.value(entry),
       ),
+      if (launcher != null) sourceLauncherProvider.overrideWithValue(launcher),
     ],
     child: MaterialApp(
       theme: AppTheme.dark,

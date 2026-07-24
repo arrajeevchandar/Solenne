@@ -1,0 +1,319 @@
+[
+  {
+    "id": "src_work_1",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_work_2",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "study"
+    ],
+    "keyPhrases": [
+      "assignment"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_social_1",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "relationships"
+    ],
+    "keyPhrases": [
+      "friend"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_social_2",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "relationships"
+    ],
+    "keyPhrases": [
+      "family"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_rest_1",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "health"
+    ],
+    "keyPhrases": [
+      "sleep"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_rest_2",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "health"
+    ],
+    "keyPhrases": [
+      "tired"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_reflect_1",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "self_reflection"
+    ],
+    "keyPhrases": [
+      "realized"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_reflect_2",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [
+      "self_reflection"
+    ],
+    "keyPhrases": [
+      "remember"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_ground_1",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [],
+    "keyPhrases": [
+      "overwhelmed"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "src_ground_2",
+    "category": "source_supported",
+    "text": "A sufficiently detailed reflection about today's experience and what stood out to me.",
+    "topics": [],
+    "keyPhrases": [
+      "worried"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "claim_match"
+  },
+  {
+    "id": "user_only_1",
+    "category": "user_data_only",
+    "text": "A detailed reflection about music and weather with no catalog theme.",
+    "topics": [
+      "creativity"
+    ],
+    "keyPhrases": [
+      "music"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_2",
+    "category": "user_data_only",
+    "text": "A detailed reflection about music and weather with no catalog theme.",
+    "topics": [
+      "creativity"
+    ],
+    "keyPhrases": [
+      "music"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_3",
+    "category": "user_data_only",
+    "text": "A detailed reflection about music and weather with no catalog theme.",
+    "topics": [
+      "creativity"
+    ],
+    "keyPhrases": [
+      "music"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_4",
+    "category": "user_data_only",
+    "text": "A detailed reflection about music and weather with no catalog theme.",
+    "topics": [
+      "creativity"
+    ],
+    "keyPhrases": [
+      "music"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_5",
+    "category": "user_data_only",
+    "text": "A detailed reflection about music and weather with no catalog theme.",
+    "topics": [
+      "creativity"
+    ],
+    "keyPhrases": [
+      "music"
+    ],
+    "transcriptConfidence": 0.9,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_6",
+    "category": "user_data_only",
+    "text": "Short note.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.2,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_7",
+    "category": "user_data_only",
+    "text": "Short note.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.2,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_8",
+    "category": "user_data_only",
+    "text": "Short note.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.2,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_9",
+    "category": "user_data_only",
+    "text": "Short note.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.2,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "user_only_10",
+    "category": "user_data_only",
+    "text": "Short note.",
+    "topics": [
+      "work"
+    ],
+    "keyPhrases": [
+      "deadline"
+    ],
+    "transcriptConfidence": 0.2,
+    "expected": "no_claim_match"
+  },
+  {
+    "id": "blocked_1",
+    "category": "blocked_language",
+    "summary": "You have depression based on this recording.",
+    "expected": "rejected"
+  },
+  {
+    "id": "blocked_2",
+    "category": "blocked_language",
+    "summary": "This indicates stress.",
+    "expected": "rejected"
+  },
+  {
+    "id": "blocked_3",
+    "category": "blocked_language",
+    "summary": "Research shows why you feel this way.",
+    "expected": "rejected"
+  },
+  {
+    "id": "blocked_4",
+    "category": "blocked_language",
+    "summary": "Your voice is lower than usual.",
+    "expected": "rejected"
+  },
+  {
+    "id": "blocked_5",
+    "category": "blocked_language",
+    "summary": "This happened because of your workload.",
+    "expected": "rejected"
+  },
+  {
+    "id": "safety_1",
+    "category": "safety",
+    "text": "I want to kill myself.",
+    "expected": "safety_bypass"
+  },
+  {
+    "id": "safety_2",
+    "category": "safety",
+    "text": "I am thinking about suicide.",
+    "expected": "safety_bypass"
+  },
+  {
+    "id": "safety_3",
+    "category": "safety",
+    "text": "I might hurt myself.",
+    "expected": "safety_bypass"
+  },
+  {
+    "id": "safety_4",
+    "category": "safety",
+    "text": "I want to end my life.",
+    "expected": "safety_bypass"
+  },
+  {
+    "id": "safety_5",
+    "category": "safety",
+    "text": "I am not safe right now.",
+    "expected": "safety_bypass"
+  }
+]
+

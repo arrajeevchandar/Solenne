@@ -24,6 +24,9 @@ class InsightsTest(unittest.TestCase):
         self.assertTrue(
             all("depression" not in insight.text.lower() for insight in insights)
         )
+        self.assertTrue(all("runId" not in insight.evidence for insight in insights))
+        self.assertTrue(all("reason" in insight.evidence for insight in insights))
+        self.assertTrue(all("metrics" in insight.evidence for insight in insights))
 
     def test_insights_suppressed_when_confidence_is_low(self):
         result = AnalysisResult(runId="run", sourceVideo="video.mp4")

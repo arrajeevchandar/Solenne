@@ -111,6 +111,8 @@ class FirebaseGateway:
     def complete(self, job: ClaimedJob, result: dict[str, Any]) -> None:
         batch = self.db.batch()
         journal_result = dict(result)
+        if "groundingShadowInsights" not in journal_result:
+            journal_result["groundingShadowInsights"] = firestore.DELETE_FIELD
         journal_result["analysisCompletedAt"] = firestore.SERVER_TIMESTAMP
         batch.update(self._journal_ref(job), journal_result)
         batch.update(
@@ -148,6 +150,69 @@ class FirebaseGateway:
         )
         batch.commit()
 
+    def requeue_journal(self, user_id: str, journal_id: str) -> None:
+        user_id = user_id.strip()
+        journal_id = journal_id.strip()
+        if not user_id or not journal_id:
+            raise ValueError("userId and journalId are required for reprocessing.")
+        journal_ref = (
+            self.db.collection("users")
+            .document(user_id)
+            .collection("journals")
+            .document(journal_id)
+        )
+        job_ref = self.db.collection("analysis_jobs").document(journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def requeue(transaction):
+            journal_snapshot = journal_ref.get(transaction=transaction)
+            job_snapshot = job_ref.get(transaction=transaction)
+            journal = journal_snapshot.to_dict() if journal_snapshot.exists else None
+            job = job_snapshot.to_dict() if job_snapshot.exists else None
+            validate_requeue_documents(journal, job, user_id, journal_id)
+            if job_snapshot.exists:
+                transaction.update(
+                    job_ref,
+                    {
+                        "status": "queued",
+                        "processingStep": "queued",
+                        "analysisVersion": "2026-07-v2-grounded",
+                        "startedAt": None,
+                        "completedAt": None,
+                        "errorMessage": None,
+                        "requeuedAt": firestore.SERVER_TIMESTAMP,
+                    },
+                )
+            else:
+                transaction.set(
+                    job_ref,
+                    {
+                        "userId": user_id,
+                        "journalId": journal_id,
+                        "status": "queued",
+                        "processingStep": "queued",
+                        "retryCount": 0,
+                        "analysisVersion": "2026-07-v2-grounded",
+                        "createdAt": firestore.SERVER_TIMESTAMP,
+                        "startedAt": None,
+                        "completedAt": None,
+                        "errorMessage": None,
+                    },
+                )
+            transaction.update(
+                journal_ref,
+                {
+                    "analysisStatus": "queued",
+                    "analysisStep": "queued",
+                    "analysisVersion": "2026-07-v2-grounded",
+                    "analysisError": None,
+                    "analysisRequestedAt": firestore.SERVER_TIMESTAMP,
+                },
+            )
+
+        requeue(transaction)
+
     def _job_ref(self, job: ClaimedJob):
         return self.db.collection("analysis_jobs").document(job.id)
 
@@ -158,3 +223,21 @@ class FirebaseGateway:
             .collection("journals")
             .document(job.journal_id)
         )
+
+
+def validate_requeue_documents(
+    journal: dict[str, Any] | None,
+    job: dict[str, Any] | None,
+    user_id: str,
+    journal_id: str,
+) -> None:
+    if journal is None:
+        raise ValueError("The selected journal does not exist.")
+    if journal.get("userId") != user_id:
+        raise ValueError("The selected journal does not belong to this user.")
+    if job is None:
+        return
+    if job.get("userId") != user_id or job.get("journalId") != journal_id:
+        raise ValueError("The analysis job ownership does not match the journal.")
+    if job.get("status") == "processing":
+        raise ValueError("A processing analysis job cannot be requeued.")

@@ -16,7 +16,8 @@ service cloud.firestore {
           && request.resource.data.userId == userId
           && request.resource.data.id == journalId
           && request.resource.data.analysisStatus == 'queued';
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if signedInAs(userId);
       }
     }
 
@@ -32,7 +33,9 @@ service cloud.firestore {
         && getAfter(
           /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
         ).data.userId == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
     }
   }
 }

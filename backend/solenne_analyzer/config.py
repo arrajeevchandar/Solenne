@@ -8,6 +8,9 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_DIR = BACKEND_ROOT / "input_videos"
 DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "outputs"
+DEFAULT_GROUNDING_CATALOG_PATH = (
+    BACKEND_ROOT / "solenne_analyzer" / "grounding" / "catalog.json"
+)
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,8 @@ class AnalyzerConfig:
     groq_api_key: str | None = None
     groq_model: str = "llama-3.1-8b-instant"
     llm_timeout_seconds: float = 30.0
+    grounding_mode: str = "off"
+    grounding_catalog_path: Path = DEFAULT_GROUNDING_CATALOG_PATH
 
     @classmethod
     def from_env(
@@ -40,6 +45,19 @@ class AnalyzerConfig:
         enabled = enable_llm_insights
         if enabled is None:
             enabled = _env_bool("ENABLE_LLM_INSIGHTS", default=False)
+        grounding_mode = os.environ.get("GROUNDING_MODE", "off").strip().lower()
+        if grounding_mode not in {"off", "shadow", "enforce", "combined"}:
+            raise ValueError(
+                "GROUNDING_MODE must be off, shadow, enforce, or combined."
+            )
+        catalog_value = os.environ.get("GROUNDING_CATALOG_PATH", "").strip()
+        catalog_path = (
+            Path(catalog_value).expanduser()
+            if catalog_value
+            else DEFAULT_GROUNDING_CATALOG_PATH
+        )
+        if not catalog_path.is_absolute():
+            catalog_path = BACKEND_ROOT / catalog_path
         return cls(
             output_dir=output_dir,
             whisper_model=whisper_model,
@@ -48,6 +66,8 @@ class AnalyzerConfig:
             groq_api_key=os.environ.get("GROQ_API_KEY"),
             groq_model=groq_model or os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant"),
             llm_timeout_seconds=float(os.environ.get("LLM_TIMEOUT_SECONDS", "30")),
+            grounding_mode=grounding_mode,
+            grounding_catalog_path=catalog_path.resolve(),
         )
 
 

@@ -6,7 +6,10 @@ from unittest.mock import patch
 
 from solenne_analyzer.schemas import AiInsight, AnalysisResult, TranscriptResult
 from solenne_analyzer.worker.config import WorkerConfig
-from solenne_analyzer.worker.firebase_gateway import ClaimedJob
+from solenne_analyzer.worker.firebase_gateway import (
+    ClaimedJob,
+    validate_requeue_documents,
+)
 from solenne_analyzer.worker.media_source import (
     MediaSourceError,
     validate_cloudinary_video_url,
@@ -51,9 +54,35 @@ class WorkerResultTests(unittest.TestCase):
         payload = analysis_result_to_firestore(result)
 
         self.assertEqual(payload["analysisStatus"], "complete")
+        self.assertEqual(payload["analysisVersion"], "2026-07-v2-grounded")
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertNotIn("segments", payload["transcript"])
         self.assertEqual(payload["aiInsights"][0]["moodLabel"], "grounded")
+
+    def test_selected_reprocess_rejects_processing_or_mismatched_jobs(self) -> None:
+        journal = {"userId": "user-1"}
+        with self.assertRaisesRegex(ValueError, "cannot be requeued"):
+            validate_requeue_documents(
+                journal,
+                {
+                    "userId": "user-1",
+                    "journalId": "journal-1",
+                    "status": "processing",
+                },
+                "user-1",
+                "journal-1",
+            )
+        with self.assertRaisesRegex(ValueError, "ownership"):
+            validate_requeue_documents(
+                journal,
+                {
+                    "userId": "another-user",
+                    "journalId": "journal-1",
+                    "status": "complete",
+                },
+                "user-1",
+                "journal-1",
+            )
 
 
 class WorkerRunnerTests(unittest.TestCase):

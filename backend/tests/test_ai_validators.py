@@ -49,6 +49,32 @@ class AiValidatorTest(unittest.TestCase):
         self.assertEqual(insights[0].moodLabel, "reflective")
         self.assertEqual(insights[0].safetyNote, "Solenne offers wellness reflections, not medical advice.")
 
+    def test_validator_removes_transcript_and_internal_ids_from_evidence(self):
+        insights = validate_ai_insight_payload(
+            {
+                "aiInsights": [
+                    {
+                        "summary": "A cautious reflection based on this entry.",
+                        "evidence": {
+                            "reason": "The language tone leaned more positive.",
+                            "transcript": "Do not repeat the full journal here.",
+                            "runId": "internal-run",
+                            "journal_id": "internal-journal",
+                            "metrics": {"overallValence": 0.5},
+                        },
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(
+            insights[0].evidence,
+            {
+                "reason": "The language tone leaned more positive.",
+                "metrics": {"overallValence": 0.5},
+            },
+        )
+
     def test_validator_rejects_blocked_clinical_language(self):
         payload = {
             "aiInsights": [

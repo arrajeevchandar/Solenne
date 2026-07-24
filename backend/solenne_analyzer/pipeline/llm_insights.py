@@ -2,11 +2,66 @@ from __future__ import annotations
 
 from ..ai.context_builder import build_insight_context, estimate_tokens
 from ..ai.groq_client import generate_groq_insights
+from ..grounding.runtime import generate_grounded_insights
 from ..schemas import AiInsight, AnalysisResult, LlmDiagnostics
 from ..config import AnalyzerConfig
 
 
 def generate_llm_insights(
+    result: AnalysisResult,
+    config: AnalyzerConfig,
+) -> tuple[list[AiInsight], LlmDiagnostics, str]:
+    if config.grounding_mode == "enforce":
+        return generate_grounded_insights(result, config)
+
+    if config.grounding_mode == "combined":
+        return _generate_combined_insights(result, config)
+
+    legacy = _generate_legacy_insights(result, config)
+    if config.grounding_mode == "shadow":
+        shadow, shadow_diagnostics, _ = generate_grounded_insights(result, config)
+        result.groundingShadowInsights = shadow
+        legacy[1].grounding = shadow_diagnostics.grounding
+    return legacy
+
+
+def _generate_combined_insights(
+    result: AnalysisResult,
+    config: AnalyzerConfig,
+) -> tuple[list[AiInsight], LlmDiagnostics, str]:
+    """Serve legacy narrative insights alongside grounded, source-supported ones.
+
+    Each grounded insight carries schema-v2 ``evidence`` with research references,
+    so the frontend renders it as its own grounded card next to the narrative cards.
+    """
+    grounded, grounded_diagnostics, grounded_provider = generate_grounded_insights(
+        result, config
+    )
+    # The grounded pipeline owns the crisis path; when it engages, surface only the
+    # deterministic safety insight and skip the narrative cards entirely.
+    if grounded_provider == "safety":
+        return grounded, grounded_diagnostics, grounded_provider
+
+    legacy_insights, legacy_diagnostics, legacy_provider = _generate_legacy_insights(
+        result, config
+    )
+    legacy_diagnostics.grounding = grounded_diagnostics.grounding
+    combined = [*legacy_insights, *grounded]
+    provider = _combined_provider(legacy_provider, grounded_provider, bool(grounded))
+    return combined, legacy_diagnostics, provider
+
+
+def _combined_provider(
+    legacy_provider: str,
+    grounded_provider: str,
+    has_grounded: bool,
+) -> str:
+    if has_grounded and grounded_provider == "groq_grounded":
+        return "groq_grounded"
+    return legacy_provider
+
+
+def _generate_legacy_insights(
     result: AnalysisResult,
     config: AnalyzerConfig,
 ) -> tuple[list[AiInsight], LlmDiagnostics, str]:
@@ -65,9 +120,15 @@ def _fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:
                 "What would make tomorrow feel a little steadier?",
             ],
             evidence={
-                "overallValence": result.fused.overallValence,
-                "overallArousal": result.fused.overallArousal,
-                "confidence": result.fused.confidence,
+                "reason": (
+                    "This appeared because the available recording signals were strong "
+                    "enough to support a cautious reflection about this entry."
+                ),
+                "metrics": {
+                    "overallValence": result.fused.overallValence,
+                    "overallArousal": result.fused.overallArousal,
+                    "confidence": result.fused.confidence,
+                },
             },
             confidence=min(0.75, result.fused.confidence),
             safetyNote="Solenne offers wellness reflections, not medical advice.",

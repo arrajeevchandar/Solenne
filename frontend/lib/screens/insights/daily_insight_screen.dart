@@ -3,13 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../features/journals/insight_evidence.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../app_shell.dart';
+
+typedef SourceLauncher = Future<bool> Function(Uri uri);
+
+final sourceLauncherProvider = Provider<SourceLauncher>((ref) {
+  return (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
+});
 
 class DailyInsightScreen extends ConsumerWidget {
   const DailyInsightScreen({super.key, required this.entryId});
@@ -200,6 +208,8 @@ class _DailyEntryView extends StatelessWidget {
                 ),
                 const Spacer(),
                 _StatusPill(entry: entry),
+                const SizedBox(width: 4),
+                _DeleteJournalButton(entry: entry, onDeleted: onClose),
               ],
             ),
             const SizedBox(height: 12),
@@ -281,6 +291,101 @@ class _StatusPill extends StatelessWidget {
           color: color.withValues(alpha: 0.78),
         ),
       ),
+    );
+  }
+}
+
+class _DeleteJournalButton extends ConsumerStatefulWidget {
+  const _DeleteJournalButton({required this.entry, required this.onDeleted});
+
+  final JournalEntry entry;
+  final VoidCallback onDeleted;
+
+  @override
+  ConsumerState<_DeleteJournalButton> createState() =>
+      _DeleteJournalButtonState();
+}
+
+class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
+  bool _deleting = false;
+
+  Future<void> _confirmAndDelete() async {
+    if (_deleting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.royalBlue,
+        title: Text(
+          'Delete this reflection?',
+          style: AppTextStyles.display(fontSize: 22),
+        ),
+        content: Text(
+          'This permanently removes the reflection and its insights from your '
+          'journal. This cannot be undone.',
+          style: AppTextStyles.body(
+            fontSize: 13,
+            color: AppColors.shellstone.withValues(alpha: 0.76),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Keep',
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.shellstone.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Delete',
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.nudgeWarm,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deleting = true);
+    try {
+      await ref
+          .read(journalRepositoryProvider)
+          .deleteJournal(widget.entry.id);
+      if (!mounted) return;
+      widget.onDeleted();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This reflection could not be deleted.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_deleting) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return IconButton(
+      tooltip: 'Delete reflection',
+      onPressed: _confirmAndDelete,
+      icon: const Icon(Icons.delete_outline_rounded),
+      color: AppColors.shellstone.withValues(alpha: 0.76),
     );
   }
 }
@@ -989,19 +1094,41 @@ class _AnalysisStateCard extends StatelessWidget {
   }
 }
 
-class _InsightCard extends StatelessWidget {
+class _InsightCard extends ConsumerWidget {
   const _InsightCard({required this.insight, required this.index});
 
   final AiInsight insight;
   final int index;
 
   @override
-  Widget build(BuildContext context) {
-    final evidenceRows = _flattenEvidence(insight.evidence);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final parsedEvidence = insight.parsedEvidence;
+    final isV2 = parsedEvidence.isV2;
+    final isSafety = parsedEvidence.isSafetyBypass;
+    final legacyEvidence = isV2
+        ? const _LegacyEvidenceExplanation.empty()
+        : _LegacyEvidenceExplanation.fromMap(insight.evidence);
+    final hasExpandableEvidence = isV2
+        ? parsedEvidence.hasContent
+        : legacyEvidence.hasContent;
+
+    Future<void> openSource(ExternalReference source) async {
+      final uri = source.safeUri;
+      if (uri == null) return;
+      final opened = await ref.read(sourceLauncherProvider)(uri);
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This source could not be opened.')),
+        );
+      }
+    }
+
     return SolenneGlass(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       borderRadius: 23,
-      tint: index.isEven ? AppColors.sapphire : AppColors.quicksand,
+      tint: isSafety
+          ? AppColors.nudgeWarm
+          : (index.isEven ? AppColors.sapphire : AppColors.quicksand),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1015,10 +1142,17 @@ class _InsightCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (insight.moodLabel.trim().isNotEmpty)
+              if (!isSafety && insight.moodLabel.trim().isNotEmpty)
                 _MoodChip(label: insight.moodLabel),
             ],
           ),
+          if (isV2) ...[
+            const SizedBox(height: 9),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _GroundingBadge(evidence: parsedEvidence),
+            ),
+          ],
           const SizedBox(height: 13),
           if (insight.title.trim().isNotEmpty)
             Text(insight.title, style: AppTextStyles.display(fontSize: 28)),
@@ -1032,7 +1166,7 @@ class _InsightCard extends StatelessWidget {
               ),
             ),
           ],
-          if (insight.dayThemes.isNotEmpty) ...[
+          if (!isSafety && insight.dayThemes.isNotEmpty) ...[
             const SizedBox(height: 16),
             Wrap(
               spacing: 7,
@@ -1042,7 +1176,7 @@ class _InsightCard extends StatelessWidget {
               ],
             ),
           ],
-          if (insight.suggestions.isNotEmpty) ...[
+          if (!isSafety && insight.suggestions.isNotEmpty) ...[
             const SizedBox(height: 19),
             const _InsightSectionLabel(
               icon: Icons.spa_outlined,
@@ -1052,7 +1186,7 @@ class _InsightCard extends StatelessWidget {
             for (final suggestion in insight.suggestions)
               _InsightLine(icon: Icons.arrow_outward_rounded, text: suggestion),
           ],
-          if (insight.reflectionQuestions.isNotEmpty) ...[
+          if (!isSafety && insight.reflectionQuestions.isNotEmpty) ...[
             const SizedBox(height: 17),
             const _InsightSectionLabel(
               icon: Icons.blur_on_rounded,
@@ -1078,7 +1212,9 @@ class _InsightCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    Icons.favorite_border_rounded,
+                    isSafety
+                        ? Icons.support_agent_rounded
+                        : Icons.favorite_border_rounded,
                     size: 17,
                     color: AppColors.quicksand.withValues(alpha: 0.8),
                   ),
@@ -1096,9 +1232,7 @@ class _InsightCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 17),
-          _ConfidenceBar(confidence: insight.confidence),
-          if (evidenceRows.isNotEmpty) ...[
+          if (hasExpandableEvidence) ...[
             const SizedBox(height: 6),
             Theme(
               data: Theme.of(context).copyWith(
@@ -1121,8 +1255,313 @@ class _InsightCard extends StatelessWidget {
                   ),
                 ),
                 children: [
-                  for (final row in evidenceRows) _EvidenceRow(row: row),
+                  if (isV2)
+                    _GroundedEvidenceBody(
+                      evidence: parsedEvidence,
+                      onOpenSource: openSource,
+                    )
+                  else
+                    _LegacyEvidenceBody(evidence: legacyEvidence),
                 ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GroundingBadge extends StatelessWidget {
+  const _GroundingBadge({required this.evidence});
+
+  final InsightEvidence evidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, icon, color) = evidence.isSafetyBypass
+        ? ('SUPPORT FIRST', Icons.shield_outlined, AppColors.nudgeWarm)
+        : evidence.verification.status == 'source_supported'
+        ? (
+            'SOURCE-SUPPORTED',
+            Icons.library_books_outlined,
+            AppColors.quicksand,
+          )
+        : (
+            'BASED ON THIS JOURNAL',
+            Icons.auto_stories_outlined,
+            AppColors.shellstone,
+          );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color.withValues(alpha: 0.88)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTextStyles.mono(
+              fontSize: 6.5,
+              color: color.withValues(alpha: 0.86),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroundedEvidenceBody extends StatelessWidget {
+  const _GroundedEvidenceBody({
+    required this.evidence,
+    required this.onOpenSource,
+  });
+
+  final InsightEvidence evidence;
+  final Future<void> Function(ExternalReference source) onOpenSource;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (evidence.userEvidence.isNotEmpty) ...[
+          const _EvidenceSectionHeader(
+            icon: Icons.auto_stories_outlined,
+            label: 'FROM YOUR REFLECTION',
+          ),
+          const SizedBox(height: 10),
+          for (final item in evidence.userEvidence)
+            _PersonalEvidenceRow(item: item),
+        ],
+        if (evidence.externalReferences.isNotEmpty) ...[
+          if (evidence.userEvidence.isNotEmpty) const SizedBox(height: 16),
+          const _EvidenceSectionHeader(
+            icon: Icons.public_rounded,
+            label: 'PUBLIC RESEARCH CONTEXT',
+          ),
+          const SizedBox(height: 10),
+          for (final source in evidence.externalReferences)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SourceReferenceCard(
+                source: source,
+                onOpen: () => onOpenSource(source),
+              ),
+            ),
+          Text(
+            'Research context is general. It does not determine why this personal reflection occurred.',
+            style: AppTextStyles.body(
+              fontSize: 9,
+              fontStyle: FontStyle.italic,
+              color: AppColors.shellstone.withValues(alpha: 0.54),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _EvidenceSectionHeader extends StatelessWidget {
+  const _EvidenceSectionHeader({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: AppColors.quicksand.withValues(alpha: 0.74),
+        ),
+        const SizedBox(width: 7),
+        Text(
+          label,
+          style: AppTextStyles.mono(
+            fontSize: 7,
+            color: AppColors.quicksand.withValues(alpha: 0.72),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: AppColors.shellstone.withValues(alpha: 0.1),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PersonalEvidenceRow extends StatelessWidget {
+  const _PersonalEvidenceRow({required this.item});
+
+  final UserEvidenceItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(top: 6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.quicksand.withValues(alpha: 0.62),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.quicksand.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item.label,
+              style: AppTextStyles.body(
+                fontSize: 10,
+                color: AppColors.shellstone.withValues(alpha: 0.66),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              item.displayValue,
+              textAlign: TextAlign.right,
+              style: AppTextStyles.body(
+                fontSize: 10,
+                color: AppColors.swanWing.withValues(alpha: 0.84),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceReferenceCard extends StatelessWidget {
+  const _SourceReferenceCard({required this.source, required this.onOpen});
+
+  final ExternalReference source;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.sapphire.withValues(alpha: 0.22),
+            AppColors.royalBlue.withValues(alpha: 0.12),
+          ],
+        ),
+        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  source.title,
+                  style: AppTextStyles.display(fontSize: 17),
+                ),
+              ),
+              if (source.supportLevel.trim().isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(left: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: AppColors.quicksand.withValues(alpha: 0.09),
+                  ),
+                  child: Text(
+                    source.supportLevel.toUpperCase(),
+                    style: AppTextStyles.mono(
+                      fontSize: 6,
+                      color: AppColors.quicksand.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (source.publicationLine.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              source.publicationLine,
+              style: AppTextStyles.mono(
+                fontSize: 6.5,
+                color: AppColors.shellstone.withValues(alpha: 0.48),
+              ),
+            ),
+          ],
+          if (source.matchedClaim.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              source.matchedClaim,
+              style: AppTextStyles.body(
+                fontSize: 10.5,
+                color: AppColors.swanWing.withValues(alpha: 0.76),
+              ),
+            ),
+          ],
+          if (source.limitations.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'LIMITATION · ${source.limitations}',
+              style: AppTextStyles.mono(
+                fontSize: 6.3,
+                color: AppColors.shellstone.withValues(alpha: 0.48),
+              ),
+            ),
+          ],
+          if (source.safeUri != null) ...[
+            const SizedBox(height: 5),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.open_in_new_rounded, size: 13),
+                label: const Text('OPEN SOURCE'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.quicksand,
+                  textStyle: AppTextStyles.mono(fontSize: 6.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ),
           ],
@@ -1247,136 +1686,287 @@ class _InsightLine extends StatelessWidget {
   }
 }
 
-class _ConfidenceBar extends StatelessWidget {
-  const _ConfidenceBar({required this.confidence});
+class _LegacyEvidenceBody extends StatelessWidget {
+  const _LegacyEvidenceBody({required this.evidence});
 
-  final double confidence;
+  final _LegacyEvidenceExplanation evidence;
 
   @override
   Widget build(BuildContext context) {
-    final safe = confidence.clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'SIGNAL CONFIDENCE',
-              style: AppTextStyles.mono(
-                fontSize: 7,
-                color: AppColors.shellstone.withValues(alpha: 0.48),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${(safe * 100).round()}%',
-              style: AppTextStyles.mono(
-                fontSize: 7,
-                color: AppColors.shellstone.withValues(alpha: 0.58),
-              ),
-            ),
-          ],
+        const _EvidenceSectionHeader(
+          icon: Icons.lightbulb_outline_rounded,
+          label: 'REASON FOR THIS INSIGHT',
         ),
-        const SizedBox(height: 7),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            minHeight: 2,
-            value: safe,
-            backgroundColor: AppColors.shellstone.withValues(alpha: 0.1),
-            valueColor: AlwaysStoppedAnimation(
-              AppColors.quicksand.withValues(alpha: 0.72),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: AppColors.quicksand.withValues(alpha: 0.07),
+            border: Border.all(
+              color: AppColors.quicksand.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Text(
+            evidence.reason,
+            style: AppTextStyles.body(
+              fontSize: 11,
+              color: AppColors.shellstone.withValues(alpha: 0.78),
             ),
           ),
         ),
+        if (evidence.notes.isNotEmpty) ...[
+          const SizedBox(height: 15),
+          const _EvidenceSectionHeader(
+            icon: Icons.info_outline_rounded,
+            label: 'RECORDING NOTES',
+          ),
+          const SizedBox(height: 9),
+          for (final note in evidence.notes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '• $note',
+                style: AppTextStyles.body(
+                  fontSize: 10,
+                  color: AppColors.shellstone.withValues(alpha: 0.66),
+                ),
+              ),
+            ),
+        ],
+        if (evidence.notes.isNotEmpty) const SizedBox(height: 3),
       ],
     );
   }
 }
 
-class _EvidenceRow extends StatelessWidget {
-  const _EvidenceRow({required this.row});
+class _LegacyEvidenceExplanation {
+  const _LegacyEvidenceExplanation({required this.reason, required this.notes});
 
-  final _EvidenceValue row;
+  const _LegacyEvidenceExplanation.empty() : reason = '', notes = const [];
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              row.label.toUpperCase(),
-              style: AppTextStyles.mono(
-                fontSize: 7,
-                color: AppColors.shellstone.withValues(alpha: 0.46),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 3,
-            child: Text(
-              row.value,
-              textAlign: TextAlign.right,
-              style: AppTextStyles.body(
-                fontSize: 10,
-                color: AppColors.shellstone.withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+  factory _LegacyEvidenceExplanation.fromMap(Map<String, dynamic> evidence) {
+    String? suppliedReason;
+    var transcriptWasUsed = false;
+    final metrics = <_LegacyMetricExplanation>[];
+    final notes = <String>[];
+    final seenMetrics = <String>{};
 
-class _EvidenceValue {
-  const _EvidenceValue(this.label, this.value);
-
-  final String label;
-  final String value;
-}
-
-List<_EvidenceValue> _flattenEvidence(Map<String, dynamic> evidence) {
-  final rows = <_EvidenceValue>[];
-
-  void visit(String prefix, Object? value) {
-    if (value == null) return;
-    if (value is Map) {
-      for (final item in value.entries) {
-        final label = prefix.isEmpty
-            ? item.key.toString()
-            : '$prefix · ${item.key}';
-        visit(label, item.value);
+    void visit(Object? value, [String key = '']) {
+      if (value == null) return;
+      final normalizedKey = _normalizeEvidenceKey(key);
+      if (_isInternalEvidenceKey(normalizedKey)) return;
+      if (normalizedKey == 'transcript' || normalizedKey == 'transcripttext') {
+        transcriptWasUsed = value.toString().trim().isNotEmpty;
+        return;
       }
-      return;
+      if (value is Map) {
+        for (final entry in value.entries) {
+          visit(entry.value, entry.key.toString());
+        }
+        return;
+      }
+      if (normalizedKey == 'reason' || normalizedKey == 'reasoning') {
+        final text = value.toString().trim();
+        if (text.isNotEmpty) suppliedReason = text;
+        return;
+      }
+      if (value is num) {
+        final metric = _explainLegacyMetric(normalizedKey, value.toDouble());
+        if (metric != null && seenMetrics.add(normalizedKey)) {
+          metrics.add(metric);
+        }
+        return;
+      }
+      if (normalizedKey == 'warnings' || normalizedKey == 'warning') {
+        final values = value is Iterable ? value : [value];
+        notes.addAll(
+          values
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .take(3),
+        );
+      }
     }
-    if (value is Iterable) {
-      final text = value.map((item) => item.toString()).join(', ').trim();
-      if (text.isNotEmpty) rows.add(_EvidenceValue(_humanize(prefix), text));
-      return;
-    }
-    final text = value.toString().trim();
-    if (text.isNotEmpty) rows.add(_EvidenceValue(_humanize(prefix), text));
+
+    visit(evidence);
+    final reason =
+        suppliedReason ??
+        _buildLegacyReason(
+          transcriptWasUsed: transcriptWasUsed,
+          metrics: metrics,
+          hasRecordingNotes: notes.isNotEmpty,
+        );
+    return _LegacyEvidenceExplanation(reason: reason, notes: notes);
   }
 
-  visit('', evidence);
-  return rows;
+  final String reason;
+  final List<String> notes;
+
+  bool get hasContent => reason.isNotEmpty;
 }
 
-String _humanize(String value) {
-  return value
-      .replaceAllMapped(
-        RegExp(r'([a-z0-9])([A-Z])'),
-        (match) => '${match.group(1)} ${match.group(2)}',
-      )
-      .replaceAll('_', ' ')
-      .replaceAll(' · ', ' / ')
-      .trim();
+class _LegacyMetricExplanation {
+  const _LegacyMetricExplanation({
+    required this.reasonSentence,
+    required this.priority,
+  });
+
+  final String reasonSentence;
+  final int priority;
+}
+
+String _buildLegacyReason({
+  required bool transcriptWasUsed,
+  required List<_LegacyMetricExplanation> metrics,
+  required bool hasRecordingNotes,
+}) {
+  final orderedMetrics = [...metrics]
+    ..sort((left, right) => left.priority.compareTo(right.priority));
+  final signalReason = orderedMetrics
+      .take(4)
+      .map((metric) => metric.reasonSentence)
+      .join(' ');
+  if (transcriptWasUsed && metrics.isNotEmpty) {
+    return 'This insight used themes and phrasing from your journal together with patterns in the recording. $signalReason These observations describe this entry only; they do not establish how you felt or provide a diagnosis.';
+  }
+  if (transcriptWasUsed) {
+    return 'This older insight stored the journal transcript as evidence, but it did not retain the exact phrase-to-insight explanation. The wording was used to infer themes and tone; a more specific reason requires reprocessing with the updated analyzer.';
+  }
+  if (metrics.isNotEmpty) {
+    return 'This insight was prompted by patterns in this recording. $signalReason These observations are interpreted cautiously and are not treated as facts about how you felt.';
+  }
+  if (hasRecordingNotes) {
+    return 'This insight appeared because recording-quality limitations affected which signals the analyzer could use. The notes below identify those limitations.';
+  }
+  return '';
+}
+
+String _normalizeEvidenceKey(String value) {
+  return value.replaceAll(RegExp('[^A-Za-z0-9]'), '').toLowerCase();
+}
+
+bool _isInternalEvidenceKey(String key) {
+  return {
+    'runid',
+    'journalid',
+    'entryid',
+    'userid',
+    'sourcevideo',
+    'videourl',
+    'thumbnailurl',
+  }.contains(key);
+}
+
+_LegacyMetricExplanation? _explainLegacyMetric(String key, double value) {
+  switch (key) {
+    case 'overallvalence':
+    case 'sentimentvalence':
+      final isTranscriptSignal = key == 'sentimentvalence';
+      return _LegacyMetricExplanation(
+        priority: 1,
+        reasonSentence: value >= 0.35
+            ? isTranscriptSignal
+                  ? 'The wording carried a more positive-leaning tone.'
+                  : 'The combined language, voice, and visual tone leaned more positive.'
+            : value <= -0.35
+            ? isTranscriptSignal
+                  ? 'The wording carried a more subdued-leaning tone.'
+                  : 'The combined language, voice, and visual tone leaned more subdued.'
+            : isTranscriptSignal
+            ? 'The wording carried a mostly neutral or mixed tone.'
+            : 'The combined language, voice, and visual tone was mostly neutral or mixed.',
+      );
+    case 'overallarousal':
+    case 'arousal':
+      return _LegacyMetricExplanation(
+        priority: 3,
+        reasonSentence: value < 0.35
+            ? 'The delivery showed lower energy or expressiveness.'
+            : value < 0.65
+            ? 'The delivery showed moderate energy or expressiveness.'
+            : 'The delivery showed higher energy or expressiveness.',
+      );
+    case 'congruence':
+      return _LegacyMetricExplanation(
+        priority: 2,
+        reasonSentence: value >= 0.7
+            ? 'The available words, voice, and visual tone were broadly aligned.'
+            : value >= 0.45
+            ? 'The available words, voice, and visual tone were partly aligned.'
+            : 'The available words, voice, and visual tone were mixed.',
+      );
+    case 'confidence':
+    case 'signalconfidence':
+      return _LegacyMetricExplanation(
+        priority: 8,
+        reasonSentence: value >= 0.75
+            ? 'The analyzer had more usable input from this recording.'
+            : value >= 0.45
+            ? 'The analyzer had some usable input from this recording.'
+            : 'The analyzer had limited usable input from this recording.',
+      );
+    case 'pauseratio':
+      return _LegacyMetricExplanation(
+        priority: 4,
+        reasonSentence: value >= 0.55
+            ? 'Pauses formed a larger part of the spoken reflection.'
+            : value >= 0.25
+            ? 'The spoken reflection included a moderate amount of pausing.'
+            : 'The spoken reflection included relatively little pausing.',
+      );
+    case 'speakingrate':
+      return _LegacyMetricExplanation(
+        priority: 5,
+        reasonSentence: value < 100
+            ? 'The speaking pace was relatively measured.'
+            : value > 170
+            ? 'The speaking pace was relatively quick.'
+            : 'The speaking pace was moderate.',
+      );
+    case 'energymean':
+      return _LegacyMetricExplanation(
+        priority: 6,
+        reasonSentence:
+            'The analyzer also considered the relative energy of the recorded voice, which can be affected by microphone distance and room acoustics.',
+      );
+    case 'pitchmean':
+      return _LegacyMetricExplanation(
+        priority: 9,
+        reasonSentence:
+            'The analyzer considered vocal pitch as a recording pattern, not as a direct measure of emotion.',
+      );
+    case 'variability':
+      return _LegacyMetricExplanation(
+        priority: 7,
+        reasonSentence:
+            'Changes in vocal energy and pitch across the reflection also contributed to the pattern.',
+      );
+    case 'stressscore':
+      return _LegacyMetricExplanation(
+        priority: 5,
+        reasonSentence:
+            'A small set of tension-related words appeared in the transcript; this is a language cue, not a measure of stress.',
+      );
+    case 'engagement':
+      return _LegacyMetricExplanation(
+        priority: 9,
+        reasonSentence:
+            'The analyzer considered a combined pattern of pauses, delivery, and usable input without treating it as personal motivation.',
+      );
+    case 'facedetectedratio':
+      return _LegacyMetricExplanation(
+        priority: 10,
+        reasonSentence:
+            'Visual input was considered only where a face could be detected clearly enough; this reflects recording quality, not emotion.',
+      );
+    default:
+      return null;
+  }
 }
 
 String _formatClock(Duration duration) {
