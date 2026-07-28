@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ..schemas import AiInsight, clamp
@@ -33,6 +34,12 @@ BLOCKED_PERSONAL_PHRASES = {
     "compared to your",
     "over the last week",
     "this week your",
+    "analytical mindset",
+    "reflective mindset",
+    "your mindset",
+    "your personality",
+    "personality trait",
+    "hidden intention",
 }
 BLOCKED_RESEARCH_PHRASES = {
     "research shows",
@@ -51,6 +58,32 @@ ALLOWED_EVIDENCE_PATHS = {
     "transcript.confidence",
     "transcript.text",
     "durationSeconds",
+}
+MIN_SUBSTANTIVE_NARRATIVE_WORDS = 30
+NARRATIVE_STOP_WORDS = {
+    "about",
+    "after",
+    "again",
+    "also",
+    "because",
+    "could",
+    "feel",
+    "feeling",
+    "felt",
+    "from",
+    "have",
+    "journal",
+    "reflection",
+    "that",
+    "there",
+    "this",
+    "today",
+    "what",
+    "when",
+    "with",
+    "would",
+    "your",
+    "youre",
 }
 
 
@@ -197,6 +230,88 @@ def validate_draft_references(
                 )
 
 
+def validate_draft_quality(
+    drafts: list[GroundedInsightDraft],
+    retrieved_claims: list[ClaimCard],
+    catalog: GroundingCatalog,
+    journal_narrative: dict[str, Any],
+) -> None:
+    """Reject valid JSON that is too sparse for a substantive journal entry."""
+    paraphrase = str(journal_narrative.get("paraphrase") or "")
+    excerpts = " ".join(
+        str(item)
+        for item in (journal_narrative.get("keyExcerpts") or [])
+        if str(item).strip()
+    )
+    # A fragmentary recording should not be padded with invented detail.
+    if (
+        max(len(_words(paraphrase)), len(_words(excerpts)))
+        < MIN_SUBSTANTIVE_NARRATIVE_WORDS
+    ):
+        return
+
+    claim_by_id = {item.claimCardId: item for item in retrieved_claims}
+    narrative_anchors = {
+        word
+        for word in _words(f"{paraphrase} {excerpts}")
+        if len(word) >= 4 and word not in NARRATIVE_STOP_WORDS
+    }
+    expected_anchors = min(2, len(narrative_anchors))
+    available_theme_values = [
+        *list(journal_narrative.get("topics") or []),
+        *list(journal_narrative.get("keyPhrases") or []),
+    ]
+    expected_themes = min(
+        2,
+        _distinct_text_count([str(item) for item in available_theme_values]),
+    )
+    seen_titles: set[str] = set()
+    for index, draft in enumerate(drafts):
+        if len(_words(draft.summary)) < 15:
+            raise ValueError(
+                f"drafts[{index}].summary is too brief for the supplied journal; "
+                "connect at least two concrete narrative details in 15 or more words."
+            )
+        summary_anchors = set(_words(draft.summary)) & narrative_anchors
+        if len(summary_anchors) < expected_anchors:
+            raise ValueError(
+                f"drafts[{index}].summary must name at least {expected_anchors} "
+                "concrete journal details."
+            )
+        if _distinct_text_count(list(draft.dayThemes)) < expected_themes:
+            raise ValueError(
+                f"drafts[{index}] must include at least {expected_themes} "
+                "distinct concise day themes."
+            )
+        if _distinct_text_count(list(draft.reflectionQuestions)) < 2:
+            raise ValueError(
+                f"drafts[{index}] must include at least two distinct "
+                "reflection questions."
+            )
+
+        title_key = " ".join(_words(draft.title))
+        if title_key in seen_titles:
+            raise ValueError("Grounded drafts must cover distinct, non-duplicate ideas.")
+        seen_titles.add(title_key)
+
+        eligible_suggestions = {
+            suggestion_id
+            for claim_id in draft.claimCardIds
+            if (claim := claim_by_id.get(claim_id)) is not None
+            for suggestion_id in claim.allowedSuggestionIds
+            if (
+                (suggestion := catalog.suggestion_by_id.get(suggestion_id)) is not None
+                and suggestion.runtime_eligible
+            )
+        }
+        expected_suggestions = min(2, len(eligible_suggestions))
+        if len(set(draft.suggestionIds)) < expected_suggestions:
+            raise ValueError(
+                f"drafts[{index}] must select {expected_suggestions} approved "
+                "suggestion IDs available for its claims."
+            )
+
+
 def validate_assembled_insights(
     insights: list[AiInsight],
     facts: list[ObservationFact],
@@ -211,10 +326,13 @@ def validate_assembled_insights(
         user_evidence = evidence.get("userEvidence")
         references = evidence.get("externalReferences")
         verification = evidence.get("verification")
+        rationale = evidence.get("rationale")
         if not isinstance(user_evidence, list) or not isinstance(references, list):
             raise ValueError(f"insight[{index}] evidence arrays are invalid.")
         if not isinstance(verification, dict):
             raise ValueError(f"insight[{index}] verification is invalid.")
+        if not isinstance(rationale, str) or not rationale.strip():
+            raise ValueError(f"insight[{index}] evidence rationale is invalid.")
         for item in user_evidence:
             if not isinstance(item, dict):
                 raise ValueError(f"insight[{index}] contains invalid user evidence.")
@@ -250,6 +368,11 @@ def validate_assembled_insights(
             raise ValueError(f"insight[{index}] has an unsupported verification status.")
 
 
+def validate_grounded_user_language(insight: AiInsight) -> None:
+    """Apply grounded wording rules before an insight receives evidence-v2 labeling."""
+    _reject_ai_insight_language(insight)
+
+
 def _reject_language(draft: GroundedInsightDraft) -> None:
     text = " ".join(
         [
@@ -278,22 +401,29 @@ def _reject_ai_insight_language(insight: AiInsight) -> None:
             insight.safetyNote,
         ]
     ).lower()
-    if any(phrase in text for phrase in BLOCKED_PERSONAL_PHRASES):
+    blocked = BLOCKED_PERSONAL_PHRASES | BLOCKED_RESEARCH_PHRASES
+    if any(phrase in text for phrase in blocked):
         raise ValueError("Assembled insight contains unsupported or clinical language.")
 
 
 def _text(value: Any, label: str, max_len: int) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} must be a non-empty string.")
-    return " ".join(value.split())[:max_len]
+    clean = " ".join(value.split())
+    if len(clean) <= max_len:
+        return clean
+    shortened = clean[:max_len].rstrip()
+    return shortened.rsplit(" ", 1)[0] if " " in shortened else shortened
 
 
 def _text_list(value: Any, max_items: int, max_len: int) -> list[str]:
     if not isinstance(value, list):
         raise ValueError("Grounded text lists must be arrays.")
-    return [" ".join(item.split())[:max_len] for item in value if isinstance(item, str) and item.strip()][
-        :max_items
-    ]
+    return [
+        _text(item, "grounded list item", max_len)
+        for item in value
+        if isinstance(item, str) and item.strip()
+    ][:max_items]
 
 
 def _id_list(value: Any, label: str) -> list[str]:
@@ -303,3 +433,17 @@ def _id_list(value: Any, label: str) -> list[str]:
     if len(output) != len(value):
         raise ValueError(f"{label} may contain only non-empty strings.")
     return list(dict.fromkeys(output))
+
+
+def _words(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9']+", value.lower())
+
+
+def _distinct_text_count(values: list[str]) -> int:
+    return len(
+        {
+            clean
+            for value in values
+            if (clean := " ".join(_words(value)))
+        }
+    )

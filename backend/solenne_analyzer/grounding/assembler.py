@@ -43,6 +43,7 @@ def assemble_insights(
                 reflectionQuestions=list(draft.reflectionQuestions),
                 evidence={
                     "schemaVersion": 2,
+                    "rationale": _rationale(selected_facts, selected_claims),
                     "userEvidence": [item.to_evidence() for item in selected_facts],
                     "externalReferences": references,
                     "verification": {
@@ -57,6 +58,46 @@ def assemble_insights(
             )
         )
     return output
+
+
+def _rationale(
+    facts: list[ObservationFact],
+    claims: list[ClaimCard],
+) -> str:
+    claim_types = {item.claimType for item in claims}
+    values = list(
+        dict.fromkeys(
+            str(item.value).strip()
+            for item in facts
+            if item.kind in {"topic", "key_phrase"}
+            and str(item.value).strip()
+            and (
+                not claim_types
+                or any(claim_type in item.claimTypes for claim_type in claim_types)
+            )
+        )
+    )
+    if values:
+        observed = _join_words(values[:3])
+        reason = f"This appeared because your reflection included {observed}."
+    else:
+        reason = "This appeared because of the journal details cited below."
+    if claims:
+        return (
+            f"{reason} The attached source offers general context only for the "
+            "matched theme shown below; it does not determine what your individual "
+            "experience means."
+        )
+    return (
+        f"{reason} The reflection stays with your own words and leaves their "
+        "personal meaning open to you."
+    )
+
+
+def _join_words(values: list[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    return ", ".join(values[:-1]) + f" and {values[-1]}"
 
 
 def _reference(claim: ClaimCard, catalog: GroundingCatalog) -> dict:

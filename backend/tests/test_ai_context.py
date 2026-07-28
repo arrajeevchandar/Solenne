@@ -1,6 +1,12 @@
 import unittest
 
-from solenne_analyzer.ai.context_builder import build_insight_context, estimate_tokens
+from solenne_analyzer.ai.context_builder import (
+    MAX_KEY_EXCERPTS,
+    MAX_KEY_EXCERPTS_TOTAL_CHARS,
+    build_insight_context,
+    estimate_tokens,
+    key_excerpts,
+)
 from solenne_analyzer.schemas import AnalysisResult
 
 
@@ -26,6 +32,59 @@ class AiContextTest(unittest.TestCase):
         self.assertNotIn("private/path", str(context))
         self.assertEqual(context["metrics"]["fused"]["overallValence"], 0.4)
         self.assertGreater(estimate_tokens(context), 0)
+
+    def test_short_journal_keeps_full_hackathon_reasoning(self):
+        transcript = (
+            "I feel happy and sad about our result. I am happy because our team "
+            "placed in the hackathon, and that achievement matters to me. I am sad "
+            "because we missed the first position, and I keep wondering whether "
+            "more preparation and effort could have changed the outcome."
+        )
+        result = AnalysisResult(
+            runId="journal-hackathon-regression",
+            sourceVideo="journal.mp4",
+        )
+        result.transcript.text = transcript
+        result.transcript.wordCount = len(transcript.split())
+
+        context = build_insight_context(result)
+
+        self.assertEqual(context["transcript"]["keyExcerpts"], [transcript])
+        excerpt_text = " ".join(context["transcript"]["keyExcerpts"])
+        self.assertIn("sad because", excerpt_text)
+        self.assertIn("first position", excerpt_text)
+        self.assertNotIn(result.runId, str(context))
+
+    def test_long_journal_keeps_opening_and_salient_later_sentences(self):
+        filler = [
+            f"Routine detail number {index} continued without anything notable."
+            for index in range(1, 25)
+        ]
+        transcript = " ".join(
+            [
+                "I started by describing the morning.",
+                "Then I walked through the ordinary parts of the day!",
+                *filler,
+                "Later I felt sad and disappointed that our team missed first place?",
+                "I was still proud of the effort we put into the hackathon.",
+            ]
+        )
+
+        excerpts = key_excerpts(transcript)
+        excerpt_text = " ".join(excerpts)
+
+        self.assertEqual(excerpts[0], "I started by describing the morning.")
+        self.assertEqual(
+            excerpts[1],
+            "Then I walked through the ordinary parts of the day!",
+        )
+        self.assertIn("sad and disappointed", excerpt_text)
+        self.assertIn("proud of the effort", excerpt_text)
+        self.assertLessEqual(len(excerpts), MAX_KEY_EXCERPTS)
+        self.assertLessEqual(
+            sum(len(excerpt) for excerpt in excerpts),
+            MAX_KEY_EXCERPTS_TOTAL_CHARS,
+        )
 
 
 if __name__ == "__main__":

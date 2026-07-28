@@ -35,7 +35,7 @@ To generate richer Groq-backed insight cards, create `backend/.env`:
 
 ```powershell
 GROQ_API_KEY=your_key_here
-GROQ_MODEL=llama-3.1-8b-instant
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 Then run:
@@ -56,7 +56,7 @@ score never select research context.
 Configure `backend/.env` with:
 
 ```env
-GROUNDING_MODE=off
+GROUNDING_MODE=combined
 GROUNDING_CATALOG_PATH=solenne_analyzer/grounding/catalog.json
 ```
 
@@ -64,6 +64,10 @@ GROUNDING_CATALOG_PATH=solenne_analyzer/grounding/catalog.json
 - `shadow` keeps legacy `aiInsights` and stores private
   `groundingShadowInsights` for comparison.
 - `enforce` writes only validated evidence-v2 insights.
+- `combined` serves rich narrative insights together with validated
+  source-supported cards. When both paths return the same normalized title,
+  Solenne keeps the richer journal-specific wording and merges in the
+  validated grounded evidence instead of showing a duplicate.
 
 Validate or inspect the catalog before starting a worker:
 

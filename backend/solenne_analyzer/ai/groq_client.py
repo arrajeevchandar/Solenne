@@ -5,12 +5,17 @@ import time
 import httpx
 
 from .prompts import INSIGHT_JSON_SCHEMA, SYSTEM_PROMPT, build_user_prompt
-from .validators import parse_ai_insights_json
+from .validators import (
+    InsightQualityError,
+    parse_ai_insights_json,
+    validate_ai_insight_quality,
+)
 from ..config import AnalyzerConfig
 from ..schemas import AiInsight, LlmDiagnostics
 
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+JSON_SCHEMA_MODEL_PREFIXES = ("openai/", "moonshotai/", "qwen/")
 
 
 def generate_groq_insights(
@@ -35,17 +40,40 @@ def generate_groq_insights(
         tokenEstimate=token_estimate,
     )
     last_error: Exception | None = None
-    for response_format in [_json_schema_format(), {"type": "json_object"}]:
-        try:
-            content = _chat_completion(context, config, response_format)
-            insights = parse_ai_insights_json(content)
-            diagnostics.status = "complete"
-            diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
-            diagnostics.failureReason = None
-            return insights, diagnostics
-        except Exception as error:
-            last_error = error
-            diagnostics.failureReason = str(error)
+    quality_retry_used = False
+    stop_after_quality_failure = False
+    for response_format in _response_formats(config.groq_model):
+        revision_feedback: str | None = None
+        while True:
+            try:
+                content = _chat_completion(
+                    context,
+                    config,
+                    response_format,
+                    revision_feedback=revision_feedback,
+                )
+                insights = parse_ai_insights_json(content)
+                validate_ai_insight_quality(insights, context)
+                diagnostics.status = "complete"
+                diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
+                diagnostics.failureReason = None
+                return insights, diagnostics
+            except InsightQualityError as error:
+                last_error = error
+                diagnostics.failureReason = str(error)
+                if quality_retry_used:
+                    stop_after_quality_failure = True
+                    break
+                quality_retry_used = True
+                revision_feedback = str(error)
+            except Exception as error:
+                last_error = error
+                diagnostics.failureReason = str(error)
+                if quality_retry_used:
+                    stop_after_quality_failure = True
+                break
+        if stop_after_quality_failure:
+            break
     diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
     if last_error:
         diagnostics.failureReason = str(last_error)
@@ -56,6 +84,8 @@ def _chat_completion(
     context: dict,
     config: AnalyzerConfig,
     response_format: dict,
+    *,
+    revision_feedback: str | None = None,
 ) -> str:
     payload = {
         "model": config.groq_model,
@@ -64,7 +94,13 @@ def _chat_completion(
         "response_format": response_format,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": build_user_prompt(context)},
+            {
+                "role": "user",
+                "content": build_user_prompt(
+                    context,
+                    revision_feedback=revision_feedback,
+                ),
+            },
         ],
     }
     headers = {
@@ -92,7 +128,18 @@ def _chat_completion(
     else:
         assert last_error is not None
         raise last_error
-    return data["choices"][0]["message"]["content"]
+    choice = data["choices"][0]
+    if choice.get("finish_reason") == "length":
+        raise ValueError("Groq completion reached the output token limit.")
+    return choice["message"]["content"]
+
+
+def _response_formats(model: str) -> list[dict]:
+    formats: list[dict] = []
+    if any(model.startswith(prefix) for prefix in JSON_SCHEMA_MODEL_PREFIXES):
+        formats.append(_json_schema_format())
+    formats.append({"type": "json_object"})
+    return formats
 
 
 def _json_schema_format() -> dict:

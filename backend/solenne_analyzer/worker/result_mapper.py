@@ -6,11 +6,14 @@ from typing import Any
 from ..schemas import AnalysisResult
 
 
+ANALYSIS_VERSION = "2026-07-v3-rich-grounded"
+
+
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
     payload = {
         "analysisStatus": "complete",
         "analysisStep": "complete",
-        "analysisVersion": "2026-07-v2-grounded",
+        "analysisVersion": ANALYSIS_VERSION,
         "analysisError": None,
         "transcript": {
             "text": result.transcript.text,

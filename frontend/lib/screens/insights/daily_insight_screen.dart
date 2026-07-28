@@ -355,9 +355,7 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
 
     setState(() => _deleting = true);
     try {
-      await ref
-          .read(journalRepositoryProvider)
-          .deleteJournal(widget.entry.id);
+      await ref.read(journalRepositoryProvider).deleteJournal(widget.entry.id);
       if (!mounted) return;
       widget.onDeleted();
     } catch (error) {
@@ -931,6 +929,35 @@ class _AnalysisBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = entry.analysisStatus.toLowerCase();
+    if (status == 'failed') {
+      return const _AnalysisStateCard(
+        icon: Icons.waves_outlined,
+        eyebrow: 'ANALYSIS PAUSED',
+        title: 'Your video is safe.',
+        message:
+            'Insights could not be prepared this time. You can still revisit the reflection whenever you want.',
+      );
+    }
+    if (status == 'processing') {
+      return _AnalysisStateCard(
+        icon: Icons.auto_awesome_rounded,
+        eyebrow: 'ANALYSIS IN PROGRESS',
+        title: _analysisStepTitle(entry.analysisStep),
+        message:
+            'Solenne will update this page automatically when the next stage is ready.',
+      );
+    }
+    if (status == 'queued' || status == 'not_started') {
+      return const _AnalysisStateCard(
+        icon: Icons.auto_awesome_rounded,
+        eyebrow: 'INSIGHTS ARE STILL SETTLING',
+        title: 'Your reflection is saved.',
+        message:
+            'Your reflection is waiting for the private analysis worker. This page will update automatically.',
+      );
+    }
+
     if (entry.aiInsights.isNotEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -955,16 +982,6 @@ class _AnalysisBody extends StatelessWidget {
       );
     }
 
-    final status = entry.analysisStatus.toLowerCase();
-    if (status == 'failed') {
-      return const _AnalysisStateCard(
-        icon: Icons.waves_outlined,
-        eyebrow: 'ANALYSIS PAUSED',
-        title: 'Your video is safe.',
-        message:
-            'Insights could not be prepared this time. You can still revisit the reflection whenever you want.',
-      );
-    }
     if (status == 'complete') {
       return const _AnalysisStateCard(
         icon: Icons.nights_stay_outlined,
@@ -972,15 +989,6 @@ class _AnalysisBody extends StatelessWidget {
         title: 'Nothing needs to be forced.',
         message:
             'The analysis finished without a reliable reflection to show. Your journal remains here, exactly as you recorded it.',
-      );
-    }
-    if (status == 'processing') {
-      return _AnalysisStateCard(
-        icon: Icons.auto_awesome_rounded,
-        eyebrow: 'ANALYSIS IN PROGRESS',
-        title: _analysisStepTitle(entry.analysisStep),
-        message:
-            'Solenne will update this page automatically when the next stage is ready.',
       );
     }
     return const _AnalysisStateCard(
@@ -1108,9 +1116,9 @@ class _InsightCard extends ConsumerWidget {
     final legacyEvidence = isV2
         ? const _LegacyEvidenceExplanation.empty()
         : _LegacyEvidenceExplanation.fromMap(insight.evidence);
-    final hasExpandableEvidence = isV2
-        ? parsedEvidence.hasContent
-        : legacyEvidence.hasContent;
+    final hasExpandableEvidence =
+        !isSafety &&
+        (isV2 ? parsedEvidence.hasContent : legacyEvidence.hasContent);
 
     Future<void> openSource(ExternalReference source) async {
       final uri = source.safeUri;
@@ -1328,10 +1336,20 @@ class _GroundedEvidenceBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rationale = evidence.rationale?.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (rationale.isNotEmpty) ...[
+          const _EvidenceSectionHeader(
+            icon: Icons.lightbulb_outline_rounded,
+            label: 'REASON FOR THIS INSIGHT',
+          ),
+          const SizedBox(height: 10),
+          _EvidenceReasonCard(reason: rationale),
+        ],
         if (evidence.userEvidence.isNotEmpty) ...[
+          if (rationale.isNotEmpty) const SizedBox(height: 16),
           const _EvidenceSectionHeader(
             icon: Icons.auto_stories_outlined,
             label: 'FROM YOUR REFLECTION',
@@ -1341,7 +1359,8 @@ class _GroundedEvidenceBody extends StatelessWidget {
             _PersonalEvidenceRow(item: item),
         ],
         if (evidence.externalReferences.isNotEmpty) ...[
-          if (evidence.userEvidence.isNotEmpty) const SizedBox(height: 16),
+          if (rationale.isNotEmpty || evidence.userEvidence.isNotEmpty)
+            const SizedBox(height: 16),
           const _EvidenceSectionHeader(
             icon: Icons.public_rounded,
             label: 'PUBLIC RESEARCH CONTEXT',
@@ -1365,6 +1384,32 @@ class _GroundedEvidenceBody extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _EvidenceReasonCard extends StatelessWidget {
+  const _EvidenceReasonCard({required this.reason});
+
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppColors.quicksand.withValues(alpha: 0.07),
+        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.14)),
+      ),
+      child: Text(
+        reason,
+        style: AppTextStyles.body(
+          fontSize: 11,
+          color: AppColors.shellstone.withValues(alpha: 0.78),
+        ),
+      ),
     );
   }
 }
@@ -1701,24 +1746,7 @@ class _LegacyEvidenceBody extends StatelessWidget {
           label: 'REASON FOR THIS INSIGHT',
         ),
         const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: AppColors.quicksand.withValues(alpha: 0.07),
-            border: Border.all(
-              color: AppColors.quicksand.withValues(alpha: 0.14),
-            ),
-          ),
-          child: Text(
-            evidence.reason,
-            style: AppTextStyles.body(
-              fontSize: 11,
-              color: AppColors.shellstone.withValues(alpha: 0.78),
-            ),
-          ),
-        ),
+        _EvidenceReasonCard(reason: evidence.reason),
         if (evidence.notes.isNotEmpty) ...[
           const SizedBox(height: 15),
           const _EvidenceSectionHeader(

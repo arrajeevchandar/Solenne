@@ -21,11 +21,16 @@ The object MUST match this exact shape, and every string field MUST be non-empty
 "reflectionQuestions":[string],"observationFactIds":[string],"claimCardIds":[string],
 "suggestionIds":[string],"confidence":number,"safetyNote":string}]}
 Include 1 to 3 drafts. title <= 80 characters. summary <= 420 characters. confidence between 0 and 1.
-Write concrete summaries from the supplied journal narrative (paraphrase, excerpts, topics, phrases).
-Stay close to what appeared in this recording, and offer a gentle observation rather than merely
-repeating the transcript. Observation facts (word counts, confidence scores, durations, IDs) are
-internal grounding signals only: never mention, quote, or describe numbers, metrics, IDs, or
-confidence values in the title, summary, dayThemes, or reflectionQuestions.
+For a detailed journal, each summary MUST be a substantive 20 to 70 word reflection that connects
+at least two concrete details from the supplied narrative. Include at least two distinct
+reflectionQuestions and two concise dayThemes when the narrative supports them. When a selected
+claim offers two eligible suggestion IDs, select two relevant IDs. If the journal contains two
+clearly different themes, prefer separate non-overlapping drafts instead of repeating one idea.
+Stay close to what appeared in this recording and explain the tension, priority, or meaningful
+contrast the person described rather than merely restating a feeling label. Observation facts
+(word counts, confidence scores, durations, IDs) are internal grounding signals only: never
+mention, quote, or describe numbers, metrics, IDs, or confidence values in the title, summary,
+dayThemes, or reflectionQuestions.
 Do not infer causes, diagnoses, conditions, trends, baselines, or changes over time.
 Do not mention research, studies, evidence, citations, publishers, or URLs.
 Do not copy claim display text into the user-facing summary.
@@ -159,10 +164,14 @@ def generate_grounded_drafts(
     prompt = (
         "Create one to three gentle reflection drafts.\n"
         "Summaries must combine the journal narrative (paraphrase, excerpts, topics, phrases) "
-        "with the observation facts so they sound specific to this recording.\n"
+        "with the observation facts so they sound specific to this recording. For a detailed "
+        "journal, use 20 to 70 words and connect at least two concrete narrative details rather "
+        "than returning a one-line restatement.\n"
         "Select relevant claimCardIds and suggestionIds when observation facts support them "
-        "so curated catalog next steps can be attached.\n"
-        "Keep dayThemes grounded in the narrative topics/phrases.\n\n"
+        "so curated catalog next steps can be attached; select two allowed suggestion IDs when "
+        "two are available.\n"
+        "Keep dayThemes grounded in the narrative topics/phrases and include two distinct "
+        "reflection questions for each substantive draft.\n\n"
         f"GROUNDING_CONTEXT_JSON:\n{json.dumps(context, ensure_ascii=False)}"
     )
     if revision_feedback:
@@ -205,7 +214,12 @@ def _chat(prompt: str, response_format: dict, config: AnalyzerConfig) -> str:
             with httpx.Client(timeout=config.llm_timeout_seconds) as client:
                 response = client.post(GROQ_CHAT_COMPLETIONS_URL, headers=headers, json=payload)
                 response.raise_for_status()
-                return response.json()["choices"][0]["message"]["content"]
+                choice = response.json()["choices"][0]
+                if choice.get("finish_reason") == "length":
+                    raise ValueError(
+                        "Grounded completion reached the output token limit."
+                    )
+                return choice["message"]["content"]
         except httpx.HTTPStatusError as error:
             last_error = error
             if error.response.status_code not in {429, 500, 502, 503, 504}:

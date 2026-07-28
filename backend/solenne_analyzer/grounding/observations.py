@@ -50,7 +50,6 @@ CLAIM_TERMS: dict[ClaimType, set[str]] = {
         "assignment",
         "project",
         "pressure",
-        "hackathon",
         "unproductive",
         "productive",
     },

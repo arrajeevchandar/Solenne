@@ -24,7 +24,10 @@ from solenne_analyzer.grounding.observations import (
     build_observation_facts,
 )
 from solenne_analyzer.grounding.retriever import retrieve_claims
-from solenne_analyzer.grounding.runtime import generate_grounded_insights
+from solenne_analyzer.grounding.runtime import (
+    _deterministic_summary,
+    generate_grounded_insights,
+)
 from solenne_analyzer.grounding.validators import (
     parse_grounded_drafts_json,
     validate_assembled_insights,
@@ -151,6 +154,9 @@ class ObservationAndAssemblyTests(unittest.TestCase):
         self.assertEqual(
             {str(item.value) for item in reflective}, {"happy", "sad"}
         )
+        self.assertFalse(
+            any("workload_breaks" in item.claimTypes for item in facts)
+        )
 
     def test_single_emotion_word_does_not_route_to_reflective_journaling(self):
         result = _analysis_result(topics=["work"], phrases=["deadline"])
@@ -240,6 +246,25 @@ class ObservationAndAssemblyTests(unittest.TestCase):
 
 
 class GroundingRuntimeTests(unittest.TestCase):
+    def test_deterministic_summary_keeps_later_explanation(self):
+        paraphrase = (
+            "I felt happy and sad. I was happy because our team placed in the event."
+        )
+        excerpt = (
+            f"{paraphrase} I still value the achievement. "
+            "I was sad because we missed first position and I wondered whether "
+            "more preparation and effort could have changed the result."
+        )
+
+        summary = _deterministic_summary(
+            paraphrase,
+            [excerpt],
+            ["achievement", "mixed emotions"],
+        )
+
+        self.assertIn("missed first position", summary)
+        self.assertIn("preparation and effort", summary)
+
     def test_enforce_runtime_generates_source_supported_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
             path = _write_catalog(Path(temp), _catalog_payload())
@@ -256,10 +281,17 @@ class GroundingRuntimeTests(unittest.TestCase):
                 return [
                     GroundedInsightDraft(
                         title="Work was present",
-                        summary="Work and a deadline were present in this reflection.",
+                        summary=(
+                            "Work and a deadline shaped this reflection, alongside an "
+                            "effort to decide what mattered and where a clearer stopping "
+                            "point could help."
+                        ),
                         moodLabel="reflective",
-                        dayThemes=("work",),
-                        reflectionQuestions=("What deserves a clear stopping point?",),
+                        dayThemes=("work", "deadline"),
+                        reflectionQuestions=(
+                            "What deserves a clear stopping point?",
+                            "What part of the deadline feels most important to name?",
+                        ),
                         observationFactIds=(
                             next(item.evidenceId for item in facts if item.kind == "topic"),
                         ),
@@ -274,8 +306,16 @@ class GroundingRuntimeTests(unittest.TestCase):
                 "solenne_analyzer.grounding.runtime.generate_grounded_drafts",
                 fake_generate,
             ):
+                result = _analysis_result(topics=["work"], phrases=["deadline"])
+                result.transcript.text = (
+                    "Today I reflected on a demanding work deadline, the effort I had "
+                    "already put into it, and the parts that still felt unfinished. I "
+                    "wanted to decide what mattered most, where to pause, and which "
+                    "expectation could be made more realistic."
+                )
+                result.transcript.wordCount = len(result.transcript.text.split())
                 insights, diagnostics, provider = generate_grounded_insights(
-                    _analysis_result(topics=["work"], phrases=["deadline"]),
+                    result,
                     config,
                 )
         self.assertEqual(provider, "groq_grounded")
@@ -283,7 +323,143 @@ class GroundingRuntimeTests(unittest.TestCase):
         self.assertEqual(
             insights[0].evidence["verification"]["status"], "source_supported"
         )
+        self.assertIn("rationale", insights[0].evidence)
         self.assertEqual(calls, [None])
+
+    def test_retrieved_candidate_does_not_force_a_source_selection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = _write_catalog(Path(temp), _catalog_payload())
+            config = AnalyzerConfig(
+                enable_llm_insights=True,
+                groq_api_key="test-key",
+                grounding_mode="enforce",
+                grounding_catalog_path=path,
+            )
+
+            def fake_generate(facts, claims, _config, **_kwargs):
+                self.assertTrue(claims)
+                topic_id = next(
+                    item.evidenceId for item in facts if item.kind == "topic"
+                )
+                return [
+                    GroundedInsightDraft(
+                        title="A demanding task",
+                        summary=(
+                            "Work and a deadline shaped this reflection, while you tried "
+                            "to decide what mattered and which expectation should remain "
+                            "open rather than forcing a conclusion."
+                        ),
+                        moodLabel="reflective",
+                        dayThemes=("work", "deadline"),
+                        reflectionQuestions=(
+                            "Which part of the deadline matters most right now?",
+                            "What expectation would you like to examine more gently?",
+                        ),
+                        observationFactIds=(topic_id,),
+                        claimCardIds=(),
+                        suggestionIds=(),
+                        confidence=0.8,
+                        safetyNote=(
+                            "Solenne offers wellness reflections, not medical advice."
+                        ),
+                    )
+                ], LlmDiagnostics(status="complete", provider="groq", model="test")
+
+            with patch(
+                "solenne_analyzer.grounding.runtime.generate_grounded_drafts",
+                fake_generate,
+            ):
+                result = _analysis_result(topics=["work"], phrases=["deadline"])
+                result.transcript.text = (
+                    "Today I reflected on a demanding work deadline, the effort I had "
+                    "already put into it, and the parts that still felt unfinished. I "
+                    "wanted to decide what mattered most, which expectation to keep, "
+                    "and what I should leave open for now."
+                )
+                result.transcript.wordCount = len(result.transcript.text.split())
+                insights, diagnostics, provider = generate_grounded_insights(
+                    result,
+                    config,
+                )
+
+        self.assertEqual(provider, "groq_grounded")
+        self.assertEqual(diagnostics.grounding["status"], "user_data_only")
+        self.assertEqual(
+            insights[0].evidence["verification"]["status"],
+            "user_data_only",
+        )
+        self.assertEqual(insights[0].evidence["externalReferences"], [])
+
+    def test_sparse_grounded_draft_gets_one_quality_revision(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = _write_catalog(Path(temp), _catalog_payload())
+            config = AnalyzerConfig(
+                enable_llm_insights=True,
+                groq_api_key="test-key",
+                grounding_mode="enforce",
+                grounding_catalog_path=path,
+            )
+            feedback: list[str | None] = []
+
+            def fake_generate(facts, claims, _config, revision_feedback=None, **_kwargs):
+                feedback.append(revision_feedback)
+                topic_id = next(
+                    item.evidenceId for item in facts if item.kind == "topic"
+                )
+                if revision_feedback is None:
+                    summary = "Work and a deadline were present."
+                    questions = ("What should I do next?",)
+                else:
+                    summary = (
+                        "Work and a deadline shaped this reflection, while you also "
+                        "tried to identify what mattered and where a clearer boundary "
+                        "could make the task feel more manageable."
+                    )
+                    questions = (
+                        "Which part of the deadline matters most right now?",
+                        "Where would a clear stopping point feel supportive?",
+                    )
+                return [
+                    GroundedInsightDraft(
+                        title="A demanding task",
+                        summary=summary,
+                        moodLabel="reflective",
+                        dayThemes=("work", "deadline"),
+                        reflectionQuestions=questions,
+                        observationFactIds=(topic_id,),
+                        claimCardIds=(claims[0].claimCardId,),
+                        suggestionIds=("suggest_break",),
+                        confidence=0.8,
+                        safetyNote=(
+                            "Solenne offers wellness reflections, not medical advice."
+                        ),
+                    )
+                ], LlmDiagnostics(status="complete", provider="groq", model="test")
+
+            with patch(
+                "solenne_analyzer.grounding.runtime.generate_grounded_drafts",
+                fake_generate,
+            ):
+                result = _analysis_result(topics=["work"], phrases=["deadline"])
+                result.transcript.text = (
+                    "Today I reflected on a demanding work deadline, the effort I had "
+                    "already put into it, and the parts that still felt unfinished. I "
+                    "wanted to decide what mattered most, where to pause, and which "
+                    "expectation could be made more realistic."
+                )
+                result.transcript.wordCount = len(result.transcript.text.split())
+                insights, diagnostics, provider = generate_grounded_insights(
+                    result,
+                    config,
+                )
+
+        self.assertEqual(provider, "groq_grounded")
+        self.assertEqual(len(feedback), 2)
+        self.assertIsNone(feedback[0])
+        self.assertIn("too brief", feedback[1] or "")
+        self.assertGreaterEqual(len(insights[0].summary.split()), 15)
+        self.assertEqual(len(insights[0].reflectionQuestions), 2)
+        self.assertEqual(diagnostics.grounding["attempts"], 2)
 
     def test_validation_failure_retries_once_then_falls_back(self):
         with tempfile.TemporaryDirectory() as temp:

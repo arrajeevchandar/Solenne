@@ -54,7 +54,7 @@ class WorkerResultTests(unittest.TestCase):
         payload = analysis_result_to_firestore(result)
 
         self.assertEqual(payload["analysisStatus"], "complete")
-        self.assertEqual(payload["analysisVersion"], "2026-07-v2-grounded")
+        self.assertEqual(payload["analysisVersion"], "2026-07-v3-rich-grounded")
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertNotIn("segments", payload["transcript"])
         self.assertEqual(payload["aiInsights"][0]["moodLabel"], "grounded")

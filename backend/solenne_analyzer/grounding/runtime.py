@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from ..ai.validators import crisis_language_present
@@ -21,6 +22,7 @@ from .retriever import retrieve_claims
 from .validators import (
     sanitize_draft_references,
     validate_assembled_insights,
+    validate_draft_quality,
     validate_draft_references,
 )
 
@@ -33,22 +35,10 @@ def generate_grounded_insights(
     config: AnalyzerConfig,
 ) -> tuple[list[AiInsight], LlmDiagnostics, str]:
     started = time.perf_counter()
-    grounding = GroundingDiagnostics(mode=config.grounding_mode, status="starting")
     if crisis_language_present(result.transcript.text):
-        grounding.status = "fallback"
-        grounding.reason = "safety_bypass"
-        grounding.latencyMs = _elapsed_ms(started)
-        return (
-            [_safety_insight()],
-            LlmDiagnostics(
-                status="skipped",
-                provider="deterministic",
-                model=None,
-                failureReason=None,
-                grounding=grounding.to_dict(),
-            ),
-            "safety",
-        )
+        return generate_safety_insights(config, started=started)
+
+    grounding = GroundingDiagnostics(mode=config.grounding_mode, status="starting")
 
     facts = build_observation_facts(
         result,
@@ -120,6 +110,12 @@ def generate_grounded_insights(
         try:
             drafts = sanitize_draft_references(drafts, facts, retrieved, catalog)
             validate_draft_references(drafts, facts, retrieved, catalog)
+            validate_draft_quality(
+                drafts,
+                retrieved,
+                catalog,
+                journal_narrative,
+            )
             insights = assemble_insights(drafts, facts, retrieved, catalog)
             validate_assembled_insights(insights, facts, catalog)
             grounding.status = (
@@ -218,7 +214,6 @@ def _deterministic_draft(
     ]
     if not matched_facts:
         return None
-    matched_types = {claim.claimType for claim in retrieved}
     used_claims = [
         claim
         for claim in retrieved
@@ -235,26 +230,29 @@ def _deterministic_draft(
         for item in (narrative.get("keyExcerpts") or [])
         if str(item).strip()
     ]
-    if paraphrase:
-        summary = paraphrase[:280]
-    elif excerpts:
-        summary = excerpts[0][:280]
-    elif themes:
-        summary = f"This reflection touched on {_join_words(themes)}."
-    else:
-        summary = "This reflection was captured in your own words."
+    summary = _deterministic_summary(paraphrase, excerpts, themes)
 
     observation_ids = tuple(fact.evidenceId for fact in matched_facts[:4])
     claim_ids = tuple(claim.claimCardId for claim in used_claims)
+    suggestion_ids = tuple(
+        dict.fromkeys(
+            suggestion_id
+            for claim in used_claims
+            for suggestion_id in claim.allowedSuggestionIds
+        )
+    )[:2]
     return GroundedInsightDraft(
         title="A grounded note from this reflection",
         summary=summary,
         moodLabel="reflective",
         dayThemes=tuple(themes),
-        reflectionQuestions=("What felt most important to name in this reflection?",),
+        reflectionQuestions=(
+            "What felt most important to name in this reflection?",
+            "Which part of this experience would you like to understand more clearly?",
+        ),
         observationFactIds=observation_ids,
         claimCardIds=claim_ids,
-        suggestionIds=(),
+        suggestionIds=suggestion_ids,
         confidence=min(
             0.75, max((fact.confidence for fact in matched_facts), default=0.0)
         ),
@@ -279,20 +277,16 @@ def _user_data_only_insight(
     if not selected:
         selected = [item for item in facts if item.kind == "word_count"]
     paraphrase = str(narrative.get("paraphrase") or "").strip()
-    excerpts = [str(item).strip() for item in (narrative.get("keyExcerpts") or []) if str(item).strip()]
-    if paraphrase:
-        summary = paraphrase[:280]
-    elif excerpts:
-        summary = excerpts[0][:280]
-    elif topics:
-        summary = f"This reflection included themes of {_join_words(topics)}."
-    elif phrases:
-        summary = f"A few words that stood out in this reflection were {_join_words(phrases)}."
-    else:
-        summary = (
-            "Your reflection was captured, but there was not enough transcript detail "
-            "for a source-supported interpretation."
-        )
+    excerpts = [
+        str(item).strip()
+        for item in (narrative.get("keyExcerpts") or [])
+        if str(item).strip()
+    ]
+    summary = _deterministic_summary(
+        paraphrase,
+        excerpts,
+        topics or phrases,
+    )
     return AiInsight(
         title="A note from this reflection",
         summary=summary,
@@ -302,6 +296,7 @@ def _user_data_only_insight(
         reflectionQuestions=["What felt most important to name in this reflection?"],
         evidence={
             "schemaVersion": 2,
+            "rationale": _observation_rationale(selected),
             "userEvidence": [item.to_evidence() for item in selected],
             "externalReferences": [],
             "verification": {
@@ -313,6 +308,30 @@ def _user_data_only_insight(
         },
         confidence=min(0.75, max((item.confidence for item in selected), default=0.0)),
         safetyNote="Solenne offers wellness reflections, not medical advice.",
+    )
+
+
+def generate_safety_insights(
+    config: AnalyzerConfig,
+    *,
+    started: float | None = None,
+) -> tuple[list[AiInsight], LlmDiagnostics, str]:
+    grounding = GroundingDiagnostics(
+        mode=config.grounding_mode,
+        status="fallback",
+        reason="safety_bypass",
+        latencyMs=0 if started is None else _elapsed_ms(started),
+    )
+    return (
+        [_safety_insight()],
+        LlmDiagnostics(
+            status="skipped",
+            provider="deterministic",
+            model=None,
+            failureReason=None,
+            grounding=grounding.to_dict(),
+        ),
+        "safety",
     )
 
 
@@ -350,6 +369,59 @@ def _join_words(values: list[str]) -> str:
     if len(values) == 1:
         return values[0]
     return ", ".join(values[:-1]) + f" and {values[-1]}"
+
+
+def _deterministic_summary(
+    paraphrase: str,
+    excerpts: list[str],
+    themes: list[str],
+) -> str:
+    if paraphrase:
+        parts = [paraphrase.strip()]
+        if excerpts:
+            later_sentences = [
+                sentence.strip()
+                for sentence in re.split(r"(?<=[.!?])\s+", excerpts[0])
+                if sentence.strip() and sentence.strip() not in paraphrase
+            ]
+            if later_sentences:
+                parts.append(max(later_sentences, key=len))
+        return _truncate_words(" ".join(parts), 420)
+    if excerpts:
+        return _truncate_words(excerpts[0], 420)
+    if themes:
+        return f"This reflection included themes of {_join_words(themes)}."
+    return (
+        "Your reflection was captured, but there was not enough transcript detail "
+        "for a source-supported interpretation."
+    )
+
+
+def _truncate_words(value: str, max_chars: int) -> str:
+    clean = " ".join(value.split())
+    if len(clean) <= max_chars:
+        return clean
+    shortened = clean[:max_chars].rstrip()
+    if " " in shortened:
+        shortened = shortened.rsplit(" ", 1)[0]
+    return shortened.rstrip(" ,;:-")
+
+
+def _observation_rationale(facts: list[ObservationFact]) -> str:
+    values = [
+        str(item.value).strip()
+        for item in facts
+        if item.kind in {"topic", "key_phrase"} and str(item.value).strip()
+    ]
+    if values:
+        return (
+            f"This appeared because your reflection included {_join_words(values[:3])}. "
+            "The note stays close to those words and leaves their personal meaning open."
+        )
+    return (
+        "This appeared because the available journal detail supported a cautious "
+        "observation, while leaving its personal meaning for you to decide."
+    )
 
 
 def _elapsed_ms(started: float) -> int:

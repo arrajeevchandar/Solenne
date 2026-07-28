@@ -23,6 +23,25 @@ void main() {
     expect(find.text('Try again'), findsOneWidget);
   });
 
+  testWidgets('queued reanalysis hides stale prior insights', (tester) async {
+    final entry = _entry(
+      analysisStatus: 'queued',
+      insights: const [
+        AiInsight(
+          title: 'Old insight',
+          summary: 'This result belongs to the previous analysis run.',
+          moodLabel: 'reflective',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(_app(entry));
+    await tester.pumpAndSettle();
+
+    expect(find.text('INSIGHTS ARE STILL SETTLING'), findsOneWidget);
+    expect(find.text('Old insight'), findsNothing);
+  });
+
   testWidgets('opens the completed transcript in a styled sheet', (
     tester,
   ) async {
@@ -141,6 +160,8 @@ void main() {
               'Solenne offers wellness reflections, not medical advice.',
           evidence: {
             'schemaVersion': 2,
+            'rationale':
+                'Work and a deadline were both named in the reflection, so the insight focuses on making space around that pressure.',
             'userEvidence': [
               {
                 'evidenceId': 'fact-work',
@@ -192,6 +213,13 @@ void main() {
     await tester.ensureVisible(find.text('WHY THIS APPEARED'));
     await tester.tap(find.text('WHY THIS APPEARED'));
     await tester.pumpAndSettle();
+    expect(find.text('REASON FOR THIS INSIGHT'), findsOneWidget);
+    expect(
+      find.text(
+        'Work and a deadline were both named in the reflection, so the insight focuses on making space around that pressure.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('FROM YOUR REFLECTION'), findsOneWidget);
     expect(find.text('PUBLIC RESEARCH CONTEXT'), findsOneWidget);
     expect(find.text('Reviewed work-break source'), findsOneWidget);
@@ -201,6 +229,52 @@ void main() {
     await tester.tap(find.text('OPEN SOURCE'));
     await tester.pump();
     expect(opened, Uri.parse('https://example.org/work-breaks'));
+  });
+
+  testWidgets('shows a grounded rationale without evidence rows', (
+    tester,
+  ) async {
+    final entry = _entry(
+      analysisStatus: 'complete',
+      insights: const [
+        AiInsight(
+          title: 'A clear thread',
+          summary: 'One concern appeared repeatedly in this reflection.',
+          moodLabel: 'reflective',
+          evidence: {
+            'schemaVersion': 2,
+            'rationale':
+                'The same concern appeared in several parts of the reflection, which made it the clearest thread to carry forward.',
+            'userEvidence': [],
+            'externalReferences': [],
+            'verification': {
+              'status': 'user_data_only',
+              'method': 'personal_evidence',
+              'catalogVersion': null,
+              'reason': null,
+            },
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(_app(entry));
+    await tester.pumpAndSettle();
+
+    expect(find.text('BASED ON THIS JOURNAL'), findsOneWidget);
+    await tester.ensureVisible(find.text('WHY THIS APPEARED'));
+    await tester.tap(find.text('WHY THIS APPEARED'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('REASON FOR THIS INSIGHT'), findsOneWidget);
+    expect(
+      find.text(
+        'The same concern appeared in several parts of the reflection, which made it the clearest thread to carry forward.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('FROM YOUR REFLECTION'), findsNothing);
+    expect(find.text('PUBLIC RESEARCH CONTEXT'), findsNothing);
   });
 
   testWidgets('safety bypass hides mood confidence and ordinary evidence', (
@@ -219,6 +293,7 @@ void main() {
           safetyNote: 'Solenne is not an emergency service.',
           evidence: {
             'schemaVersion': 2,
+            'rationale': 'This safety rationale must stay hidden.',
             'userEvidence': [],
             'externalReferences': [],
             'verification': {
@@ -240,6 +315,7 @@ void main() {
     expect(find.text('heavy'), findsNothing);
     expect(find.text('This must stay hidden.'), findsNothing);
     expect(find.text('This must also stay hidden?'), findsNothing);
+    expect(find.text('This safety rationale must stay hidden.'), findsNothing);
     expect(find.text('WHY THIS APPEARED'), findsNothing);
   });
 }

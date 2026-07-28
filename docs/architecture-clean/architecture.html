@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solenne — System Architecture (clean)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg:      #0B1220;
+    --panel:   #0F1A2E;
+    --panel-2: #0C1526;
+    --border:  #2A3F63;
+    --text:    #E8EEFB;
+    --dim:     #A9BBDC;
+    --muted:   #93C5FD;
+    --gold:    #F5B841;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ─────────────────────────────────────────── */
+  .shell { display: flex; min-height: 100vh; }
+
+  nav {
+    width: 250px;
+    flex: 0 0 250px;
+    border-right: 1px solid var(--border);
+    background: var(--panel-2);
+    padding: 26px 0 40px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav .brand {
+    padding: 0 22px 18px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+  }
+  nav .brand h1 {
+    margin: 0;
+    font-size: 1.02rem;
+    color: var(--muted);
+    letter-spacing: .01em;
+  }
+  nav .brand span {
+    display: block;
+    margin-top: 5px;
+    font-size: .75rem;
+    color: #6E85B4;
+  }
+  nav a {
+    display: block;
+    padding: 9px 22px;
+    color: var(--dim);
+    text-decoration: none;
+    font-size: .87rem;
+    border-left: 2px solid transparent;
+  }
+  nav a:hover { color: var(--text); background: rgba(37,99,235,.10); }
+  nav a.active {
+    color: var(--gold);
+    border-left-color: var(--gold);
+    background: rgba(245,184,65,.07);
+  }
+
+  main { flex: 1; min-width: 0; padding: 34px 40px 90px; max-width: 1180px; }
+
+  /* ── Type ───────────────────────────────────────────── */
+  .lede { max-width: 780px; margin-bottom: 34px; }
+  .lede p { line-height: 1.62; color: #C7D4EC; font-size: .93rem; margin: 0 0 12px; }
+  .lede b { color: var(--gold); font-weight: 600; }
+
+  section { margin-bottom: 54px; scroll-margin-top: 24px; }
+  section > h2 {
+    font-size: 1.12rem;
+    color: var(--muted);
+    margin: 0 0 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  section > h2 .num {
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+    margin-right: 9px;
+  }
+  section > p.sub {
+    color: #9FB2D6;
+    font-size: .87rem;
+    line-height: 1.6;
+    margin: 12px 0 20px;
+    max-width: 760px;
+  }
+  section p { line-height: 1.62; font-size: .89rem; color: #C7D4EC; max-width: 780px; }
+  section ol, section ul { line-height: 1.7; font-size: .89rem; color: #C7D4EC; max-width: 780px; }
+
+  /* ── Diagram frame ──────────────────────────────────── */
+  .frame {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(37,99,235,.07), transparent 65%),
+      var(--panel);
+    margin: 0 0 20px;
+    overflow: hidden;
+  }
+  .frame-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .frame-bar .spacer { flex: 1; }
+  button {
+    background: #172B52;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 11px;
+    font-size: .78rem;
+    cursor: pointer;
+    line-height: 1.3;
+  }
+  button:hover { border-color: var(--gold); color: var(--gold); }
+  .zoom { font-size: .75rem; color: #6E85B4; min-width: 42px; text-align: center;
+          font-variant-numeric: tabular-nums; }
+  .scroller { overflow: auto; padding: 22px; }
+  .canvas { display: inline-block; transform-origin: top left; }
+  .canvas svg { display: block; max-width: none; height: auto; }
+
+  /* ── Tables ─────────────────────────────────────────── */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .84rem;
+    margin: 4px 0 8px;
+  }
+  thead th {
+    color: #7C93C3;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(42,63,99,.55);
+    vertical-align: top;
+    color: #C7D4EC;
+  }
+  tbody tr:hover td { background: rgba(37,99,235,.06); }
+  .table-wrap { overflow-x: auto; }
+  code {
+    background: #172B52;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+    font-size: .86em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #CFE0FF;
+  }
+  .swatch {
+    display: inline-block; width: 13px; height: 13px; border-radius: 3px;
+    vertical-align: -2px; margin-right: 8px;
+    border: 1px solid rgba(255,255,255,.28);
+  }
+  .callout {
+    border-left: 3px solid var(--gold);
+    background: rgba(245,184,65,.06);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 18px 0;
+    font-size: .87rem;
+    line-height: 1.6;
+    color: #E4D9BE;
+    max-width: 780px;
+  }
+  .err { color: #FCA5A5; padding: 20px; font-family: monospace;
+         white-space: pre-wrap; font-size: .8rem; }
+
+  @media (max-width: 900px) {
+    .shell { flex-direction: column; }
+    nav { width: auto; flex: none; height: auto; position: static;
+          border-right: 0; border-bottom: 1px solid var(--border); }
+    main { padding: 24px 20px 70px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav>
+    <div class="brand">
+      <h1>Solenne Architecture</h1>
+      <span>clean view</span>
+    </div>
+    <a href="#s1">1 · End-to-end flow</a>
+    <a href="#s2">2 · Client &amp; shared state</a>
+    <a href="#s3">3 · Worker &amp; pipeline</a>
+    <a href="#s4">4 · Grounding boundary</a>
+    <a href="#s5">5 · Catalog governance</a>
+    <a href="#s6">6 · Insight generation</a>
+    <a href="#s7">7 · Modes &amp; delivery</a>
+    <a href="#legend">Legend</a>
+    <a href="#code">Diagram ↔ code</a>
+    <a href="#notes">Notes on accuracy</a>
+  </nav>
+
+  <main>
+    <div class="lede">
+      <p>Solenne is <b>two independent apps that share no code</b> — a Flutter client and a
+      Python analyzer worker. There is no HTTP API between them: <b>Firestore is both the job
+      queue and the message bus</b>, and Cloudinary is the media store.</p>
+      <p>The client writes a journal and a queued job in a single transaction; the worker polls,
+      claims, analyzes and writes results back to the same document; the client is listening on a
+      live snapshot stream and updates itself the moment processing completes.</p>
+      <p>Two invariants carry deliberate visual weight — the <b>grounding boundary</b> (only
+      transcript-derived signals may trigger a research claim) and the
+      <b>release-controlled catalog</b> (no live web research during processing).</p>
+    </div>
+
+    <!-- ─────────── 1 ─────────── -->
+    <section id="s1">
+      <h2><span class="num">1</span>End-to-end flow</h2>
+      <p class="sub">The whole system at a glance — eight steps, one direction.</p>
+      <div class="frame" data-diagram="d1"></div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Step</th><th>Where it runs</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Record journal</td><td>Flutter client</td><td><code>screens/recording/</code></td></tr>
+          <tr><td>Upload to Cloudinary</td><td>Flutter client</td><td><code>services/cloudinary/cloudinary_upload_service.dart</code></td></tr>
+          <tr><td>Firestore transaction</td><td>Flutter client</td><td><code>journal_repository.dart : saveJournal</code></td></tr>
+          <tr><td>Worker claims job</td><td>Python worker</td><td><code>worker/runner.py : watch()</code></td></tr>
+          <tr><td>Analysis pipeline</td><td>Python worker</td><td><code>pipeline/orchestrator.py</code></td></tr>
+          <tr><td>Grounded insights</td><td>Python worker</td><td><code>grounding/runtime.py</code></td></tr>
+          <tr><td>Results written</td><td>Python worker</td><td><code>worker/result_mapper.py</code></td></tr>
+          <tr><td>Daily Insight updates</td><td>Flutter client</td><td><code>journalByIdStreamProvider</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ─────────── 2 ─────────── -->
+    <section id="s2">
+      <h2><span class="num">2</span>Client and shared state</h2>
+      <p class="sub">The client only ever <em>creates</em> — every later write to a journal comes
+      from the worker via the Admin SDK.</p>
+      <div class="frame" data-diagram="d2"></div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Collection</th><th>Written by</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>users/{uid}/journals/{journalId}</code></td>
+            <td>client (create only), then worker</td>
+            <td>transcript · analysis · aiInsights · evidence · diagnostics · status</td>
+          </tr>
+          <tr>
+            <td><code>analysis_jobs/{journalId}</code></td>
+            <td>client (create with <code>status == 'queued'</code> only), then worker</td>
+            <td>status · processingStep · retryCount — index <code>status ASC, createdAt ASC</code></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ─────────── 3 ─────────── -->
+    <section id="s3">
+      <h2><span class="num">3</span>Worker and analysis pipeline</h2>
+      <p class="sub">The claim is transactional, so concurrent workers are safe: each re-checks
+      that the job is still <code>queued</code> before flipping it to <code>processing</code>.</p>
+      <div class="frame" data-diagram="d3"></div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stage</th><th>Tooling</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td>1 · Validate media</td><td>OpenCV probe</td><td>duration, readability</td></tr>
+          <tr><td>2 · Audio extraction</td><td>FFmpeg</td><td>mono 16 kHz WAV</td></tr>
+          <tr><td>3 · Transcription</td><td>Faster Whisper, int8 CPU, VAD</td><td>transcript</td></tr>
+          <tr><td>4 · Visual signals</td><td>OpenCV Haar cascades</td><td>frame quality, facial signals</td></tr>
+          <tr><td>5 · Voice features</td><td>librosa</td><td>energy, pitch, pause ratio</td></tr>
+          <tr><td>6 · NLP</td><td>—</td><td>topics · key phrases · word count · confidence · sentiment · stress</td></tr>
+          <tr><td>7 · Signal fusion</td><td>face 0.35 · voice 0.35 · text 0.30</td><td>valence · arousal · congruence</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Download safety: HTTPS only, no redirects, 500 MB cap, auto-purged temp directory,
+      3 retries with exponential backoff — <code>worker/media_source.py</code>.</p>
+    </section>
+
+    <!-- ─────────── 4 ─────────── -->
+    <section id="s4">
+      <h2><span class="num">4</span>Grounding boundary</h2>
+      <p class="sub">The one structural rule in the system — enforced in code, not by convention.</p>
+      <div class="frame" data-diagram="d4"></div>
+      <div class="callout">
+        <code>retrieve_claims</code> only counts facts whose <code>kind</code> is
+        <code>topic</code> or <code>key_phrase</code>. Voice, face and fused affect metrics have
+        <b>no code path</b> to a research claim at all — the boundary lives in the retriever
+        (<code>grounding/retriever.py:20</code>), not in prompt instructions.
+      </div>
+    </section>
+
+    <!-- ─────────── 5 ─────────── -->
+    <section id="s5">
+      <h2><span class="num">5</span>Catalog governance</h2>
+      <p class="sub">Release-controlled and offline. Every citation traces back to a
+      human-reviewed catalog entry.</p>
+      <div class="frame" data-diagram="d5"></div>
+      <p>The catalog stores sources, <b>exact display claims</b>, limitations, support levels and
+      approved suggestions. No source text is ever copied at runtime, and no live web research
+      happens during journal processing.</p>
+    </section>
+
+    <!-- ─────────── 6 ─────────── -->
+    <section id="s6">
+      <h2><span class="num">6</span>Insight generation and fallback ladder</h2>
+      <p class="sub">The crisis check runs first and bypasses ordinary AI generation entirely.</p>
+      <div class="frame" data-diagram="d6"></div>
+      <p>Three rungs on the fallback ladder:</p>
+      <ol>
+        <li>Two generate/validate attempts against the LLM.</li>
+        <li>A deterministic grounded card that still carries a real citation.</li>
+        <li>A user-data-only card, with no citation.</li>
+      </ol>
+      <p>Rung 2 is deliberately skipped when the LLM was never reachable, so a bare template
+      never gets a citation attached to it.</p>
+      <div class="callout">
+        Groq drafts <b>language only</b> — title, summary, themes, mood, questions and allowed
+        IDs. The server injects exact evidence values, catalog claim text, approved suggestions,
+        limitations and canonical HTTPS citations. Validation then checks that no IDs were
+        fabricated, no values altered, and catalog text is byte-identical.
+      </div>
+    </section>
+
+    <!-- ─────────── 7 ─────────── -->
+    <section id="s7">
+      <h2><span class="num">7</span>Runtime modes and delivery</h2>
+      <p class="sub">Routing is controlled by the <code>GROUNDING_MODE</code> environment
+      variable.</p>
+      <div class="frame" data-diagram="d7"></div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mode</th><th>Written to <code>aiInsights</code></th><th>Also written</th></tr></thead>
+        <tbody>
+          <tr><td><code>off</code></td><td>existing insight pipeline output</td><td>—</td></tr>
+          <tr><td><code>shadow</code></td><td>existing output, unchanged</td><td>grounded output → <code>groundingShadowInsights</code></td></tr>
+          <tr><td><code>enforce</code></td><td>validated grounded output only</td><td>—</td></tr>
+          <tr><td><code>combined</code> <em>(default)</em></td><td>narrative cards + grounded cards together</td><td>—</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The client needs no refresh and does no polling: the Daily Insight screen is bound to a
+      live snapshot listener on the same journal document, so it re-renders the moment the worker
+      commits its batched write.</p>
+    </section>
+
+    <!-- ─────────── Legend ─────────── -->
+    <section id="legend">
+      <h2>Legend</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Colour</th><th>Layer</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch" style="background:#1E3A8A"></span>Sapphire</td><td>Flutter client</td><td>User-facing screens and actions</td></tr>
+          <tr><td><span class="swatch" style="background:#15264A"></span>Deep blue</td><td>Cloud services</td><td>Cloudinary and Firestore — cylinders</td></tr>
+          <tr><td><span class="swatch" style="background:#172B52"></span>Navy</td><td>Worker &amp; pipeline</td><td>Backend processing on the analyzer</td></tr>
+          <tr><td><span class="swatch" style="background:#F5B841"></span>Gold</td><td>Boundary &amp; catalog</td><td>Governance — the safety-critical rails</td></tr>
+          <tr><td><span class="swatch" style="background:#F87171"></span>Red</td><td>Blocked / failed</td><td>Signals that may never justify a claim; failed jobs</td></tr>
+          <tr><td><span class="swatch" style="background:#C084FC"></span>Purple</td><td>Safety path</td><td>Crisis handling — bypasses AI generation</td></tr>
+          <tr><td><span class="swatch" style="background:#D4A22F"></span>Amber</td><td>Runtime modes</td><td><code>GROUNDING_MODE</code> routing</td></tr>
+          <tr><td><span class="swatch" style="background:#4ADE9B"></span>Green</td><td>Result delivery</td><td>Data flowing back to the user</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Shapes: <code>[( )]</code> datastore · <code>{ }</code> decision ·
+      <code>&gt; ]</code> annotation.</p>
+    </section>
+
+    <!-- ─────────── Code map ─────────── -->
+    <section id="code">
+      <h2>Diagram ↔ code</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Section</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Client</td><td><code>frontend/lib/features/auth/auth_providers.dart</code>, <code>frontend/lib/screens/recording/</code>, <code>frontend/lib/services/cloudinary/cloudinary_upload_service.dart</code>, <code>frontend/lib/features/journals/journal_repository.dart</code></td></tr>
+          <tr><td>Reading surfaces</td><td><code>frontend/lib/screens/home/home_screen.dart:570</code>, <code>screens/timeline/timeline_screen.dart</code>, <code>screens/insights/daily_insight_screen.dart</code></td></tr>
+          <tr><td>Firestore schema &amp; rules</td><td><code>firestore.rules</code>, <code>firestore.indexes.json</code>, <code>backend/solenne_analyzer/worker/result_mapper.py</code></td></tr>
+          <tr><td>Worker loop</td><td><code>backend/solenne_analyzer/worker/runner.py</code>, <code>worker/firebase_gateway.py</code></td></tr>
+          <tr><td>URL validation &amp; download</td><td><code>backend/solenne_analyzer/worker/media_source.py</code></td></tr>
+          <tr><td>Analysis pipeline</td><td><code>backend/solenne_analyzer/pipeline/orchestrator.py</code>, <code>pipeline/{media,transcribe,face,voice,nlp,fusion}.py</code></td></tr>
+          <tr><td>Grounding boundary</td><td><code>backend/solenne_analyzer/grounding/retriever.py:20</code>, <code>grounding/observations.py</code></td></tr>
+          <tr><td>Grounding pipeline</td><td><code>backend/solenne_analyzer/grounding/runtime.py</code>, <code>generator.py</code>, <code>assembler.py</code>, <code>validators.py</code></td></tr>
+          <tr><td>Catalog governance</td><td><code>backend/solenne_analyzer/grounding/catalog.py</code>, <code>grounding/catalog.json</code>, <code>grounding/models.py</code></td></tr>
+          <tr><td>Runtime modes</td><td><code>backend/solenne_analyzer/pipeline/llm_insights.py</code>, <code>config.py</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ─────────── Notes ─────────── -->
+    <section id="notes">
+      <h2>Notes on accuracy</h2>
+      <p class="sub">Details that are easy to get wrong, verified against the code.</p>
+      <ul>
+        <li><b>Face analysis uses OpenCV Haar cascades</b>, not MediaPipe
+            (<code>pipeline/face.py</code>). <code>backend/README.md</code> still says
+            MediaPipe and is out of date.</li>
+        <li><b>Four runtime modes exist</b>, not three. <code>combined</code> serves narrative and
+            grounded cards side by side and is what <code>backend/.env.example</code> ships
+            today.</li>
+        <li><b>Claim limits differ by stage</b>: the retriever supplies up to <b>3</b> claim cards
+            to the model (<code>runtime.py:94</code>), while the assembler renders at most
+            <b>2</b> citations per insight card (<code>assembler.py:34</code>).</li>
+        <li><b>The grounding boundary is structural.</b> Voice, face and fused metrics have no
+            code path to the retriever at all.</li>
+        <li><code>analysis_jobs/{journalId}</code> uses the journal ID as its document ID, and the
+            client may only ever create that document with <code>status == 'queued'</code>; all
+            later job writes come from the Admin SDK worker.</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<script src="mermaid.bundle.js"></script>
+<script>
+/* ── Shared theme for every diagram ───────────────────── */
+const THEME = {
+  fontFamily: 'Inter, Segoe UI, Helvetica, sans-serif',
+  fontSize: '14px',
+  primaryColor: '#1E3A8A',
+  primaryTextColor: '#EAF1FF',
+  primaryBorderColor: '#60A5FA',
+  lineColor: '#8FA6D2',
+  textColor: '#E8EEFB',
+  clusterBkg: '#0F1A2E',
+  clusterBorder: '#2A3F63',
+  edgeLabelBackground: '#0F1A2E'
+};
+
+/* ── Diagram definitions — one concern each ───────────── */
+const DIAGRAMS = {
+
+d1: `flowchart TB
+  %% Grouped into the two phases the steps actually belong to. This wraps an
+  %% 8-step chain into a readable block instead of one 16:1 ribbon.
+  subgraph A["On the device"]
+    direction LR
+    REC["Record<br/>journal"]
+    UP["Upload to<br/>Cloudinary"]
+    TX["Firestore<br/>transaction"]
+    REC --> UP --> TX
+  end
+
+  subgraph B2["On the worker"]
+    direction LR
+    WORK["Claim<br/>job"]
+    PIPE["Analysis<br/>pipeline"]
+    GRND["Grounded<br/>insights"]
+    WRITE["Write<br/>results"]
+    WORK --> PIPE --> GRND --> WRITE
+  end
+
+  LIVE["Daily Insight updates live — no refresh, no polling"]
+
+  TX --> WORK
+  WRITE --> LIVE
+
+  classDef c fill:#1E3A8A,stroke:#60A5FA,stroke-width:1.5px,color:#EAF1FF
+  classDef w fill:#172B52,stroke:#2563EB,stroke-width:1.5px,color:#DCE8FF
+  classDef g fill:#3A2A08,stroke:#F5B841,stroke-width:2px,color:#FFF4DA
+  classDef d fill:#123A34,stroke:#4ADE9B,stroke-width:1.5px,color:#DFFBF0
+  class REC,UP,TX c
+  class WORK,PIPE w
+  class GRND g
+  class WRITE,LIVE d
+  style A  fill:#0D1729,stroke:#3B82F6,stroke-width:1.5px,color:#93C5FD
+  style B2 fill:#0C1526,stroke:#2563EB,stroke-width:1.5px,color:#93C5FD`,
+
+d2: `flowchart TB
+  subgraph CLIENT["Flutter client"]
+    direction LR
+    AUTH["Firebase Auth"]
+    REC["Record<br/>pause · resume · preview"]
+    UP["Cloudinary upload"]
+    TX["Firestore transaction"]
+    AUTH --> REC --> UP --> TX
+  end
+
+  subgraph READ["Reading surfaces"]
+    direction LR
+    HOME["Home<br/>3 latest days"]
+    TL["Timeline &amp; Calendar<br/>120-day window"]
+    DI["Daily Insight"]
+  end
+
+  subgraph STATE["Shared state"]
+    direction LR
+    CLD[("Cloudinary<br/>video + thumbnail")]
+    FSJ[("Firestore journal<br/>users/{uid}/journals/{id}")]
+    FSQ[("Firestore job queue<br/>analysis_jobs/{id}")]
+  end
+
+  UP --> CLD
+  TX --> FSJ
+  TX --> FSQ
+  AUTH --> READ
+  FSJ -. "live snapshot stream" .-> READ
+
+  classDef c fill:#1E3A8A,stroke:#60A5FA,stroke-width:1.5px,color:#EAF1FF
+  classDef s fill:#15264A,stroke:#3B82F6,stroke-width:1.5px,color:#DCE8FF
+  classDef r fill:#123A34,stroke:#4ADE9B,stroke-width:1.5px,color:#DFFBF0
+  class AUTH,REC,UP,TX c
+  class CLD,FSJ,FSQ s
+  class HOME,TL,DI r
+  style CLIENT fill:#0D1729,stroke:#3B82F6,stroke-width:2px,color:#93C5FD
+  style READ   fill:#08201C,stroke:#4ADE9B,stroke-width:2px,color:#6EE7B7
+  style STATE  fill:#0C1526,stroke:#3B82F6,stroke-width:2px,color:#93C5FD`,
+
+d3: `flowchart TB
+  subgraph W["Worker loop"]
+    direction LR
+    POLL["Poll queued jobs<br/>every 5s · limit 5"]
+    CLAIM["Transactional claim<br/>queued → processing"]
+    VAL{"Validate<br/>user · journal · URL"}
+    DL["Temporary<br/>download"]
+    FAIL["Job failed<br/>retryCount++"]
+    POLL --> CLAIM --> VAL
+    VAL -- "rejected" --> FAIL
+    VAL -- "accepted" --> DL
+  end
+
+  subgraph P["Pipeline — 7 stages"]
+    direction TB
+    subgraph PA[" "]
+      direction LR
+      P1["1 · Validate media"]
+      P2["2 · Audio extraction"]
+      P3["3 · Transcription"]
+      P4["4 · Visual signals"]
+      P1 --> P2 --> P3 --> P4
+    end
+    subgraph PB[" "]
+      direction LR
+      P5["5 · Voice features"]
+      P6["6 · NLP"]
+      P7["7 · Signal fusion"]
+      P5 --> P6 --> P7
+    end
+    P4 --> P5
+  end
+
+  DL --> P1
+
+  classDef w fill:#172B52,stroke:#2563EB,stroke-width:1.5px,color:#DCE8FF
+  classDef x fill:#4A1414,stroke:#F87171,stroke-width:1.6px,color:#FFE4E4
+  class POLL,CLAIM,VAL,DL w
+  class P1,P2,P3,P4,P5,P6,P7 w
+  class FAIL x
+  style W fill:#0C1526,stroke:#2563EB,stroke-width:2px,color:#93C5FD
+  style P fill:#0C1526,stroke:#2563EB,stroke-width:2px,color:#93C5FD
+  %% Layout-only wrappers — invisible so only the two real groups read as boxes.
+  style PA fill:none,stroke:none
+  style PB fill:none,stroke:none`,
+
+d4: `flowchart TB
+  P6["NLP<br/>topics · key phrases"]
+  P7["Fusion<br/>voice · face · affect"]
+
+  subgraph B["Grounding boundary"]
+    direction LR
+    OK2["✅ May trigger research<br/>kind ∈ topic, key_phrase"]
+    NO["⛔ Never cited<br/>voice · face · fused metrics"]
+  end
+
+  PERS["Shown as personal signal only"]
+  RETR["Retriever"]
+
+  P6 --> OK2
+  P7 --> NO
+  OK2 --> RETR
+  NO --> PERS
+
+  classDef ok fill:#3A2A08,stroke:#F5B841,stroke-width:2.5px,color:#FFF4DA
+  classDef no fill:#3F1D1D,stroke:#F87171,stroke-width:2px,color:#FFE4E4
+  classDef w  fill:#172B52,stroke:#2563EB,stroke-width:1.5px,color:#DCE8FF
+  class OK2 ok
+  class NO,PERS no
+  class P6,P7,RETR w
+  style B fill:#241905,stroke:#F5B841,stroke-width:3px,color:#F5B841`,
+
+d5: `flowchart LR
+  PUB["PubMed-indexed<br/>public research"]
+  REV{"Human release review<br/>≥ 2 reviewers"}
+  CAT[("Git-versioned catalog<br/>grounding/catalog.json")]
+  NOWEB>"No live web research<br/>during processing"]
+
+  PUB --> REV -- "approved + active" --> CAT
+  CAT -.-> NOWEB
+
+  classDef g fill:#4A360C,stroke:#F5B841,stroke-width:2px,color:#FFF4DA
+  class PUB,REV,CAT,NOWEB g`,
+
+d6: `flowchart TB
+  CRISIS{"Crisis language check<br/>runs first"}
+  SAFE["Supportive card<br/>provider = safety"]
+  FACTS["Observation facts"]
+  MAP["Claim-category mapping<br/>5 categories"]
+  RETR["Retrieve claim cards<br/>≤ 3, one per category"]
+  GROQ["Groq drafts language only"]
+  INJ["Server injects verified content<br/>≤ 2 citations per card"]
+  CHK{"Provenance &amp; safety<br/>validation"}
+  OK["Source-supported insight"]
+  DET["Deterministic grounded card"]
+  UDO["User-data-only card"]
+
+  CRISIS -- "detected" --> SAFE
+  CRISIS -- "clear" --> FACTS --> MAP --> RETR --> GROQ --> INJ --> CHK
+  CHK -- "valid" --> OK
+  CHK -. "retry once" .-> GROQ
+  CHK -- "still invalid" --> DET
+  DET -- "no claim / LLM unreachable" --> UDO
+
+  classDef g fill:#1B2F57,stroke:#7DA6F5,stroke-width:1.5px,color:#E4EDFF
+  classDef s fill:#3D2352,stroke:#C084FC,stroke-width:1.8px,color:#F5E9FF
+  class CRISIS,FACTS,MAP,RETR,GROQ,INJ,CHK,OK,DET,UDO g
+  class SAFE s`,
+
+d7: `flowchart TB
+  IN["Insight cards"]
+  MODE{"GROUNDING_MODE"}
+
+  %% The four modes are parallel alternatives with identical in/out edges, so
+  %% Mermaid ignores the LR direction and stacks them. They're enumerated in the
+  %% table below instead — the diagram shows the routing step itself.
+  MOFF["off"]
+  MSHA["shadow"]
+  MENF["enforce"]
+  MCOM["combined · default"]
+
+  WRITE["Batched write<br/>to journal"]
+  STREAM["Flutter snapshot<br/>listener"]
+  UPDATE["Daily Insight<br/>re-renders"]
+
+  IN --> MODE
+  MODE --> MOFF --> WRITE
+  MODE --> MSHA --> WRITE
+  MODE --> MENF --> WRITE
+  MODE --> MCOM --> WRITE
+  WRITE --> STREAM --> UPDATE
+
+  classDef m fill:#20325C,stroke:#D4A22F,stroke-width:1.6px,color:#FFF1D6
+  classDef d fill:#123A34,stroke:#4ADE9B,stroke-width:1.5px,color:#DFFBF0
+  classDef g fill:#1B2F57,stroke:#7DA6F5,stroke-width:1.5px,color:#E4EDFF
+  class MOFF,MSHA,MENF,MCOM,MODE m
+  class WRITE,STREAM,UPDATE d
+  class IN g`
+};
+
+/* ── Render each diagram into its own zoomable frame ──── */
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  themeVariables: THEME,
+  flowchart: { curve: 'basis', nodeSpacing: 50, rankSpacing: 62, padding: 16, htmlLabels: true },
+  securityLevel: 'loose'
+});
+
+function buildFrame(frameEl, id, def) {
+  frameEl.innerHTML =
+    '<div class="frame-bar">' +
+      '<button data-act="out">−</button>' +
+      '<span class="zoom">100%</span>' +
+      '<button data-act="in">+</button>' +
+      '<button data-act="fit">Fit</button>' +
+      '<button data-act="reset">100%</button>' +
+      '<span class="spacer"></span>' +
+      '<button data-act="copy">Copy Mermaid</button>' +
+    '</div>' +
+    '<div class="scroller"><div class="canvas"></div></div>';
+
+  const canvas   = frameEl.querySelector('.canvas');
+  const scroller = frameEl.querySelector('.scroller');
+  const label    = frameEl.querySelector('.zoom');
+  let zoom = 1;
+
+  const apply = () => {
+    canvas.style.transform = 'scale(' + zoom + ')';
+    label.textContent = Math.round(zoom * 100) + '%';
+    // The scaled canvas must still reserve real space, or the scroller
+    // reports the unscaled size and clips tall diagrams.
+    const el = canvas.querySelector('svg');
+    if (el) {
+      canvas.style.width  = (el.clientWidth  * zoom) + 'px';
+      canvas.style.height = (el.clientHeight * zoom) + 'px';
+    }
+  };
+
+  // Scale a too-wide diagram down to the frame; never scale up past 100%.
+  const fit = () => {
+    const el = canvas.querySelector('svg');
+    if (!el || !el.clientWidth) return;
+    const avail = scroller.clientWidth - 44; // padding
+    zoom = Math.min(1, Math.max(0.35, avail / el.clientWidth));
+    apply();
+  };
+
+  frameEl.querySelector('.frame-bar').addEventListener('click', (e) => {
+    const act = e.target.dataset.act;
+    if (!act) return;
+    if (act === 'in')    { zoom = Math.min(zoom + 0.15, 3);   apply(); }
+    if (act === 'out')   { zoom = Math.max(zoom - 0.15, 0.35); apply(); }
+    if (act === 'reset') { zoom = 1; apply(); }
+    if (act === 'fit')   { fit(); }
+    if (act === 'copy') {
+      navigator.clipboard.writeText(def.trim()).then(() => {
+        const b = e.target, t = b.textContent;
+        b.textContent = 'Copied';
+        setTimeout(() => { b.textContent = t; }, 1200);
+      });
+    }
+  });
+
+  mermaid.render(id + '-svg', def.trim())
+    .then(({ svg }) => {
+      canvas.innerHTML = svg;
+      // Mermaid emits width="100%" with no height; inside a shrink-to-fit
+      // container that collapses to the 300px SVG default. Pin the intrinsic
+      // size from the viewBox so layout and zoom both work against real px.
+      const el = canvas.querySelector('svg');
+      if (el) {
+        const vb = (el.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+        if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+          el.setAttribute('width', vb[2]);
+          el.setAttribute('height', vb[3]);
+          el.style.width = vb[2] + 'px';
+          el.style.height = vb[3] + 'px';
+        }
+        el.style.maxWidth = 'none';
+      }
+      fit();
+      frameEl._fit = fit;
+    })
+    .catch((err) => {
+      canvas.innerHTML = '<div class="err">Render failed: ' +
+        String(err && err.message ? err.message : err) + '</div>';
+    });
+}
+
+const frames = [...document.querySelectorAll('.frame[data-diagram]')];
+frames.forEach((el) => {
+  const key = el.dataset.diagram;
+  if (DIAGRAMS[key]) buildFrame(el, key, DIAGRAMS[key]);
+});
+
+// Re-fit on resize so the column width change is respected.
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    frames.forEach((f) => { if (f._fit) f._fit(); });
+  }, 150);
+});
+
+/* ── Nav highlighting ─────────────────────────────────── */
+const links = [...document.querySelectorAll('nav a')];
+const targets = links
+  .map((a) => document.querySelector(a.getAttribute('href')))
+  .filter(Boolean);
+
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    links.forEach((a) => a.classList.toggle(
+      'active', a.getAttribute('href') === '#' + entry.target.id
+    ));
+  });
+}, { rootMargin: '-15% 0px -75% 0px' });
+
+targets.forEach((t) => obs.observe(t));
+</script>
+
+</body>
+</html>

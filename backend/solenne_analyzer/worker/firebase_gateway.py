@@ -8,6 +8,7 @@ from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from .config import WorkerConfig
+from .result_mapper import ANALYSIS_VERSION
 
 
 @dataclass(frozen=True)
@@ -177,7 +178,7 @@ class FirebaseGateway:
                     {
                         "status": "queued",
                         "processingStep": "queued",
-                        "analysisVersion": "2026-07-v2-grounded",
+                        "analysisVersion": ANALYSIS_VERSION,
                         "startedAt": None,
                         "completedAt": None,
                         "errorMessage": None,
@@ -193,7 +194,7 @@ class FirebaseGateway:
                         "status": "queued",
                         "processingStep": "queued",
                         "retryCount": 0,
-                        "analysisVersion": "2026-07-v2-grounded",
+                        "analysisVersion": ANALYSIS_VERSION,
                         "createdAt": firestore.SERVER_TIMESTAMP,
                         "startedAt": None,
                         "completedAt": None,
@@ -205,7 +206,7 @@ class FirebaseGateway:
                 {
                     "analysisStatus": "queued",
                     "analysisStep": "queued",
-                    "analysisVersion": "2026-07-v2-grounded",
+                    "analysisVersion": ANALYSIS_VERSION,
                     "analysisError": None,
                     "analysisRequestedAt": firestore.SERVER_TIMESTAMP,
                 },

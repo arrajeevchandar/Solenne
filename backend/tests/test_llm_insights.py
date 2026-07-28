@@ -117,20 +117,17 @@ class LlmInsightsTest(unittest.TestCase):
 
     def test_combined_mode_surfaces_only_safety_insight_on_crisis(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.text = "I want to hurt myself."
         result.insights = [
             Insight(templateId="T", text="Legacy card.", confidence=0.6)
         ]
-        safety = AiInsight(
-            title="You deserve immediate support",
-            summary="Reach out now.",
-            moodLabel="",
-        )
-        safety_diagnostics = LlmDiagnostics(
-            status="skipped", grounding={"reason": "safety_bypass"}
-        )
-        with patch(
-            "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
-            return_value=([safety], safety_diagnostics, "safety"),
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights"
+            ) as grounded,
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights"
+            ) as legacy,
         ):
             insights, diagnostics, provider = generate_llm_insights(
                 result,
@@ -140,8 +137,296 @@ class LlmInsightsTest(unittest.TestCase):
                 ),
             )
 
-        self.assertEqual(insights, [safety])
+        grounded.assert_not_called()
+        legacy.assert_not_called()
+        self.assertEqual(insights[0].title, "You deserve immediate support")
         self.assertEqual(provider, "safety")
+        self.assertEqual(diagnostics.grounding["reason"], "safety_bypass")
+
+    def test_off_mode_uses_full_transcript_safety_bypass(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.text = (
+            ("I described an ordinary day without anything unusual. " * 35)
+            + "I want to die."
+        )
+
+        with patch(
+            "solenne_analyzer.pipeline.llm_insights.generate_groq_insights"
+        ) as generate:
+            insights, diagnostics, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    groq_api_key="test-key",
+                    grounding_mode="off",
+                ),
+            )
+
+        generate.assert_not_called()
+        self.assertEqual(provider, "safety")
+        self.assertEqual(insights[0].title, "You deserve immediate support")
+        self.assertEqual(diagnostics.grounding["reason"], "safety_bypass")
+
+    def test_combined_mode_merges_exact_duplicate_with_grounded_evidence(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="Mixed Emotions",
+            summary=(
+                "Happiness about the hackathon result sat beside disappointment about "
+                "not reaching the position you had hoped for, while questions about "
+                "preparation and effort made the achievement feel more complicated."
+            ),
+            moodLabel="bittersweet",
+            dayThemes=["achievement", "effort"],
+            suggestions=["Name what felt rewarding.", "Notice what still matters."],
+            reflectionQuestions=[
+                "What felt satisfying about the result?",
+                "What would you approach differently next time?",
+            ],
+            safetyNote="Be gentle with yourself while holding both parts of the result.",
+        )
+        grounded = AiInsight(
+            title="mixed-emotions!",
+            summary=(
+                "Pride in the hackathon placement appeared alongside sadness about "
+                "missing first place and questions about the effort behind the result."
+            ),
+            moodLabel="bittersweet",
+            dayThemes=["mixed emotions", "achievement"],
+            suggestions=["Write down one moment you want to remember."],
+            reflectionQuestions=[
+                "What part of the placement feels worth carrying forward?",
+                "What does first place represent to you?",
+            ],
+            safetyNote="Solenne offers wellness reflections, not medical advice.",
+            evidence={
+                "schemaVersion": 2,
+                "rationale": "The reflection named both happiness and sadness.",
+                "userEvidence": [],
+                "externalReferences": [{"claimCardId": "claim-reflection"}],
+                "verification": {"status": "source_supported"},
+            },
+        )
+        diagnostics = LlmDiagnostics(
+            status="complete", grounding={"status": "source_supported"}
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=([grounded], diagnostics, "groq_grounded"),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0].title, narrative.title)
+        self.assertEqual(insights[0].summary, narrative.summary)
+        self.assertEqual(insights[0].moodLabel, narrative.moodLabel)
+        self.assertIn("Be gentle with yourself", insights[0].safetyNote)
+        self.assertIn("not medical advice", insights[0].safetyNote)
+        self.assertEqual(
+            insights[0].suggestions,
+            [
+                "Write down one moment you want to remember.",
+                "Name what felt rewarding.",
+                "Notice what still matters.",
+            ],
+        )
+        self.assertEqual(
+            insights[0].dayThemes,
+            ["achievement", "effort", "mixed emotions"],
+        )
+        self.assertEqual(provider, "groq_grounded")
+        self.assertEqual(
+            insights[0].evidence["verification"]["status"],
+            "source_supported",
+        )
+
+    def test_combined_mode_does_not_append_non_source_fallback_card(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="A fuller reflection",
+            summary="A detailed narrative card remains the visible result.",
+            moodLabel="reflective",
+        )
+        fallback = AiInsight(
+            title="A note from this reflection",
+            summary="A short fallback.",
+            moodLabel="reflective",
+            evidence={
+                "schemaVersion": 2,
+                "rationale": "Only journal observations were available.",
+                "userEvidence": [],
+                "externalReferences": [],
+                "verification": {"status": "fallback"},
+            },
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    [fallback],
+                    LlmDiagnostics(
+                        status="failed",
+                        grounding={"status": "fallback"},
+                    ),
+                    "grounded_template",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(insights, [narrative])
+        self.assertEqual(provider, "groq")
+
+    def test_combined_merge_does_not_label_unsafe_legacy_wording_as_supported(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="Deadline pressure",
+            summary=(
+                "You are anxious because of your deadline, and that means the work "
+                "pressure is determining how you feel about the entire project."
+            ),
+            moodLabel="anxious",
+            suggestions=["Treat the anxiety before returning to the task."],
+            reflectionQuestions=["Why is the deadline causing your anxiety?"],
+            safetyNote="Be kind to yourself.",
+        )
+        grounded = AiInsight(
+            title="deadline-pressure!",
+            summary=(
+                "The deadline and unfinished work both stood out while you considered "
+                "which expectation mattered most."
+            ),
+            moodLabel="reflective",
+            dayThemes=["work", "deadline"],
+            suggestions=["Take one short pause away from the task."],
+            reflectionQuestions=[
+                "Which expectation matters most?",
+                "Where might a boundary help?",
+            ],
+            evidence={
+                "schemaVersion": 2,
+                "rationale": "The reflection named work and a deadline.",
+                "userEvidence": [],
+                "externalReferences": [{"claimCardId": "claim-work"}],
+                "verification": {"status": "source_supported"},
+            },
+            confidence=0.8,
+            safetyNote="Solenne offers wellness reflections, not medical advice.",
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    [grounded],
+                    LlmDiagnostics(
+                        status="complete",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "groq_grounded",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, _ = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(insights, [grounded])
+        self.assertNotIn("because of your", insights[0].summary.lower())
+
+    def test_combined_mode_caps_cards_and_keeps_source_support(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = [
+            AiInsight(title=f"Narrative {index}", summary="A narrative card.", moodLabel="")
+            for index in range(1, 4)
+        ]
+        grounded = [
+            AiInsight(
+                title=f"Grounded {index}",
+                summary="A grounded card.",
+                moodLabel="",
+                evidence={
+                    "schemaVersion": 2,
+                    "externalReferences": [{"claimCardId": f"claim-{index}"}],
+                    "verification": {"status": "source_supported"},
+                },
+            )
+            for index in range(1, 3)
+        ]
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    grounded,
+                    LlmDiagnostics(
+                        status="complete",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "groq_grounded",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    narrative,
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, _ = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(len(insights), 3)
+        self.assertTrue(
+            any(item.evidence.get("schemaVersion") == 2 for item in insights)
+        )
 
     def test_shadow_mode_preserves_legacy_output_and_stores_candidate(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")

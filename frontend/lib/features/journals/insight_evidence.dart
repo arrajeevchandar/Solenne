@@ -4,21 +4,26 @@ class InsightEvidence {
     required this.userEvidence,
     required this.externalReferences,
     required this.verification,
+    this.rationale,
   });
 
   final int schemaVersion;
   final List<UserEvidenceItem> userEvidence;
   final List<ExternalReference> externalReferences;
   final VerificationMetadata verification;
+  final String? rationale;
 
   bool get isV2 => schemaVersion == 2;
   bool get isSafetyBypass => verification.reason == 'safety_bypass';
   bool get hasContent =>
-      userEvidence.isNotEmpty || externalReferences.isNotEmpty;
+      rationale?.trim().isNotEmpty == true ||
+      userEvidence.isNotEmpty ||
+      externalReferences.isNotEmpty;
 
   factory InsightEvidence.fromMap(Map<String, dynamic> map) {
     return InsightEvidence(
       schemaVersion: (map['schemaVersion'] as num?)?.toInt() ?? 0,
+      rationale: map['rationale'] is String ? map['rationale'] as String : null,
       userEvidence: _mapList(
         map['userEvidence'],
       ).map(UserEvidenceItem.fromMap).toList(growable: false),
@@ -29,6 +34,18 @@ class InsightEvidence {
         _dynamicMap(map['verification']),
       ),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'schemaVersion': schemaVersion,
+      'rationale': rationale,
+      'userEvidence': userEvidence.map((item) => item.toMap()).toList(),
+      'externalReferences': externalReferences
+          .map((reference) => reference.toMap())
+          .toList(),
+      'verification': verification.toMap(),
+    };
   }
 }
 
@@ -64,6 +81,17 @@ class UserEvidenceItem {
       journalIds: _stringList(map['journalIds']),
       confidence: (map['confidence'] as num?)?.toDouble() ?? 0.0,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'evidenceId': evidenceId,
+      'label': label,
+      'value': value,
+      'sourcePath': sourcePath,
+      'journalIds': journalIds,
+      'confidence': confidence,
+    };
   }
 }
 
@@ -124,6 +152,22 @@ class ExternalReference {
       supportLevel: map['supportLevel'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'claimCardId': claimCardId,
+      'sourceId': sourceId,
+      'title': title,
+      'publisher': publisher,
+      'year': year,
+      'url': url,
+      'doi': doi,
+      'pmid': pmid,
+      'matchedClaim': matchedClaim,
+      'limitations': limitations,
+      'supportLevel': supportLevel,
+    };
+  }
 }
 
 class VerificationMetadata {
@@ -146,6 +190,15 @@ class VerificationMetadata {
       catalogVersion: map['catalogVersion'] as String?,
       reason: map['reason'] as String?,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'status': status,
+      'method': method,
+      'catalogVersion': catalogVersion,
+      'reason': reason,
+    };
   }
 }
 
