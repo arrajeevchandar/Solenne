@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:solenne_frontend/features/archive/archive_repository.dart';
 import 'package:solenne_frontend/features/journals/journal_entry.dart';
-import 'package:solenne_frontend/features/journals/journal_repository.dart';
 
 void main() {
   group('ArchiveExportPolicy', () {
@@ -56,14 +55,6 @@ void main() {
         isTrue,
       );
     });
-  });
-
-  test('only active deletion states hide journal entries', () {
-    expect(isPendingDeletionStatus('queued'), isTrue);
-    expect(isPendingDeletionStatus('processing'), isTrue);
-    expect(isPendingDeletionStatus('waiting'), isTrue);
-    expect(isPendingDeletionStatus('failed'), isFalse);
-    expect(isPendingDeletionStatus('complete'), isFalse);
   });
 }
 

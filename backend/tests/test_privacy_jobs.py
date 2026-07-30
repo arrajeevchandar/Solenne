@@ -184,6 +184,14 @@ class CloudinaryAdminTests(unittest.TestCase):
             invalidate=True,
         )
 
+    def test_missing_video_is_an_idempotent_success(self) -> None:
+        client = CloudinaryAdminClient(_config())
+        with patch(
+            "cloudinary.uploader.destroy",
+            return_value={"result": "not found"},
+        ):
+            client.destroy_video("solenne/journals/already-removed")
+
 
 class DeletionWorkerTests(unittest.TestCase):
     def test_deletes_cloudinary_before_completing_firestore(self) -> None:
@@ -225,6 +233,109 @@ class DeletionWorkerTests(unittest.TestCase):
 
         worker = DeletionWorker(_config(), Gateway(), object())
         self.assertFalse(worker.process_next())
+
+    def test_cloudinary_failure_preserves_firestore_and_marks_job_failed(
+        self,
+    ) -> None:
+        events: list[str] = []
+
+        class Gateway:
+            def claim_next_deletion(self):
+                return ClaimedDeletionJob("journal-1", "user-1", "journal-1", 0)
+
+            def prepare_deletion(self, _job):
+                return PreparedDeletion(
+                    journal={
+                        "cloudinaryPublicId": "solenne/journals/video-1"
+                    },
+                    wait_for_analysis=False,
+                )
+
+            def complete_deletion(self, _job):
+                events.append("firestore")
+
+            def fail_deletion(self, *_args, **_kwargs):
+                events.append("failed")
+
+        class Cloudinary:
+            def destroy_video(self, _public_id):
+                events.append("cloudinary")
+                raise RuntimeError("Cloudinary unavailable")
+
+        worker = DeletionWorker(_config(), Gateway(), Cloudinary())
+        self.assertTrue(worker.process_next())
+        self.assertEqual(events, ["cloudinary", "failed"])
+
+    def test_rejects_a_public_id_outside_the_journal_folder(self) -> None:
+        events: list[str] = []
+
+        class Gateway:
+            def claim_next_deletion(self):
+                return ClaimedDeletionJob("journal-1", "user-1", "journal-1", 0)
+
+            def prepare_deletion(self, _job):
+                return PreparedDeletion(
+                    journal={"cloudinaryPublicId": "another-folder/video-1"},
+                    wait_for_analysis=False,
+                )
+
+            def complete_deletion(self, _job):
+                events.append("firestore")
+
+            def fail_deletion(self, *_args, **_kwargs):
+                events.append("failed")
+
+        class Cloudinary:
+            def destroy_video(self, _public_id):
+                events.append("cloudinary")
+
+        worker = DeletionWorker(_config(), Gateway(), Cloudinary())
+        self.assertTrue(worker.process_next())
+        self.assertEqual(events, ["failed"])
+
+    def test_retries_transient_cloudinary_failures_before_deleting_firestore(
+        self,
+    ) -> None:
+        events: list[str] = []
+
+        class Gateway:
+            def claim_next_deletion(self):
+                return ClaimedDeletionJob("journal-1", "user-1", "journal-1", 0)
+
+            def prepare_deletion(self, _job):
+                return PreparedDeletion(
+                    journal={
+                        "cloudinaryPublicId": "solenne/journals/video-1"
+                    },
+                    wait_for_analysis=False,
+                )
+
+            def complete_deletion(self, _job):
+                events.append("firestore")
+
+            def fail_deletion(self, *_args, **_kwargs):
+                raise AssertionError("Deletion should not fail.")
+
+        class Cloudinary:
+            calls = 0
+
+            def destroy_video(self, _public_id):
+                self.calls += 1
+                events.append(f"cloudinary-{self.calls}")
+                if self.calls < 3:
+                    raise RuntimeError("Temporary Cloudinary failure")
+
+        worker = DeletionWorker(
+            _config(transient_retries=3),
+            Gateway(),
+            Cloudinary(),
+        )
+        with patch("solenne_analyzer.worker.privacy_jobs.time.sleep"):
+            self.assertTrue(worker.process_next())
+        self.assertEqual(
+            events,
+            ["cloudinary-1", "cloudinary-2", "cloudinary-3", "firestore"],
+        )
 
 
 class ExportApiTests(unittest.TestCase):

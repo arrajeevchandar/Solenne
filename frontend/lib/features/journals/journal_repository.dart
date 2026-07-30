@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,14 +62,13 @@ class JournalRepository {
   Stream<List<JournalEntry>> watchJournals({int limit = 200}) {
     final user = auth.currentUser;
     if (user == null) return const Stream.empty();
-    final journals = _collection(user.uid)
+    return _collection(user.uid)
         .orderBy('recordedAt', descending: true)
         .limit(limit)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.map(JournalEntry.fromFirestore).toList(),
         );
-    return _hidePendingDeletions(journals, user.uid);
   }
 
   Stream<List<JournalEntry>> watchJournalsInRange(
@@ -80,7 +77,7 @@ class JournalRepository {
   ) {
     final user = auth.currentUser;
     if (user == null) return const Stream.empty();
-    final journals = _collection(user.uid)
+    return _collection(user.uid)
         .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('recordedAt', isLessThan: Timestamp.fromDate(end))
         .orderBy('recordedAt', descending: true)
@@ -88,7 +85,6 @@ class JournalRepository {
         .map(
           (snapshot) => snapshot.docs.map(JournalEntry.fromFirestore).toList(),
         );
-    return _hidePendingDeletions(journals, user.uid);
   }
 
   Future<JournalEntry?> getJournal(String id) async {
@@ -102,14 +98,14 @@ class JournalRepository {
   Stream<JournalEntry?> watchJournal(String id) {
     final user = auth.currentUser;
     if (user == null) return Stream.value(null);
-    final journals = _collection(user.uid).doc(id).snapshots().map((doc) {
-      if (!doc.exists) return <JournalEntry>[];
-      return <JournalEntry>[JournalEntry.fromFirestore(doc)];
-    });
-    return _hidePendingDeletions(
-      journals,
-      user.uid,
-    ).map((entries) => entries.isEmpty ? null : entries.first);
+    return _collection(user.uid)
+        .doc(id)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return <JournalEntry>[];
+          return <JournalEntry>[JournalEntry.fromFirestore(doc)];
+        })
+        .map((entries) => entries.isEmpty ? null : entries.first);
   }
 
   Future<void> saveJournal(JournalEntry entry) async {
@@ -183,53 +179,4 @@ class JournalRepository {
       }
     });
   }
-
-  Stream<List<JournalEntry>> _hidePendingDeletions(
-    Stream<List<JournalEntry>> journals,
-    String userId,
-  ) {
-    final controller = StreamController<List<JournalEntry>>();
-    StreamSubscription<List<JournalEntry>>? journalSubscription;
-    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-    deletionSubscription;
-    List<JournalEntry>? latestJournals;
-    Set<String> pending = const {};
-
-    void emit() {
-      final current = latestJournals;
-      if (current == null || controller.isClosed) return;
-      controller.add(
-        current
-            .where((entry) => !pending.contains(entry.id))
-            .toList(growable: false),
-      );
-    }
-
-    controller.onListen = () {
-      journalSubscription = journals.listen((entries) {
-        latestJournals = entries;
-        emit();
-      }, onError: controller.addError);
-      deletionSubscription = firestore
-          .collection('deletion_jobs')
-          .where('userId', isEqualTo: userId)
-          .snapshots()
-          .listen((snapshot) {
-            pending = snapshot.docs
-                .where((doc) => isPendingDeletionStatus(doc.data()['status']))
-                .map((doc) => doc.id)
-                .toSet();
-            emit();
-          }, onError: controller.addError);
-    };
-    controller.onCancel = () async {
-      await journalSubscription?.cancel();
-      await deletionSubscription?.cancel();
-    };
-    return controller.stream;
-  }
-}
-
-bool isPendingDeletionStatus(Object? status) {
-  return const {'queued', 'processing', 'waiting'}.contains(status);
 }

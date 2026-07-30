@@ -350,6 +350,13 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
     try {
       await ref.read(journalRepositoryProvider).deleteJournal(widget.entry.id);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Deletion requested. This reflection will disappear when deletion is complete.',
+          ),
+        ),
+      );
       widget.onDeleted();
     } catch (error) {
       if (!mounted) return;

@@ -6,6 +6,13 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function ownsJournal(journalId) {
+      return request.auth != null
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(journalId)
+        ).data.userId == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow read, create, update: if signedInAs(userId);
       allow delete: if false;
@@ -38,7 +45,15 @@ service cloud.firestore {
     }
 
     match /deletion_jobs/{journalId} {
-      allow read: if request.auth != null
+      allow get: if request.auth != null
+        && (
+          exists(
+            /databases/$(database)/documents/deletion_jobs/$(journalId)
+          )
+            ? resource.data.userId == request.auth.uid
+            : ownsJournal(journalId)
+        );
+      allow list: if request.auth != null
         && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null
         && request.resource.data.keys().hasOnly([
