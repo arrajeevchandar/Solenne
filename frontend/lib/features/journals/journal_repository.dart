@@ -126,6 +126,7 @@ class JournalRepository {
           'status': 'queued',
           'processingStep': 'queued',
           'retryCount': 0,
+          'attemptCount': 0,
           'analysisVersion': analysisVersion,
           'createdAt': FieldValue.serverTimestamp(),
           'startedAt': null,

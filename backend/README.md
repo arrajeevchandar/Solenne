@@ -100,6 +100,11 @@ Generate a Firebase Admin private key from Firebase Console, save it as
 FIREBASE_PROJECT_ID=solenne-9324d
 FIREBASE_SERVICE_ACCOUNT=serviceAccountKey.json
 POLL_INTERVAL_SECONDS=5
+ANALYSIS_LEASE_SECONDS=90
+ANALYSIS_HEARTBEAT_SECONDS=15
+ANALYSIS_MAX_ATTEMPTS=3
+DELETION_LEASE_SECONDS=60
+DELETION_CANCEL_GRACE_SECONDS=15
 CLOUDINARY_CLOUD_NAME=dqjd3lszl
 CLOUDINARY_UPLOAD_FOLDER=solenne/journals
 CLOUDINARY_API_KEY=<secret-manager-value>
@@ -119,11 +124,14 @@ Process one queued journal or keep the worker running:
 .\.venv\Scripts\python.exe -m solenne_analyzer worker --job-id JOURNAL_ID
 ```
 
-The worker prioritizes journal deletion, expired-export cleanup, and export
-generation before analysis work. It validates Cloudinary sources, uses
-temporary folders for media and ZIP assembly, and removes temporary data after
-each job. Cloudinary API credentials are required only for deletion and export
-queues and must remain server-side. In Cloud Run, omit
+The worker prioritizes journal deletion over analysis. Analysis runs in a
+supervised child process with a renewable Firestore lease, so interrupted work
+is requeued up to the configured attempt limit. Deletion cancels active
+analysis and uses its own recoverable lease; it never waits indefinitely for a
+stale `processing` job. The worker validates Cloudinary sources, uses temporary
+folders for media and ZIP assembly, and removes temporary data after each job.
+Cloudinary API credentials are required only for deletion and export queues and
+must remain server-side. In Cloud Run, omit
 `FIREBASE_SERVICE_ACCOUNT` and use the runtime service account through
 Application Default Credentials.
 

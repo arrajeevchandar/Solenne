@@ -24,6 +24,11 @@ class WorkerConfig:
     export_zip_max_bytes: int = 100 * 1024 * 1024
     export_expiry_hours: int = 24
     export_allowed_origins: tuple[str, ...] = ("*",)
+    analysis_lease_seconds: int = 90
+    analysis_heartbeat_seconds: int = 15
+    analysis_max_attempts: int = 3
+    deletion_lease_seconds: int = 60
+    deletion_cancel_grace_seconds: int = 15
 
     @classmethod
     def from_env(cls) -> "WorkerConfig":
@@ -83,9 +88,29 @@ class WorkerConfig:
                 if origin.strip()
             )
             or ("*",),
+            analysis_lease_seconds=max(
+                30, int(os.environ.get("ANALYSIS_LEASE_SECONDS", "90"))
+            ),
+            analysis_heartbeat_seconds=max(
+                5, int(os.environ.get("ANALYSIS_HEARTBEAT_SECONDS", "15"))
+            ),
+            analysis_max_attempts=max(
+                1, int(os.environ.get("ANALYSIS_MAX_ATTEMPTS", "3"))
+            ),
+            deletion_lease_seconds=max(
+                30, int(os.environ.get("DELETION_LEASE_SECONDS", "60"))
+            ),
+            deletion_cancel_grace_seconds=max(
+                0, int(os.environ.get("DELETION_CANCEL_GRACE_SECONDS", "15"))
+            ),
         )
 
     def validate(self) -> None:
+        if self.analysis_heartbeat_seconds >= self.analysis_lease_seconds:
+            raise ValueError(
+                "ANALYSIS_HEARTBEAT_SECONDS must be lower than "
+                "ANALYSIS_LEASE_SECONDS."
+            )
         if (
             self.firebase_service_account is not None
             and not self.firebase_service_account.is_file()

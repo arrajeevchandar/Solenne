@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import os
+import socket
+import time
 from typing import Any
+import uuid
 
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -18,6 +22,9 @@ class ClaimedJob:
     user_id: str
     journal_id: str
     retry_count: int
+    lease_owner: str = ""
+    lease_token: str = ""
+    attempt_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -26,6 +33,8 @@ class ClaimedDeletionJob:
     user_id: str
     journal_id: str
     retry_count: int
+    lease_owner: str = ""
+    lease_token: str = ""
 
 
 @dataclass(frozen=True)
@@ -40,7 +49,16 @@ class ClaimedExportJob:
 @dataclass(frozen=True)
 class PreparedDeletion:
     journal: dict[str, Any] | None
-    wait_for_analysis: bool
+    analysis_status: str | None = None
+    analysis_lease_expires_at: datetime | None = None
+
+
+class JobLeaseLost(RuntimeError):
+    """Raised when a stale analysis process attempts a fenced write."""
+
+
+class AnalysisCancelled(RuntimeError):
+    """Raised when deletion has won ownership of an analysis job."""
 
 
 @dataclass(frozen=True)
@@ -67,6 +85,10 @@ class FirebaseGateway:
                 credential, {"projectId": config.firebase_project_id}
             )
         self.db = firestore.client()
+        self.config = config
+        self.worker_id = (
+            f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:10]}"
+        )
 
     def claim_next_job(self) -> ClaimedJob | None:
         query = (
@@ -93,7 +115,17 @@ class FirebaseGateway:
             if not snapshot.exists:
                 return None
             data = snapshot.to_dict() or {}
-            if data.get("status") != "queued":
+            now = datetime.now(timezone.utc)
+            status = data.get("status")
+            lease_expires_at = data.get("leaseExpiresAt")
+            lease_expired = (
+                status == "processing"
+                and (
+                    not isinstance(lease_expires_at, datetime)
+                    or lease_expires_at <= now
+                )
+            )
+            if status != "queued" and not lease_expired:
                 return None
             user_id = str(data.get("userId", "")).strip()
             journal_id = str(data.get("journalId", "")).strip()
@@ -104,11 +136,7 @@ class FirebaseGateway:
             deletion = (
                 deletion_snapshot.to_dict() if deletion_snapshot.exists else None
             )
-            if deletion and deletion.get("status") in {
-                "queued",
-                "processing",
-                "waiting",
-            }:
+            if deletion and _is_active_deletion(deletion):
                 transaction.update(
                     job_ref,
                     {
@@ -119,6 +147,40 @@ class FirebaseGateway:
                     },
                 )
                 return None
+            attempt_count = int(
+                data.get("attemptCount", data.get("retryCount", 0))
+            )
+            if lease_expired:
+                attempt_count += 1
+            if attempt_count >= self.config.analysis_max_attempts:
+                safe_message = "Analysis stopped repeatedly and reached the retry limit."
+                transaction.update(
+                    job_ref,
+                    {
+                        "status": "failed",
+                        "processingStep": "failed",
+                        "completedAt": firestore.SERVER_TIMESTAMP,
+                        "errorMessage": safe_message,
+                        "attemptCount": attempt_count,
+                        "leaseOwner": None,
+                        "leaseToken": None,
+                        "leaseExpiresAt": None,
+                    },
+                )
+                transaction.update(
+                    self._journal_ref_for(user_id, journal_id),
+                    {
+                        "analysisStatus": "failed",
+                        "analysisStep": "failed",
+                        "analysisError": safe_message,
+                        "analysisCompletedAt": firestore.SERVER_TIMESTAMP,
+                    },
+                )
+                return None
+            lease_token = uuid.uuid4().hex
+            lease_expires_at = now + timedelta(
+                seconds=self.config.analysis_lease_seconds
+            )
             transaction.update(
                 job_ref,
                 {
@@ -127,6 +189,12 @@ class FirebaseGateway:
                     "startedAt": firestore.SERVER_TIMESTAMP,
                     "completedAt": None,
                     "errorMessage": None,
+                    "attemptCount": attempt_count,
+                    "leaseOwner": self.worker_id,
+                    "leaseToken": lease_token,
+                    "leaseExpiresAt": lease_expires_at,
+                    "heartbeatAt": now,
+                    "cancelRequestedAt": None,
                 },
             )
             return ClaimedJob(
@@ -134,6 +202,9 @@ class FirebaseGateway:
                 user_id=user_id,
                 journal_id=journal_id,
                 retry_count=int(data.get("retryCount", 0)),
+                lease_owner=self.worker_id,
+                lease_token=lease_token,
+                attempt_count=attempt_count,
             )
 
         return claim(transaction)
@@ -161,12 +232,23 @@ class FirebaseGateway:
             if not snapshot.exists:
                 return None
             data = snapshot.to_dict() or {}
-            if data.get("status") not in {"queued", "waiting"}:
+            now = datetime.now(timezone.utc)
+            status = data.get("status")
+            lease_expires_at = data.get("leaseExpiresAt")
+            lease_expired = (
+                status == "processing"
+                and (
+                    not isinstance(lease_expires_at, datetime)
+                    or lease_expires_at <= now
+                )
+            )
+            if status not in {"queued", "waiting"} and not lease_expired:
                 return None
             user_id = str(data.get("userId", "")).strip()
             journal_id = str(data.get("journalId", "")).strip()
             if not user_id or not journal_id or snapshot.id != journal_id:
                 raise ValueError("Deletion job identity is invalid.")
+            lease_token = uuid.uuid4().hex
             transaction.update(
                 job_ref,
                 {
@@ -175,6 +257,11 @@ class FirebaseGateway:
                     "completedAt": None,
                     "errorCode": None,
                     "errorMessage": None,
+                    "leaseOwner": self.worker_id,
+                    "leaseToken": lease_token,
+                    "leaseExpiresAt": now
+                    + timedelta(seconds=self.config.deletion_lease_seconds),
+                    "heartbeatAt": now,
                 },
             )
             return ClaimedDeletionJob(
@@ -182,6 +269,8 @@ class FirebaseGateway:
                 user_id=user_id,
                 journal_id=journal_id,
                 retry_count=int(data.get("retryCount", 0)),
+                lease_owner=self.worker_id,
+                lease_token=lease_token,
             )
 
         return claim(transaction)
@@ -194,6 +283,11 @@ class FirebaseGateway:
 
         @firestore.transactional
         def prepare(transaction):
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
+            if not deletion_snapshot.exists:
+                raise JobLeaseLost("Deletion job no longer exists.")
+            deletion = deletion_snapshot.to_dict() or {}
+            self._require_deletion_lease(job, deletion)
             journal_snapshot = journal_ref.get(transaction=transaction)
             analysis_snapshot = analysis_ref.get(transaction=transaction)
             journal = (
@@ -210,17 +304,27 @@ class FirebaseGateway:
                     raise ValueError(
                         "Deletion job ownership does not match its analysis job."
                     )
-                if analysis.get("status") == "processing":
+                analysis_status = str(analysis.get("status", ""))
+                analysis_lease_expires_at = analysis.get("leaseExpiresAt")
+                if analysis_status in {"processing", "cancel_requested"}:
                     transaction.update(
-                        deletion_ref,
+                        analysis_ref,
                         {
-                            "status": "waiting",
-                            "errorCode": None,
-                            "errorMessage": None,
+                            "status": "cancel_requested",
+                            "processingStep": "cancelling",
+                            "cancelRequestedAt": firestore.SERVER_TIMESTAMP,
                         },
                     )
-                    return PreparedDeletion(journal=journal, wait_for_analysis=True)
-                if analysis.get("status") == "queued":
+                    return PreparedDeletion(
+                        journal=journal,
+                        analysis_status="cancel_requested",
+                        analysis_lease_expires_at=(
+                            analysis_lease_expires_at
+                            if isinstance(analysis_lease_expires_at, datetime)
+                            else None
+                        ),
+                    )
+                if analysis_status == "queued":
                     transaction.update(
                         analysis_ref,
                         {
@@ -230,25 +334,50 @@ class FirebaseGateway:
                             "errorMessage": None,
                         },
                     )
-            return PreparedDeletion(journal=journal, wait_for_analysis=False)
+                    return PreparedDeletion(
+                        journal=journal,
+                        analysis_status="cancelled",
+                    )
+                return PreparedDeletion(
+                    journal=journal,
+                    analysis_status=analysis_status or None,
+                )
+            return PreparedDeletion(journal=journal)
 
         return prepare(transaction)
 
     def complete_deletion(self, job: ClaimedDeletionJob) -> None:
-        batch = self.db.batch()
-        batch.delete(self._journal_ref_for(job.user_id, job.journal_id))
-        batch.delete(self.db.collection("analysis_jobs").document(job.journal_id))
-        batch.update(
-            self.db.collection("deletion_jobs").document(job.id),
-            {
-                "status": "complete",
-                "completedAt": firestore.SERVER_TIMESTAMP,
-                "errorCode": None,
-                "errorMessage": None,
-                "expiresAt": datetime.now(timezone.utc) + timedelta(hours=24),
-            },
-        )
-        batch.commit()
+        deletion_ref = self.db.collection("deletion_jobs").document(job.id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def complete(transaction):
+            snapshot = deletion_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                raise JobLeaseLost("Deletion job no longer exists.")
+            self._require_deletion_lease(job, snapshot.to_dict() or {})
+            transaction.delete(
+                self._journal_ref_for(job.user_id, job.journal_id)
+            )
+            transaction.delete(
+                self.db.collection("analysis_jobs").document(job.journal_id)
+            )
+            transaction.update(
+                deletion_ref,
+                {
+                    "status": "complete",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "errorCode": None,
+                    "errorMessage": None,
+                    "leaseOwner": None,
+                    "leaseToken": None,
+                    "leaseExpiresAt": None,
+                    "expiresAt": datetime.now(timezone.utc)
+                    + timedelta(hours=24),
+                },
+            )
+
+        complete(transaction)
 
     def fail_deletion(
         self,
@@ -257,15 +386,108 @@ class FirebaseGateway:
         code: str,
         message: str,
     ) -> None:
-        self.db.collection("deletion_jobs").document(job.id).update(
-            {
-                "status": "failed",
-                "completedAt": firestore.SERVER_TIMESTAMP,
-                "retryCount": job.retry_count + 1,
-                "errorCode": code[:80],
-                "errorMessage": " ".join(message.split())[:300],
-            }
-        )
+        job_ref = self.db.collection("deletion_jobs").document(job.id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def fail(transaction):
+            snapshot = job_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                return
+            data = snapshot.to_dict() or {}
+            self._require_deletion_lease(job, data)
+            transaction.update(
+                job_ref,
+                {
+                    "status": "failed",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "retryCount": job.retry_count + 1,
+                    "errorCode": code[:80],
+                    "errorMessage": " ".join(message.split())[:300],
+                    "leaseOwner": None,
+                    "leaseToken": None,
+                    "leaseExpiresAt": None,
+                },
+            )
+
+        fail(transaction)
+
+    def renew_deletion_lease(self, job: ClaimedDeletionJob) -> bool:
+        job_ref = self.db.collection("deletion_jobs").document(job.id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def renew(transaction):
+            snapshot = job_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                return False
+            data = snapshot.to_dict() or {}
+            try:
+                self._require_deletion_lease(job, data)
+            except JobLeaseLost:
+                return False
+            now = datetime.now(timezone.utc)
+            transaction.update(
+                job_ref,
+                {
+                    "heartbeatAt": now,
+                    "leaseExpiresAt": now
+                    + timedelta(seconds=self.config.deletion_lease_seconds),
+                },
+            )
+            return True
+
+        return bool(renew(transaction))
+
+    def acknowledge_analysis_cancellation(self, journal_id: str) -> None:
+        analysis_ref = self.db.collection("analysis_jobs").document(journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def acknowledge(transaction):
+            snapshot = analysis_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                return
+            data = snapshot.to_dict() or {}
+            if data.get("status") != "cancel_requested":
+                return
+            transaction.update(
+                analysis_ref,
+                {
+                    "status": "cancelled",
+                    "processingStep": "cancelled",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "leaseOwner": None,
+                    "leaseToken": None,
+                    "leaseExpiresAt": None,
+                },
+            )
+
+        acknowledge(transaction)
+
+    def wait_for_analysis_cancellation(
+        self,
+        journal_id: str,
+        *,
+        timeout_seconds: float,
+    ) -> None:
+        deadline = time.monotonic() + max(0.0, timeout_seconds)
+        analysis_ref = self.db.collection("analysis_jobs").document(journal_id)
+        while time.monotonic() < deadline:
+            snapshot = analysis_ref.get()
+            if not snapshot.exists:
+                return
+            data = snapshot.to_dict() or {}
+            if data.get("status") not in {"processing", "cancel_requested"}:
+                return
+            lease_expires_at = data.get("leaseExpiresAt")
+            if (
+                not isinstance(lease_expires_at, datetime)
+                or lease_expires_at <= datetime.now(timezone.utc)
+            ):
+                self.acknowledge_analysis_cancellation(journal_id)
+                return
+            time.sleep(0.25)
 
     def cleanup_expired_deletion(self) -> bool:
         query = (
@@ -549,61 +771,362 @@ class FirebaseGateway:
         return data
 
     def update_progress(self, job: ClaimedJob, step: str) -> None:
-        batch = self.db.batch()
-        batch.update(
-            self._job_ref(job),
-            {"status": "processing", "processingStep": step},
-        )
-        journal_update: dict[str, Any] = {
-            "analysisStatus": "processing",
-            "analysisStep": step,
-        }
-        if step == "downloading":
-            journal_update["analysisStartedAt"] = firestore.SERVER_TIMESTAMP
-        batch.update(self._journal_ref(job), journal_update)
-        batch.commit()
+        job_ref = self._job_ref(job)
+        deletion_ref = self.db.collection("deletion_jobs").document(job.journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def update(transaction):
+            job_snapshot = job_ref.get(transaction=transaction)
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
+            if not job_snapshot.exists:
+                raise JobLeaseLost("Analysis job no longer exists.")
+            self._require_analysis_lease(
+                job,
+                job_snapshot.to_dict() or {},
+                deletion_snapshot.to_dict() if deletion_snapshot.exists else None,
+            )
+            transaction.update(
+                job_ref,
+                {"status": "processing", "processingStep": step},
+            )
+            journal_update: dict[str, Any] = {
+                "analysisStatus": "processing",
+                "analysisStep": step,
+            }
+            if step == "downloading":
+                journal_update["analysisStartedAt"] = firestore.SERVER_TIMESTAMP
+            transaction.update(self._journal_ref(job), journal_update)
+
+        update(transaction)
 
     def complete(self, job: ClaimedJob, result: dict[str, Any]) -> None:
-        batch = self.db.batch()
-        journal_result = dict(result)
-        if "groundingShadowInsights" not in journal_result:
-            journal_result["groundingShadowInsights"] = firestore.DELETE_FIELD
-        journal_result["analysisCompletedAt"] = firestore.SERVER_TIMESTAMP
-        batch.update(self._journal_ref(job), journal_result)
-        batch.update(
-            self._job_ref(job),
-            {
-                "status": "complete",
-                "processingStep": "complete",
-                "completedAt": firestore.SERVER_TIMESTAMP,
-                "errorMessage": None,
-            },
-        )
-        batch.commit()
+        job_ref = self._job_ref(job)
+        deletion_ref = self.db.collection("deletion_jobs").document(job.journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def complete(transaction):
+            job_snapshot = job_ref.get(transaction=transaction)
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
+            if not job_snapshot.exists:
+                raise JobLeaseLost("Analysis job no longer exists.")
+            self._require_analysis_lease(
+                job,
+                job_snapshot.to_dict() or {},
+                deletion_snapshot.to_dict() if deletion_snapshot.exists else None,
+            )
+            journal_result = dict(result)
+            if "groundingShadowInsights" not in journal_result:
+                journal_result["groundingShadowInsights"] = firestore.DELETE_FIELD
+            journal_result["analysisCompletedAt"] = firestore.SERVER_TIMESTAMP
+            transaction.update(self._journal_ref(job), journal_result)
+            transaction.update(
+                job_ref,
+                {
+                    "status": "complete",
+                    "processingStep": "complete",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "errorMessage": None,
+                    "leaseOwner": None,
+                    "leaseToken": None,
+                    "leaseExpiresAt": None,
+                },
+            )
+
+        complete(transaction)
 
     def fail(self, job: ClaimedJob, message: str) -> None:
         safe_message = " ".join(message.split())[:500]
-        batch = self.db.batch()
-        batch.update(
-            self._journal_ref(job),
+        job_ref = self._job_ref(job)
+        deletion_ref = self.db.collection("deletion_jobs").document(job.journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def fail(transaction):
+            job_snapshot = job_ref.get(transaction=transaction)
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
+            if not job_snapshot.exists:
+                raise JobLeaseLost("Analysis job no longer exists.")
+            self._require_analysis_lease(
+                job,
+                job_snapshot.to_dict() or {},
+                deletion_snapshot.to_dict() if deletion_snapshot.exists else None,
+            )
+            transaction.update(
+                self._journal_ref(job),
+                {
+                    "analysisStatus": "failed",
+                    "analysisStep": "failed",
+                    "analysisError": safe_message,
+                    "analysisCompletedAt": firestore.SERVER_TIMESTAMP,
+                },
+            )
+            transaction.update(
+                job_ref,
+                {
+                    "status": "failed",
+                    "processingStep": "failed",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "errorMessage": safe_message,
+                    "retryCount": job.retry_count + 1,
+                    "leaseOwner": None,
+                    "leaseToken": None,
+                    "leaseExpiresAt": None,
+                },
+            )
+
+        fail(transaction)
+
+    def renew_analysis_lease(self, job: ClaimedJob) -> bool:
+        job_ref = self._job_ref(job)
+        deletion_ref = self.db.collection("deletion_jobs").document(job.journal_id)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def renew(transaction):
+            job_snapshot = job_ref.get(transaction=transaction)
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
+            if not job_snapshot.exists:
+                return False
+            try:
+                self._require_analysis_lease(
+                    job,
+                    job_snapshot.to_dict() or {},
+                    (
+                        deletion_snapshot.to_dict()
+                        if deletion_snapshot.exists
+                        else None
+                    ),
+                )
+            except (JobLeaseLost, AnalysisCancelled):
+                return False
+            now = datetime.now(timezone.utc)
+            transaction.update(
+                job_ref,
+                {
+                    "heartbeatAt": now,
+                    "leaseExpiresAt": now
+                    + timedelta(seconds=self.config.analysis_lease_seconds),
+                },
+            )
+            return True
+
+        return bool(renew(transaction))
+
+    def interrupt_analysis(self, job: ClaimedJob) -> None:
+        job_ref = self._job_ref(job)
+        transaction = self.db.transaction()
+
+        @firestore.transactional
+        def interrupt(transaction):
+            snapshot = job_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                return
+            data = snapshot.to_dict() or {}
+            if (
+                data.get("status") != "processing"
+                or data.get("leaseToken") != job.lease_token
+            ):
+                return
+            self._requeue_or_fail_interrupted(
+                transaction,
+                job_ref,
+                self._journal_ref(job),
+                data,
+            )
+
+        interrupt(transaction)
+
+    def recover_stale_jobs(self, *, limit: int = 25) -> int:
+        recovered = self._recover_stale_deletions(limit=limit)
+        recovered += self._recover_stale_analyses(limit=limit)
+        return recovered
+
+    def _recover_stale_deletions(self, *, limit: int) -> int:
+        recovered = 0
+        for status in ("waiting", "processing"):
+            query = (
+                self.db.collection("deletion_jobs")
+                .where(filter=FieldFilter("status", "==", status))
+                .limit(limit)
+            )
+            for snapshot in query.stream():
+                data = snapshot.to_dict() or {}
+                lease_expires_at = data.get("leaseExpiresAt")
+                if (
+                    status == "processing"
+                    and isinstance(lease_expires_at, datetime)
+                    and lease_expires_at > datetime.now(timezone.utc)
+                ):
+                    continue
+                transaction = self.db.transaction()
+
+                @firestore.transactional
+                def recover(transaction):
+                    current = snapshot.reference.get(transaction=transaction)
+                    if not current.exists:
+                        return False
+                    current_data = current.to_dict() or {}
+                    current_status = current_data.get("status")
+                    current_expiry = current_data.get("leaseExpiresAt")
+                    if current_status not in {"waiting", "processing"}:
+                        return False
+                    if (
+                        current_status == "processing"
+                        and isinstance(current_expiry, datetime)
+                        and current_expiry > datetime.now(timezone.utc)
+                    ):
+                        return False
+                    transaction.update(
+                        snapshot.reference,
+                        {
+                            "status": "queued",
+                            "lastInterruptedAt": firestore.SERVER_TIMESTAMP,
+                            "leaseOwner": None,
+                            "leaseToken": None,
+                            "leaseExpiresAt": None,
+                        },
+                    )
+                    return True
+
+                if recover(transaction):
+                    recovered += 1
+        return recovered
+
+    def _recover_stale_analyses(self, *, limit: int) -> int:
+        recovered = 0
+        for status in ("processing", "cancel_requested"):
+            query = (
+                self.db.collection("analysis_jobs")
+                .where(filter=FieldFilter("status", "==", status))
+                .limit(limit)
+            )
+            for snapshot in query.stream():
+                data = snapshot.to_dict() or {}
+                lease_expires_at = data.get("leaseExpiresAt")
+                if (
+                    status == "processing"
+                    and isinstance(lease_expires_at, datetime)
+                    and lease_expires_at > datetime.now(timezone.utc)
+                ):
+                    continue
+                transaction = self.db.transaction()
+
+                @firestore.transactional
+                def recover(transaction):
+                    current = snapshot.reference.get(transaction=transaction)
+                    if not current.exists:
+                        return False
+                    current_data = current.to_dict() or {}
+                    current_status = current_data.get("status")
+                    current_expiry = current_data.get("leaseExpiresAt")
+                    if current_status not in {"processing", "cancel_requested"}:
+                        return False
+                    if (
+                        current_status == "processing"
+                        and isinstance(current_expiry, datetime)
+                        and current_expiry > datetime.now(timezone.utc)
+                    ):
+                        return False
+                    user_id = str(current_data.get("userId", "")).strip()
+                    journal_id = str(current_data.get("journalId", "")).strip()
+                    if not user_id or not journal_id:
+                        return False
+                    deletion = (
+                        self.db.collection("deletion_jobs")
+                        .document(journal_id)
+                        .get(transaction=transaction)
+                    )
+                    if (
+                        current_status == "cancel_requested"
+                        or (
+                            deletion.exists
+                            and _is_active_deletion(deletion.to_dict() or {})
+                        )
+                    ):
+                        transaction.update(
+                            snapshot.reference,
+                            {
+                                "status": "cancelled",
+                                "processingStep": "cancelled",
+                                "completedAt": firestore.SERVER_TIMESTAMP,
+                                "leaseOwner": None,
+                                "leaseToken": None,
+                                "leaseExpiresAt": None,
+                            },
+                        )
+                    else:
+                        self._requeue_or_fail_interrupted(
+                            transaction,
+                            snapshot.reference,
+                            self._journal_ref_for(user_id, journal_id),
+                            current_data,
+                        )
+                    return True
+
+                if recover(transaction):
+                    recovered += 1
+        return recovered
+
+    def _requeue_or_fail_interrupted(
+        self,
+        transaction,
+        job_ref,
+        journal_ref,
+        data: dict[str, Any],
+    ) -> None:
+        attempt_count = int(data.get("attemptCount", data.get("retryCount", 0))) + 1
+        common = {
+            "attemptCount": attempt_count,
+            "lastInterruptedAt": firestore.SERVER_TIMESTAMP,
+            "leaseOwner": None,
+            "leaseToken": None,
+            "leaseExpiresAt": None,
+            "heartbeatAt": None,
+        }
+        if attempt_count >= self.config.analysis_max_attempts:
+            message = "Analysis stopped repeatedly and reached the retry limit."
+            transaction.update(
+                job_ref,
+                {
+                    **common,
+                    "status": "failed",
+                    "processingStep": "failed",
+                    "completedAt": firestore.SERVER_TIMESTAMP,
+                    "errorMessage": message,
+                },
+            )
+            transaction.update(
+                journal_ref,
+                {
+                    "analysisStatus": "failed",
+                    "analysisStep": "failed",
+                    "analysisError": message,
+                    "analysisCompletedAt": firestore.SERVER_TIMESTAMP,
+                },
+            )
+            return
+        transaction.update(
+            job_ref,
             {
-                "analysisStatus": "failed",
-                "analysisStep": "failed",
-                "analysisError": safe_message,
-                "analysisCompletedAt": firestore.SERVER_TIMESTAMP,
+                **common,
+                "status": "queued",
+                "processingStep": "queued",
+                "startedAt": None,
+                "completedAt": None,
+                "errorMessage": None,
             },
         )
-        batch.update(
-            self._job_ref(job),
+        transaction.update(
+            journal_ref,
             {
-                "status": "failed",
-                "processingStep": "failed",
-                "completedAt": firestore.SERVER_TIMESTAMP,
-                "errorMessage": safe_message,
-                "retryCount": job.retry_count + 1,
+                "analysisStatus": "queued",
+                "analysisStep": "retrying",
+                "analysisError": None,
+                "analysisCompletedAt": None,
             },
         )
-        batch.commit()
 
     def requeue_journal(self, user_id: str, journal_id: str) -> None:
         user_id = user_id.strip()
@@ -637,6 +1160,12 @@ class FirebaseGateway:
                         "completedAt": None,
                         "errorMessage": None,
                         "requeuedAt": firestore.SERVER_TIMESTAMP,
+                        "attemptCount": 0,
+                        "leaseOwner": None,
+                        "leaseToken": None,
+                        "leaseExpiresAt": None,
+                        "heartbeatAt": None,
+                        "cancelRequestedAt": None,
                     },
                 )
             else:
@@ -648,11 +1177,17 @@ class FirebaseGateway:
                         "status": "queued",
                         "processingStep": "queued",
                         "retryCount": 0,
+                        "attemptCount": 0,
                         "analysisVersion": ANALYSIS_VERSION,
                         "createdAt": firestore.SERVER_TIMESTAMP,
                         "startedAt": None,
                         "completedAt": None,
                         "errorMessage": None,
+                        "leaseOwner": None,
+                        "leaseToken": None,
+                        "leaseExpiresAt": None,
+                        "heartbeatAt": None,
+                        "cancelRequestedAt": None,
                     },
                 )
             transaction.update(
@@ -682,6 +1217,49 @@ class FirebaseGateway:
             .document(journal_id)
         )
 
+    def _require_analysis_lease(
+        self,
+        job: ClaimedJob,
+        data: dict[str, Any],
+        deletion: dict[str, Any] | None,
+    ) -> None:
+        if deletion and _is_active_deletion(deletion):
+            raise AnalysisCancelled("Journal deletion has cancelled analysis.")
+        if data.get("status") == "cancel_requested":
+            raise AnalysisCancelled("Analysis cancellation was requested.")
+        if (
+            data.get("status") != "processing"
+            or not job.lease_token
+            or data.get("leaseToken") != job.lease_token
+            or data.get("leaseOwner") != job.lease_owner
+        ):
+            raise JobLeaseLost("Analysis lease is no longer owned by this worker.")
+        lease_expires_at = data.get("leaseExpiresAt")
+        if (
+            not isinstance(lease_expires_at, datetime)
+            or lease_expires_at <= datetime.now(timezone.utc)
+        ):
+            raise JobLeaseLost("Analysis lease has expired.")
+
+    def _require_deletion_lease(
+        self,
+        job: ClaimedDeletionJob,
+        data: dict[str, Any],
+    ) -> None:
+        if (
+            data.get("status") != "processing"
+            or not job.lease_token
+            or data.get("leaseToken") != job.lease_token
+            or data.get("leaseOwner") != job.lease_owner
+        ):
+            raise JobLeaseLost("Deletion lease is no longer owned by this worker.")
+        lease_expires_at = data.get("leaseExpiresAt")
+        if (
+            not isinstance(lease_expires_at, datetime)
+            or lease_expires_at <= datetime.now(timezone.utc)
+        ):
+            raise JobLeaseLost("Deletion lease has expired.")
+
 
 def validate_requeue_documents(
     journal: dict[str, Any] | None,
@@ -699,6 +1277,14 @@ def validate_requeue_documents(
         raise ValueError("The analysis job ownership does not match the journal.")
     if job.get("status") == "processing":
         raise ValueError("A processing analysis job cannot be requeued.")
+
+
+def _is_active_deletion(data: dict[str, Any]) -> bool:
+    return data.get("status") in {
+        "queued",
+        "processing",
+        "waiting",
+    }
 
 
 def _export_download_from_data(

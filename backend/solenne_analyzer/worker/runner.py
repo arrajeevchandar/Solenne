@@ -9,7 +9,12 @@ from urllib.parse import urlparse
 from ..config import AnalyzerConfig, DEFAULT_OUTPUT_DIR
 from ..pipeline.orchestrator import PipelineRunner
 from .config import WorkerConfig
-from .firebase_gateway import ClaimedJob, FirebaseGateway
+from .firebase_gateway import (
+    AnalysisCancelled,
+    ClaimedJob,
+    FirebaseGateway,
+    JobLeaseLost,
+)
 from .media_source import (
     MediaSourceError,
     cloudinary_thumbnail_url,
@@ -35,14 +40,14 @@ class AnalysisWorker:
         job = self.gateway.claim_next_job()
         if job is None:
             return False
-        self._process_claimed(job)
+        self.process_claimed(job)
         return True
 
     def process_job(self, job_id: str) -> bool:
         job = self.gateway.claim_job(job_id)
         if job is None:
             return False
-        self._process_claimed(job)
+        self.process_claimed(job)
         return True
 
     def watch(self) -> None:
@@ -56,7 +61,7 @@ class AnalysisWorker:
             if not processed:
                 time.sleep(self.config.poll_interval_seconds)
 
-    def _process_claimed(self, job: ClaimedJob) -> None:
+    def process_claimed(self, job: ClaimedJob) -> None:
         LOGGER.info("Processing analysis job %s", job.id)
         try:
             journal = self.gateway.get_journal(job)
@@ -104,9 +109,18 @@ class AnalysisWorker:
                         )
                 self.gateway.complete(job, payload)
             LOGGER.info("Completed analysis job %s", job.id)
+        except (AnalysisCancelled, JobLeaseLost) as error:
+            LOGGER.info("Analysis job %s stopped: %s", job.id, _safe_error(error))
         except Exception as error:
             LOGGER.error("Analysis job %s failed: %s", job.id, _safe_error(error))
-            self.gateway.fail(job, _safe_error(error))
+            try:
+                self.gateway.fail(job, _safe_error(error))
+            except (AnalysisCancelled, JobLeaseLost) as fence_error:
+                LOGGER.info(
+                    "Analysis job %s failure was discarded: %s",
+                    job.id,
+                    _safe_error(fence_error),
+                )
 
     def _download_with_retry(self, video_url: str, video_path: Path) -> None:
         last_error: Exception | None = None

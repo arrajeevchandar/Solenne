@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+import posixpath
 from urllib.parse import unquote, urlparse, urlunparse
 
 import httpx
@@ -21,7 +22,7 @@ def cloudinary_thumbnail_url(video_url: str, timestamp_seconds: float) -> str:
     before, after = parsed.path.split(marker, 1)
     timestamp = f"{timestamp_seconds:.3f}".rstrip("0").rstrip(".")
     transformed_path = f"{before}{marker}so_{timestamp},f_jpg,q_auto/{after}"
-    final_path = str(Path(transformed_path).with_suffix(".jpg"))
+    final_path = f"{posixpath.splitext(transformed_path)[0]}.jpg"
     return urlunparse(parsed._replace(path=final_path, query="", fragment=""))
 
 

@@ -204,7 +204,6 @@ class DeletionWorkerTests(unittest.TestCase):
             def prepare_deletion(self, _job):
                 return PreparedDeletion(
                     journal={"cloudinaryPublicId": "solenne/journals/video-1"},
-                    wait_for_analysis=False,
                 )
 
             def complete_deletion(self, _job):
@@ -223,16 +222,47 @@ class DeletionWorkerTests(unittest.TestCase):
         self.assertTrue(worker.process_next())
         self.assertEqual(events, ["cloudinary", "firestore"])
 
-    def test_waiting_deletion_yields_to_other_queue_work(self) -> None:
+    def test_processing_analysis_is_cancelled_before_deletion(self) -> None:
+        events: list[str] = []
+
         class Gateway:
             def claim_next_deletion(self):
                 return ClaimedDeletionJob("journal-1", "user-1", "journal-1", 0)
 
             def prepare_deletion(self, _job):
-                return PreparedDeletion(journal={}, wait_for_analysis=True)
+                return PreparedDeletion(
+                    journal={},
+                    analysis_status="cancel_requested",
+                )
 
-        worker = DeletionWorker(_config(), Gateway(), object())
-        self.assertFalse(worker.process_next())
+            def acknowledge_analysis_cancellation(self, _journal_id):
+                events.append("acknowledge")
+
+            def wait_for_analysis_cancellation(
+                self, _journal_id, *, timeout_seconds
+            ):
+                self.timeout_seconds = timeout_seconds
+                events.append("wait")
+
+            def complete_deletion(self, _job):
+                events.append("firestore")
+
+            def fail_deletion(self, *_args, **_kwargs):
+                raise AssertionError("Deletion should not fail.")
+
+        worker = DeletionWorker(
+            _config(),
+            Gateway(),
+            object(),
+            cancel_analysis=lambda journal_id: (
+                events.append(f"cancel:{journal_id}") or True
+            ),
+        )
+        self.assertTrue(worker.process_next())
+        self.assertEqual(
+            events,
+            ["cancel:journal-1", "acknowledge", "wait", "firestore"],
+        )
 
     def test_cloudinary_failure_preserves_firestore_and_marks_job_failed(
         self,
@@ -248,7 +278,6 @@ class DeletionWorkerTests(unittest.TestCase):
                     journal={
                         "cloudinaryPublicId": "solenne/journals/video-1"
                     },
-                    wait_for_analysis=False,
                 )
 
             def complete_deletion(self, _job):
@@ -276,7 +305,6 @@ class DeletionWorkerTests(unittest.TestCase):
             def prepare_deletion(self, _job):
                 return PreparedDeletion(
                     journal={"cloudinaryPublicId": "another-folder/video-1"},
-                    wait_for_analysis=False,
                 )
 
             def complete_deletion(self, _job):
@@ -307,7 +335,6 @@ class DeletionWorkerTests(unittest.TestCase):
                     journal={
                         "cloudinaryPublicId": "solenne/journals/video-1"
                     },
-                    wait_for_analysis=False,
                 )
 
             def complete_deletion(self, _job):

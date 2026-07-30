@@ -7,7 +7,7 @@ from .cloudinary_admin import CloudinaryAdminClient
 from .config import WorkerConfig
 from .firebase_gateway import FirebaseGateway
 from .privacy_jobs import DeletionWorker, ExportWorker
-from .runner import AnalysisWorker
+from .supervisor import AnalysisSupervisor
 
 
 LOGGER = logging.getLogger("solenne.dispatcher")
@@ -21,13 +21,16 @@ class QueueWorker:
     ) -> None:
         self.config = config or WorkerConfig.from_env()
         self.gateway = gateway or FirebaseGateway(self.config)
-        self.analysis = AnalysisWorker(self.config, gateway=self.gateway)
+        self.analysis = AnalysisSupervisor(self.config, self.gateway)
         self.deletion: DeletionWorker | None = None
         self.export: ExportWorker | None = None
         if self.config.has_cloudinary_admin_credentials:
             cloudinary_client = CloudinaryAdminClient(self.config)
             self.deletion = DeletionWorker(
-                self.config, self.gateway, cloudinary_client
+                self.config,
+                self.gateway,
+                cloudinary_client,
+                cancel_analysis=self.analysis.cancel,
             )
             self.export = ExportWorker(self.config, self.gateway, cloudinary_client)
         else:
@@ -36,26 +39,48 @@ class QueueWorker:
                 "queues are disabled."
             )
 
-    def process_next(self) -> bool:
+    def process_next(self, *, wait_for_analysis: bool = True) -> bool:
+        recovered = self.gateway.recover_stale_jobs()
+        if recovered:
+            LOGGER.info("Recovered %s stale or legacy queue job(s).", recovered)
+        self.analysis.poll()
         if self.deletion is not None and self.deletion.cleanup_next():
             return True
         if self.deletion is not None and self.deletion.process_next():
             return True
+        if self.analysis.active:
+            return False
         if self.export is not None and self.export.expire_next():
             return True
         if self.export is not None and self.export.process_next():
             return True
-        return self.analysis.process_next()
+        started = self.analysis.start_next()
+        if started and wait_for_analysis:
+            self.analysis.wait()
+        return started
 
     def process_analysis_job(self, job_id: str) -> bool:
-        return self.analysis.process_job(job_id)
+        self.gateway.recover_stale_jobs()
+        started = self.analysis.start_next(job_id)
+        if started:
+            self.analysis.wait()
+        return started
 
     def watch(self) -> None:
         LOGGER.info("Worker ready; waiting for queued jobs.")
-        while True:
-            try:
-                processed = self.process_next()
-            except Exception as error:
-                LOGGER.error("Worker poll failed: %s", error)
-                processed = False
-            time.sleep(self.config.poll_interval_seconds)
+        try:
+            while True:
+                try:
+                    self.process_next(wait_for_analysis=False)
+                except Exception as error:
+                    LOGGER.error("Worker poll failed: %s", error)
+                delay = (
+                    min(1.0, self.config.poll_interval_seconds)
+                    if self.analysis.active
+                    else self.config.poll_interval_seconds
+                )
+                time.sleep(delay)
+        except KeyboardInterrupt:
+            LOGGER.info("Worker shutdown requested.")
+        finally:
+            self.analysis.shutdown()

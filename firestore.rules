@@ -37,6 +37,7 @@ service cloud.firestore {
         && request.resource.data.status == 'queued'
         && request.resource.data.processingStep == 'queued'
         && request.resource.data.retryCount == 0
+        && request.resource.data.attemptCount == 0
         && getAfter(
           /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
         ).data.userId == request.auth.uid;

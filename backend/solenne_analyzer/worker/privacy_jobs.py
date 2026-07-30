@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import time
+from typing import Callable
 from urllib.parse import urlparse
 import zipfile
 
@@ -41,10 +42,12 @@ class DeletionWorker:
         config: WorkerConfig,
         gateway: FirebaseGateway,
         cloudinary_client: CloudinaryAdminClient,
+        cancel_analysis: Callable[[str], bool] | None = None,
     ) -> None:
         self.config = config
         self.gateway = gateway
         self.cloudinary = cloudinary_client
+        self.cancel_analysis = cancel_analysis
 
     def process_next(self) -> bool:
         job = self.gateway.claim_next_deletion()
@@ -59,9 +62,19 @@ class DeletionWorker:
         LOGGER.info("Processing deletion job %s", job.id)
         try:
             prepared = self.gateway.prepare_deletion(job)
-            if prepared.wait_for_analysis:
-                LOGGER.info("Deletion job %s is waiting for analysis.", job.id)
-                return False
+            if prepared.analysis_status == "cancel_requested":
+                cancelled_locally = bool(
+                    self.cancel_analysis
+                    and self.cancel_analysis(job.journal_id)
+                )
+                if cancelled_locally:
+                    self.gateway.acknowledge_analysis_cancellation(
+                        job.journal_id
+                    )
+                self.gateway.wait_for_analysis_cancellation(
+                    job.journal_id,
+                    timeout_seconds=self.config.deletion_cancel_grace_seconds,
+                )
             journal = prepared.journal
             if journal is not None:
                 public_id = validate_cloudinary_public_id(
@@ -69,6 +82,11 @@ class DeletionWorker:
                     folder=self.config.cloudinary_folder,
                 )
                 if public_id:
+                    renew_lease = getattr(
+                        self.gateway, "renew_deletion_lease", None
+                    )
+                    if renew_lease is not None and not renew_lease(job):
+                        raise RuntimeError("Deletion lease was lost.")
                     self._destroy_video_with_retry(public_id)
             self.gateway.complete_deletion(job)
             LOGGER.info("Completed deletion job %s", job.id)
