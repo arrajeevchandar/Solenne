@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-07-v1';
+  static const analysisVersion = '2026-07-v4-adaptive-detailed-thumbnail';
 
   JournalRepository({required this.firestore, required this.auth});
 
@@ -98,10 +98,14 @@ class JournalRepository {
   Stream<JournalEntry?> watchJournal(String id) {
     final user = auth.currentUser;
     if (user == null) return Stream.value(null);
-    return _collection(user.uid).doc(id).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return JournalEntry.fromFirestore(doc);
-    });
+    return _collection(user.uid)
+        .doc(id)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return <JournalEntry>[];
+          return <JournalEntry>[JournalEntry.fromFirestore(doc)];
+        })
+        .map((entries) => entries.isEmpty ? null : entries.first);
   }
 
   Future<void> saveJournal(JournalEntry entry) async {
@@ -133,6 +137,46 @@ class JournalRepository {
         'lastJournalAt': Timestamp.fromDate(entry.recordedAt),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    });
+  }
+
+  /// Queues permanent backend deletion of the journal and its Cloudinary media.
+  Future<void> deleteJournal(String id) async {
+    final user = auth.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to delete a journal.');
+    }
+    final jobRef = firestore.collection('deletion_jobs').doc(id);
+    await firestore.runTransaction((transaction) async {
+      final existing = await transaction.get(jobRef);
+      if (!existing.exists) {
+        transaction.set(jobRef, {
+          'userId': user.uid,
+          'journalId': id,
+          'status': 'queued',
+          'retryCount': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'startedAt': null,
+          'completedAt': null,
+          'errorCode': null,
+          'errorMessage': null,
+        });
+        return;
+      }
+      final data = existing.data() ?? const <String, dynamic>{};
+      if (data['userId'] != user.uid || data['journalId'] != id) {
+        throw StateError('This deletion request does not belong to you.');
+      }
+      if (data['status'] == 'failed') {
+        transaction.update(jobRef, {
+          'status': 'queued',
+          'startedAt': null,
+          'completedAt': null,
+          'errorCode': null,
+          'errorMessage': null,
+          'requestedAt': FieldValue.serverTimestamp(),
+        });
+      }
     });
   }
 }

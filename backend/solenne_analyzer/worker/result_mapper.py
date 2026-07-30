@@ -6,11 +6,14 @@ from typing import Any
 from ..schemas import AnalysisResult
 
 
+ANALYSIS_VERSION = "2026-07-v4-adaptive-detailed-thumbnail"
+
+
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
-    return {
+    payload = {
         "analysisStatus": "complete",
         "analysisStep": "complete",
-        "analysisVersion": "2026-07-v1",
+        "analysisVersion": ANALYSIS_VERSION,
         "analysisError": None,
         "transcript": {
             "text": result.transcript.text,
@@ -27,3 +30,8 @@ def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
         "insightProvider": result.insightProvider,
         "llmDiagnostics": asdict(result.llmDiagnostics),
     }
+    if result.groundingShadowInsights:
+        payload["groundingShadowInsights"] = [
+            asdict(insight) for insight in result.groundingShadowInsights
+        ]
+    return payload

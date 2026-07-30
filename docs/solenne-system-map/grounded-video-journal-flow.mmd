@@ -1,0 +1,215 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true,
+    "nodeSpacing": 34,
+    "rankSpacing": 54,
+    "padding": 14
+  },
+  "themeVariables": {
+    "background": "#071226",
+    "primaryColor": "#102A56",
+    "primaryTextColor": "#F2EBDD",
+    "primaryBorderColor": "#D4B96C",
+    "secondaryColor": "#173A72",
+    "secondaryTextColor": "#F2EBDD",
+    "secondaryBorderColor": "#5F88CF",
+    "tertiaryColor": "#0B1D3A",
+    "tertiaryTextColor": "#F2EBDD",
+    "tertiaryBorderColor": "#365C99",
+    "lineColor": "#D4B96C",
+    "textColor": "#F2EBDD",
+    "fontFamily": "Inter, Avenir, Helvetica, Arial, sans-serif",
+    "clusterBkg": "#091932",
+    "clusterBorder": "#365C99",
+    "edgeLabelBackground": "#071226"
+  }
+}}%%
+
+flowchart TB
+    User(["User"])
+
+    subgraph CLIENT["FLUTTER CLIENT"]
+        direction TB
+        Auth["Firebase Authentication"]
+        Record["Record video journal"]
+        Upload["Upload video and thumbnail"]
+        Create["Create journal metadata<br/>and analysis job"]
+        Home["Home<br/>Three latest recorded days"]
+        Timeline["Timeline and calendar"]
+        Daily["Daily Insight<br/>Video · AI insight · evidence · sources"]
+
+        Auth --> Record
+        Record --> Upload
+        Upload --> Create
+        Home -->|"Open recorded day"| Daily
+        Timeline -->|"Open recorded date"| Daily
+    end
+
+    User --> Auth
+
+    subgraph CLOUD["CLOUD SERVICES"]
+        direction LR
+        Cloudinary[("Cloudinary<br/>Video + thumbnail")]
+        Journals[("Firestore journals<br/>users/{uid}/journals/{journalId}")]
+        Jobs[("Firestore jobs<br/>analysis_jobs/{journalId}")]
+    end
+
+    Upload -->|"Media asset"| Cloudinary
+    Cloudinary -->|"videoUrl + thumbnailUrl"| Create
+    Create --> Journals
+    Create -->|"queued"| Jobs
+
+    subgraph WORKER["PYTHON ANALYZER WORKER"]
+        direction LR
+        Poll["Poll queued jobs"]
+        ValidateInput["Validate user, journal<br/>and Cloudinary URL"]
+        Download["Download video<br/>to temporary storage"]
+        JobState["Update job state<br/>queued → processing → completed / failed"]
+
+        Poll --> ValidateInput
+        ValidateInput --> Download
+        Download --> JobState
+    end
+
+    Jobs --> Poll
+    Journals --> ValidateInput
+    Cloudinary --> Download
+    JobState --> Jobs
+
+    subgraph ANALYSIS["RECORDING-ANALYSIS PIPELINE"]
+        direction TB
+        FFmpeg["FFmpeg<br/>Extract audio"]
+        Whisper["Faster Whisper<br/>Transcript + confidence"]
+        OpenCV["OpenCV<br/>Visual quality + facial signals"]
+        Librosa["librosa<br/>Voice features"]
+        NLP["NLP<br/>Topics · key phrases · word count<br/>confidence · sentiment"]
+        Fusion["Existing signal fusion<br/>Voice · face · sentiment · derived metrics"]
+
+        Download --> FFmpeg
+        Download --> OpenCV
+        FFmpeg --> Whisper
+        FFmpeg --> Librosa
+        Whisper --> NLP
+        OpenCV --> Fusion
+        Librosa --> Fusion
+        NLP --> Fusion
+    end
+
+    Boundary["GROUNDING BOUNDARY<br/>Only transcript topics and key phrases may select research context.<br/>Voice, face, fused metrics, arousal, valence, congruence and stress scores are excluded."]
+    NLP --> Boundary
+
+    subgraph GOVERNANCE["CATALOG GOVERNANCE — RELEASE CONTROLLED"]
+        direction LR
+        Research["PubMed-indexed<br/>public research"]
+        HumanReview["Human catalog-release review"]
+        Catalog[("Approved Git-versioned catalog<br/>Sources · exact claims · limitations<br/>support levels · approved suggestions")]
+
+        Research --> HumanReview
+        HumanReview --> Catalog
+    end
+
+    NoLiveWeb["No live web research<br/>during journal processing"]
+    NoLiveWeb -.-> Catalog
+
+    subgraph GROUNDING["SOURCE-SUPPORTED GROUNDING PIPELINE"]
+        direction TB
+        Facts["Deterministic observation facts<br/>from transcript topics + key phrases"]
+        Safety{"Crisis or self-harm<br/>language detected?"}
+        Supportive["Deterministic supportive card<br/>Safety bypass; no ordinary generation"]
+        Mapping["Deterministic claim-category mapping"]
+        Retrieve["Retrieve up to two<br/>eligible claim cards"]
+        Groq["Groq drafts personal content only<br/>Title · summary · mood · themes · questions<br/>and allowed catalog/evidence IDs"]
+        Assemble["Server injects exact values and wording<br/>Claims · approved suggestions · limitations<br/>canonical HTTPS citations"]
+        Verify{"Deterministic provenance<br/>and safety validation"}
+        Grounded["Validated grounded insight"]
+        Fallback["User-data-only fallback<br/>after one retry or unavailable dependency"]
+
+        Facts --> Safety
+        Safety -->|"Yes"| Supportive
+        Safety -->|"No"| Mapping
+        Mapping --> Retrieve
+        Retrieve --> Groq
+        Groq --> Assemble
+        Assemble --> Verify
+        Verify -->|"Valid"| Grounded
+        Verify -->|"Invalid after one retry"| Fallback
+    end
+
+    Boundary --> Facts
+    Catalog --> Retrieve
+    Catalog --> Assemble
+
+    subgraph EXISTING["EXISTING INSIGHT PATH"]
+        direction TB
+        ExistingInsight["Templates / Groq<br/>Existing personal insight"]
+    end
+
+    Fusion --> ExistingInsight
+
+    subgraph MODES["GROUNDING_MODE"]
+        direction LR
+        Off["off<br/>Existing result → aiInsights"]
+        Shadow["shadow<br/>Existing result → aiInsights<br/>Grounded result → groundingShadowInsights"]
+        Enforce["enforce<br/>Validated grounded result → aiInsights"]
+    end
+
+    ExistingInsight --> Off
+    ExistingInsight --> Shadow
+    Grounded --> Shadow
+    Supportive --> Shadow
+    Fallback --> Shadow
+    Grounded --> Enforce
+    Supportive --> Enforce
+    Fallback --> Enforce
+
+    subgraph RESULTS["FIRESTORE RESULT DELIVERY"]
+        direction LR
+        AiResults[("aiInsights")]
+        ShadowResults[("groundingShadowInsights<br/>Private comparison output")]
+        AnalysisResults[("Transcript · analysis results<br/>evidence · diagnostics · processing status")]
+    end
+
+    Off --> AiResults
+    Shadow --> AiResults
+    Shadow --> ShadowResults
+    Enforce --> AiResults
+    NLP --> AnalysisResults
+    Fusion --> AnalysisResults
+
+    AiResults --> Journals
+    ShadowResults --> Journals
+    AnalysisResults --> Journals
+
+    subgraph DELIVERY["USER-FACING DELIVERY"]
+        direction LR
+        Live["Live Firestore stream"]
+        Playback["Cloudinary video stream"]
+        External["Valid HTTPS source link<br/>Publisher or PubMed"]
+    end
+
+    Journals --> Live
+    Live -->|"Automatically updates after processing"| Daily
+    Cloudinary --> Playback
+    Playback --> Daily
+    Daily -->|"Open research source"| External
+
+    classDef user fill:#D4B96C,stroke:#F2D98F,color:#071226,stroke-width:2px;
+    classDef client fill:#173A72,stroke:#5F88CF,color:#F2EBDD,stroke-width:1.5px;
+    classDef cloud fill:#102A56,stroke:#7FA6E8,color:#F2EBDD,stroke-width:1.5px;
+    classDef process fill:#0D2347,stroke:#D4B96C,color:#F2EBDD,stroke-width:1.5px;
+    classDef decision fill:#3B315A,stroke:#D4B96C,color:#F2EBDD,stroke-width:2px;
+    classDef store fill:#0B3150,stroke:#6FA6C9,color:#F2EBDD,stroke-width:1.5px;
+    classDef safety fill:#5A2E3A,stroke:#E2A2A7,color:#F2EBDD,stroke-width:1.5px;
+    classDef boundary fill:#201D3B,stroke:#D4B96C,color:#F2EBDD,stroke-width:2px;
+    classDef muted fill:#132039,stroke:#54709B,color:#D7DFEC,stroke-dasharray:5 4;
+
+    class User user;
+    class Auth,Record,Upload,Create,Home,Timeline,Daily client;
+    class Cloudinary,Journals,Jobs,AiResults,ShadowResults,AnalysisResults,Catalog store;
+    class Poll,ValidateInput,Download,JobState,FFmpeg,Whisper,OpenCV,Librosa,NLP,Fusion,Facts,Mapping,Retrieve,Groq,Assemble,Grounded,Fallback,ExistingInsight,Off,Shadow,Enforce,Live,Playback,External process;
+    class Safety,Verify decision;
+    class Supportive safety;
+    class Boundary boundary;
+    class NoLiveWeb muted;

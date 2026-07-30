@@ -33,6 +33,7 @@ dependencies:
 
   camera: ^0.11.3
   cloud_firestore: ^6.1.0
+  cross_file: ^0.3.5+4
   firebase_auth: ^6.1.2
   firebase_core: ^4.3.0
   flutter_riverpod: ^3.0.3
@@ -42,6 +43,7 @@ dependencies:
   intl: ^0.20.2
   path_provider: ^2.1.5
   permission_handler: ^12.0.1
+  share_plus: ^13.3.0
   video_player: ^2.10.1
 
   # The following adds the Cupertino Icons font to your application.
@@ -52,6 +54,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  fake_cloud_firestore: ^4.1.1
+  firebase_auth_mocks: ^0.15.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

@@ -7,9 +7,11 @@ import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../features/recording/local_video_controller.dart';
 import '../../features/recording/recording_draft.dart';
+import '../../routing/fade_through_route.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../services/cloudinary/cloudinary_upload_service.dart';
 import '../../theme/app_theme.dart';
+import '../app_shell.dart';
 import 'entry_saved_screen.dart';
 import 'recording_screen.dart';
 
@@ -46,11 +48,27 @@ class _RecordingPreviewScreenState
           .catchError((Object error) {
             if (mounted) setState(() => _error = error.toString());
           });
+    // Keep the scrubber position and play/pause icon in sync with playback.
+    _controller.addListener(_onPlaybackTick);
     _titleController = TextEditingController();
+  }
+
+  void _onPlaybackTick() {
+    if (mounted) setState(() {});
+  }
+
+  /// Discards this recording without saving and returns to the home screen.
+  void _discard() {
+    if (_saving) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      fadeThroughRoute(const AppShell()),
+      (_) => false,
+    );
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onPlaybackTick);
     _controller.dispose();
     _titleController.dispose();
     super.dispose();
@@ -224,6 +242,10 @@ class _RecordingPreviewScreenState
                         ),
                       ),
                     ),
+                    if (_controller.value.isInitialized) ...[
+                      const SizedBox(height: 12),
+                      _PlaybackScrubber(controller: _controller),
+                    ],
                     const SizedBox(height: 16),
                     _Glass(
                       child: TextField(
@@ -307,6 +329,13 @@ class _RecordingPreviewScreenState
                             ),
                       quiet: true,
                     ),
+                    const SizedBox(height: 12),
+                    _ActionButton(
+                      label: "No, don't save",
+                      icon: Icons.close_rounded,
+                      onTap: _saving ? null : _discard,
+                      quiet: true,
+                    ),
                   ],
                 ),
               ),
@@ -372,6 +401,115 @@ class _ActionButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PlaybackScrubber extends StatelessWidget {
+  const _PlaybackScrubber({required this.controller});
+
+  final VideoPlayerController controller;
+
+  static String _clock(Duration value) {
+    final minutes = value.inMinutes.remainder(60).toString();
+    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  void _skip(Duration offset) {
+    final total = controller.value.duration;
+    var target = controller.value.position + offset;
+    if (target < Duration.zero) target = Duration.zero;
+    if (target > total) target = total;
+    controller.seekTo(target);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controller.value;
+    return Column(
+      children: [
+        Row(
+          children: [
+            _SkipButton(
+              icon: Icons.replay_10_rounded,
+              onTap: () => _skip(const Duration(seconds: -10)),
+            ),
+            Expanded(
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  activeTrackColor: AppColors.quicksand.withValues(alpha: 0.9),
+                  inactiveTrackColor: AppColors.shellstone.withValues(
+                    alpha: 0.24,
+                  ),
+                  thumbColor: AppColors.quicksand,
+                  overlayColor: AppColors.quicksand.withValues(alpha: 0.18),
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 7,
+                  ),
+                ),
+                child: Slider(
+                  min: 0,
+                  max: value.duration.inMilliseconds
+                      .clamp(1, 1 << 31)
+                      .toDouble(),
+                  value: value.position.inMilliseconds
+                      .clamp(0, value.duration.inMilliseconds)
+                      .toDouble(),
+                  onChanged: (millis) {
+                    controller.seekTo(Duration(milliseconds: millis.round()));
+                  },
+                ),
+              ),
+            ),
+            _SkipButton(
+              icon: Icons.forward_10_rounded,
+              onTap: () => _skip(const Duration(seconds: 10)),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _clock(value.position),
+                style: AppTextStyles.mono(
+                  fontSize: 10,
+                  color: AppColors.shellstone.withValues(alpha: 0.66),
+                ),
+              ),
+              Text(
+                _clock(value.duration),
+                style: AppTextStyles.mono(
+                  fontSize: 10,
+                  color: AppColors.shellstone.withValues(alpha: 0.66),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkipButton extends StatelessWidget {
+  const _SkipButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon),
+      iconSize: 22,
+      color: AppColors.shellstone.withValues(alpha: 0.78),
+      splashRadius: 20,
     );
   }
 }

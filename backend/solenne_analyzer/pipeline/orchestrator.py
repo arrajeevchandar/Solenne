@@ -51,7 +51,11 @@ class PipelineRunner:
             result.transcript = transcribe_audio(audio_path, self.config)
 
             self._log(log_lines, "face", "sampling frames")
-            result.facial = analyze_face(video_path, self.config)
+            result.facial = analyze_face(
+                video_path,
+                self.config,
+                duration_seconds=result.durationSeconds,
+            )
 
             self._log(log_lines, "voice", "extracting prosody")
             result.voice = analyze_voice(audio_path, result.transcript)

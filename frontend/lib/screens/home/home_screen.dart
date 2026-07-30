@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/profile_avatar.dart';
 import '../../features/journals/journal_dashboard.dart';
 import '../../features/journals/journal_day.dart';
 import '../../features/journals/journal_entry.dart';
@@ -134,9 +135,9 @@ class _HomeHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(firebaseAuthProvider);
-    final firestore = ref.watch(firestoreProvider);
     final user = auth.currentUser;
-    final directName = _cleanName(user?.displayName);
+    final profile = ref.watch(userProfileProvider).value;
+    final directName = _cleanName(profile?.displayName ?? user?.displayName);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,18 +157,9 @@ class _HomeHeader extends ConsumerWidget {
                   style: AppTextStyles.display(fontSize: 34),
                 )
               else
-                FutureBuilder(
-                  future: firestore.collection('users').doc(user.uid).get(),
-                  builder: (context, snapshot) {
-                    final data = snapshot.data?.data();
-                    final fallbackName = _cleanName(
-                      data == null ? null : data['displayName'] as String?,
-                    );
-                    return Text(
-                      _greeting(fallbackName ?? 'friend'),
-                      style: AppTextStyles.display(fontSize: 34),
-                    );
-                  },
+                Text(
+                  _greeting('friend'),
+                  style: AppTextStyles.display(fontSize: 34),
                 ),
               const SizedBox(height: 4),
               Text(
@@ -182,6 +174,7 @@ class _HomeHeader extends ConsumerWidget {
         ),
         _GlassIconButton(
           icon: Icons.person_rounded,
+          photoUrl: profile?.photoUrl ?? user?.photoURL,
           onTap: () => _showProfileMenu(context, ref),
         ),
       ],
@@ -809,9 +802,14 @@ class _QuietOrbCard extends StatelessWidget {
 
 class _GlassIconButton extends StatelessWidget {
   final IconData icon;
+  final String? photoUrl;
   final VoidCallback onTap;
 
-  const _GlassIconButton({required this.icon, required this.onTap});
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.photoUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -822,11 +820,13 @@ class _GlassIconButton extends StatelessWidget {
         height: 38,
         padding: EdgeInsets.zero,
         borderRadius: 19,
-        child: Icon(
-          icon,
-          size: 18,
-          color: AppColors.shellstone.withValues(alpha: 0.82),
-        ),
+        child: photoUrl?.trim().isNotEmpty == true
+            ? ProfileAvatar(photoUrl: photoUrl, radius: 19)
+            : Icon(
+                icon,
+                size: 18,
+                color: AppColors.shellstone.withValues(alpha: 0.82),
+              ),
       ),
     );
   }

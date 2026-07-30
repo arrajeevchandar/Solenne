@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/auth/auth_providers.dart';
+import '../features/auth/profile_avatar.dart';
 import '../routing/fade_through_route.dart';
 import '../theme/app_theme.dart';
 import 'home/home_screen.dart';
@@ -7,14 +10,14 @@ import 'profile/profile_screen.dart';
 import 'recording/recording_screen.dart';
 import 'timeline/timeline_screen.dart';
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
 
   void _openRecording() {
@@ -24,6 +27,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final photoUrl = ref.watch(userProfileProvider).value?.photoUrl;
 
     return Scaffold(
       extendBody: true,
@@ -66,6 +70,7 @@ class _AppShellState extends State<AppShell> {
               ),
               _NavItem(
                 icon: Icons.person_rounded,
+                photoUrl: photoUrl,
                 selected: _index == 3,
                 onTap: () => setState(() => _index = 3),
               ),
@@ -79,6 +84,7 @@ class _AppShellState extends State<AppShell> {
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
+  final String? photoUrl;
   final bool selected;
   final VoidCallback onTap;
 
@@ -86,6 +92,7 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.photoUrl,
   });
 
   @override
@@ -96,13 +103,20 @@ class _NavItem extends StatelessWidget {
       child: SizedBox(
         width: 46,
         height: 46,
-        child: Icon(
-          icon,
-          size: selected ? 23 : 21,
-          color: selected
-              ? AppColors.quicksand.withValues(alpha: 0.9)
-              : AppColors.shellstone.withValues(alpha: 0.52),
-        ),
+        child: photoUrl?.trim().isNotEmpty == true
+            ? Center(
+                child: ProfileAvatar(
+                  photoUrl: photoUrl,
+                  radius: selected ? 13 : 12,
+                ),
+              )
+            : Icon(
+                icon,
+                size: selected ? 23 : 21,
+                color: selected
+                    ? AppColors.quicksand.withValues(alpha: 0.9)
+                    : AppColors.shellstone.withValues(alpha: 0.52),
+              ),
       ),
     );
   }

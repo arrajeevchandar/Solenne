@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -11,8 +12,72 @@ final firestoreProvider = Provider<FirebaseFirestore>((ref) {
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {
-  return ref.watch(firebaseAuthProvider).authStateChanges();
+  return ref.watch(firebaseAuthProvider).userChanges();
 });
+
+@immutable
+class UserProfileData {
+  const UserProfileData({
+    required this.uid,
+    required this.email,
+    required this.displayName,
+    required this.photoUrl,
+  });
+
+  final String uid;
+  final String email;
+  final String displayName;
+  final String photoUrl;
+
+  factory UserProfileData.resolve({
+    required String uid,
+    String? authEmail,
+    String? authDisplayName,
+    String? authPhotoUrl,
+    Map<String, dynamic> document = const {},
+  }) {
+    return UserProfileData(
+      uid: uid,
+      email: _firstNonEmpty(document['email'], authEmail),
+      displayName: _firstNonEmpty(
+        document['displayName'],
+        authDisplayName,
+        fallback: 'Friend',
+      ),
+      photoUrl: _firstNonEmpty(document['photoUrl'], authPhotoUrl),
+    );
+  }
+}
+
+final userProfileProvider = StreamProvider<UserProfileData?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value(null);
+  return ref
+      .watch(firestoreProvider)
+      .collection('users')
+      .doc(user.uid)
+      .snapshots()
+      .map(
+        (snapshot) => UserProfileData.resolve(
+          uid: user.uid,
+          authEmail: user.email,
+          authDisplayName: user.displayName,
+          authPhotoUrl: user.photoURL,
+          document: snapshot.data() ?? const {},
+        ),
+      );
+});
+
+String _firstNonEmpty(
+  Object? primary,
+  String? secondary, {
+  String fallback = '',
+}) {
+  final first = primary is String ? primary.trim() : '';
+  if (first.isNotEmpty) return first;
+  final second = secondary?.trim() ?? '';
+  return second.isNotEmpty ? second : fallback;
+}
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(

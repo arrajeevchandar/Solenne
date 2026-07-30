@@ -19,6 +19,11 @@ class WorkerConfig:
     max_download_bytes: int
     download_timeout_seconds: float
     transient_retries: int
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
+    export_zip_max_bytes: int = 100 * 1024 * 1024
+    export_expiry_hours: int = 24
+    export_allowed_origins: tuple[str, ...] = ("*",)
 
     @classmethod
     def from_env(cls) -> "WorkerConfig":
@@ -58,6 +63,26 @@ class WorkerConfig:
             transient_retries=max(
                 1, int(os.environ.get("TRANSIENT_RETRIES", "3"))
             ),
+            cloudinary_api_key=os.environ.get("CLOUDINARY_API_KEY", "").strip(),
+            cloudinary_api_secret=os.environ.get(
+                "CLOUDINARY_API_SECRET", ""
+            ).strip(),
+            export_zip_max_bytes=int(
+                os.environ.get(
+                    "MAX_EXPORT_ZIP_BYTES", str(100 * 1024 * 1024)
+                )
+            ),
+            export_expiry_hours=max(
+                1, int(os.environ.get("EXPORT_EXPIRY_HOURS", "24"))
+            ),
+            export_allowed_origins=tuple(
+                origin.strip()
+                for origin in os.environ.get(
+                    "EXPORT_ALLOWED_ORIGINS", "*"
+                ).split(",")
+                if origin.strip()
+            )
+            or ("*",),
         )
 
     def validate(self) -> None:
@@ -70,4 +95,15 @@ class WorkerConfig:
                 f"{self.firebase_service_account}. Generate a private key in "
                 "Firebase Console > Project settings > Service accounts and set "
                 "FIREBASE_SERVICE_ACCOUNT in backend/.env."
+            )
+
+    @property
+    def has_cloudinary_admin_credentials(self) -> bool:
+        return bool(self.cloudinary_api_key and self.cloudinary_api_secret)
+
+    def validate_cloudinary_admin(self) -> None:
+        if not self.has_cloudinary_admin_credentials:
+            raise ValueError(
+                "CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET are required "
+                "for deletion and export jobs."
             )

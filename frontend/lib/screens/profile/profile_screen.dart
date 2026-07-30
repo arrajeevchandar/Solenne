@@ -1,12 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../routing/fade_through_route.dart';
-import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/profile_avatar.dart';
+import '../../features/archive/archive_repository.dart';
 import '../auth/auth_screen.dart';
+import 'archive_export_sheet.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -17,46 +18,51 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _voice = 'Observational';
-  bool _photoUploading = false;
-  String? _photoError;
 
-  Future<void> _uploadProfilePhoto() async {
-    if (_photoUploading) return;
-    final user = ref.read(firebaseAuthProvider).currentUser;
-    if (user == null) return;
-
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 86,
-      maxWidth: 1200,
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.royalBlue,
+        title: Text('Log out?', style: AppTextStyles.display(fontSize: 22)),
+        content: Text(
+          'You will need to sign in again to reach your reflections.',
+          style: AppTextStyles.body(
+            fontSize: 13,
+            color: AppColors.shellstone.withValues(alpha: 0.76),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Stay',
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.shellstone.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Log out',
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.quicksand,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
-    if (image == null) return;
+    if (confirmed != true) return;
 
-    setState(() {
-      _photoUploading = true;
-      _photoError = null;
-    });
-
-    try {
-      final upload = await ref
-          .read(cloudinaryUploadServiceProvider)
-          .uploadImage(image);
-      await user.updatePhotoURL(upload.secureUrl);
-      await ref.read(firestoreProvider).collection('users').doc(user.uid).set({
-        'photoUrl': upload.secureUrl,
-        'photoPublicId': upload.publicId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      await user.reload();
-      if (mounted) setState(() {});
-    } catch (error) {
-      if (mounted) {
-        setState(() => _photoError = error.toString());
-      }
-    } finally {
-      if (mounted) setState(() => _photoUploading = false);
-    }
+    await ref.read(authRepositoryProvider).signOut();
+    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).pushAndRemoveUntil(fadeThroughRoute(const AuthScreen()), (_) => false);
   }
 
   @override
@@ -94,26 +100,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: [
                     const _SectionTitle('Account'),
                     const SizedBox(height: 14),
-                    _ProfileSummary(
-                      uploading: _photoUploading,
-                      onUploadPhoto: _uploadProfilePhoto,
-                    ),
-                    if (_photoError != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        _photoError!,
-                        style: AppTextStyles.body(
-                          fontSize: 12,
-                          color: AppColors.electricGold.withValues(alpha: 0.88),
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
+                    const _ProfileSummary(),
                     const SizedBox(height: 14),
-                    const _SettingsRow(
+                    _SettingsRow(
                       icon: Icons.edit_rounded,
                       label: 'Edit profile',
                       detail: 'Username, name, and photo',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const EditProfileScreen())),
                     ),
                     const SizedBox(height: 12),
                     _SettingsRow(
@@ -121,14 +116,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: 'Log out',
                       detail: 'Return to sign in',
                       isDestructive: true,
-                      onTap: () async {
-                        await ref.read(authRepositoryProvider).signOut();
-                        if (!context.mounted) return;
-                        Navigator.of(context).pushAndRemoveUntil(
-                          fadeThroughRoute(const AuthScreen()),
-                          (_) => false,
-                        );
-                      },
+                      onTap: _confirmLogout,
                     ),
                   ],
                 ),
@@ -201,17 +189,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _Glass(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    _SectionTitle('Entry archive'),
-                    SizedBox(height: 10),
+                  children: [
+                    const _SectionTitle('Entry archive'),
+                    const SizedBox(height: 10),
                     _ArchiveRow(
                       icon: Icons.audio_file_rounded,
                       label: 'Export audio files',
+                      onTap: () => showArchiveExportSheet(
+                        context,
+                        initialKind: ExportKind.audio,
+                      ),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     _ArchiveRow(
                       icon: Icons.description_rounded,
                       label: 'Export text transcripts',
+                      onTap: () => showArchiveExportSheet(
+                        context,
+                        initialKind: ExportKind.transcript,
+                      ),
                     ),
                   ],
                 ),
@@ -225,68 +221,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 }
 
 class _ProfileSummary extends ConsumerWidget {
-  const _ProfileSummary({required this.uploading, required this.onUploadPhoto});
-
-  final bool uploading;
-  final VoidCallback onUploadPhoto;
+  const _ProfileSummary();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(firebaseAuthProvider).currentUser;
-    final photoUrl = user?.photoURL;
+    final profile = ref.watch(userProfileProvider).value;
     return SolenneGlass(
       padding: const EdgeInsets.all(14),
       borderRadius: 20,
       child: Row(
         children: [
-          GestureDetector(
-            onTap: uploading ? null : onUploadPhoto,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: AppColors.sapphire.withValues(alpha: 0.32),
-                  backgroundImage: photoUrl == null || photoUrl.isEmpty
-                      ? null
-                      : NetworkImage(photoUrl),
-                  child: photoUrl == null || photoUrl.isEmpty
-                      ? Icon(
-                          Icons.person_rounded,
-                          color: AppColors.shellstone.withValues(alpha: 0.86),
-                        )
-                      : null,
-                ),
-                Positioned(
-                  right: -3,
-                  bottom: -3,
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.electricGold.withValues(alpha: 0.95),
-                      border: Border.all(
-                        color: AppColors.royalBlue.withValues(alpha: 0.9),
-                      ),
-                    ),
-                    child: uploading
-                        ? Padding(
-                            padding: const EdgeInsets.all(5),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.6,
-                              color: AppColors.royalBlue.withValues(alpha: 0.9),
-                            ),
-                          )
-                        : Icon(
-                            Icons.add_a_photo_rounded,
-                            size: 12,
-                            color: AppColors.royalBlue.withValues(alpha: 0.92),
-                          ),
-                  ),
-                ),
-              ],
-            ),
+          ProfileAvatar(
+            photoUrl: profile?.photoUrl ?? user?.photoURL,
+            radius: 26,
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -294,28 +242,17 @@ class _ProfileSummary extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user?.displayName ?? 'username',
+                  profile?.displayName ?? user?.displayName ?? 'username',
                   style: AppTextStyles.body(
                     fontSize: 16,
                     color: AppColors.swanWing.withValues(alpha: 0.92),
                   ),
                 ),
                 Text(
-                  user?.email ?? 'username@email.com',
+                  profile?.email ?? user?.email ?? 'username@email.com',
                   style: AppTextStyles.mono(
                     fontSize: 9,
                     color: AppColors.shellstone.withValues(alpha: 0.54),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: uploading ? null : onUploadPhoto,
-                  child: Text(
-                    uploading ? 'uploading photo...' : 'upload profile photo',
-                    style: AppTextStyles.mono(
-                      fontSize: 9,
-                      color: AppColors.electricGold.withValues(alpha: 0.78),
-                    ),
                   ),
                 ),
               ],
@@ -457,34 +394,49 @@ class _VoiceOption extends StatelessWidget {
 class _ArchiveRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _ArchiveRow({required this.icon, required this.label});
+  const _ArchiveRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color: AppColors.quicksand.withValues(alpha: 0.72),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: AppTextStyles.body(
-              fontSize: 14,
-              color: AppColors.shellstone.withValues(alpha: 0.82),
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: AppColors.quicksand.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTextStyles.body(
+                    fontSize: 14,
+                    color: AppColors.shellstone.withValues(alpha: 0.82),
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 17,
+                color: AppColors.shellstone.withValues(alpha: 0.44),
+              ),
+            ],
           ),
         ),
-        Icon(
-          Icons.arrow_forward_rounded,
-          size: 17,
-          color: AppColors.shellstone.withValues(alpha: 0.44),
-        ),
-      ],
+      ),
     );
   }
 }

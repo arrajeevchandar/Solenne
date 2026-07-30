@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'insight_evidence.dart';
+
 class JournalEntry {
   const JournalEntry({
     required this.id,
@@ -250,6 +252,8 @@ class AiInsight {
   final Map<String, dynamic> evidence;
   final double confidence;
   final String safetyNote;
+
+  InsightEvidence get parsedEvidence => InsightEvidence.fromMap(evidence);
 
   factory AiInsight.fromMap(Map<String, dynamic> map) {
     return AiInsight(

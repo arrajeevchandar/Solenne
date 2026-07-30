@@ -1,0 +1,1186 @@
+{
+  "catalogVersion": "2026-07-v1",
+  "sources": [
+    {
+      "sourceId": "source_40397857",
+      "title": "Positive expressive writing interventions, subjective health and wellbeing in non-clinical populations: A systematic review.",
+      "publisher": "PLOS One",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40397857/",
+      "doi": null,
+      "pmid": "40397857",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_36536513",
+      "title": "The delayed, durable effect of expressive writing on depression, anxiety and stress: A meta-analytic review of studies with long-term follow-ups.",
+      "publisher": "British Journal of Clinical Psychology",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36536513/",
+      "doi": null,
+      "pmid": "36536513",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_27071807",
+      "title": "Does therapeutic writing help people with long-term conditions? Systematic review, realist synthesis and economic considerations.",
+      "publisher": "Health Technology Assessment",
+      "year": 2016,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/27071807/",
+      "doi": null,
+      "pmid": "27071807",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_26151818",
+      "title": "Effect of Expressive Writing Intervention on Health Outcomes in Breast Cancer Patients: A Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
+      "publisher": "PLOS One",
+      "year": 2015,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/26151818/",
+      "doi": null,
+      "pmid": "26151818",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_38047154",
+      "title": "Being Thankful for What You Have: A Systematic Review of Evidence for the Effect of Gratitude on Life Satisfaction.",
+      "publisher": "Psychology Research and Behavior Management",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38047154/",
+      "doi": null,
+      "pmid": "38047154",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_29397329",
+      "title": "A systematic review and meta-analysis of cognitive and behavioral interventions to improve sleep health in adults without sleep disorders.",
+      "publisher": "Sleep Medicine Reviews",
+      "year": 2018,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/29397329/",
+      "doi": null,
+      "pmid": "29397329",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_41259946",
+      "title": "Sleep regularity as an important component of sleep hygiene: a systematic review.",
+      "publisher": "Sleep Medicine Reviews",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41259946/",
+      "doi": null,
+      "pmid": "41259946",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_41981687",
+      "title": "Non-pharmacological interventions for improving sleep quality in adults aged 50 years and older: a systematic review and network meta-analysis.",
+      "publisher": "Archives of Public Health",
+      "year": 2026,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41981687/",
+      "doi": null,
+      "pmid": "41981687",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_32590219",
+      "title": "A systematic review of gratitude interventions: Effects on physical health and health behaviors.",
+      "publisher": "Journal of Psychosomatic Research",
+      "year": 2020,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32590219/",
+      "doi": null,
+      "pmid": "32590219",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_35980721",
+      "title": "Role of work breaks in well-being and performance: A systematic review and future research agenda.",
+      "publisher": "Journal of Occupational Health Psychology",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35980721/",
+      "doi": null,
+      "pmid": "35980721",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_36044424",
+      "title": "“Give me a break!” A systematic review and meta-analysis on the efficacy of micro-breaks for increasing well-being and performance.",
+      "publisher": "PLOS One",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36044424/",
+      "doi": null,
+      "pmid": "36044424",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_30380126",
+      "title": "Interventions to enhance recovery in healthy workers; a scoping review.",
+      "publisher": "Occupational Medicine",
+      "year": 2019,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/30380126/",
+      "doi": null,
+      "pmid": "30380126",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_36933419",
+      "title": "Employees' work breaks and their physical and mental health: Results from a representative German survey.",
+      "publisher": "Applied Ergonomics",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36933419/",
+      "doi": null,
+      "pmid": "36933419",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_28750245",
+      "title": "Antecedents and outcomes of nurses' rest break organization: A scoping review.",
+      "publisher": "International Journal of Nursing Studies",
+      "year": 2017,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/28750245/",
+      "doi": null,
+      "pmid": "28750245",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_38035618",
+      "title": "The Relationship Between Rest Breaks and Professional Burnout Among Nurses.",
+      "publisher": "Critical Care Nurse",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38035618/",
+      "doi": null,
+      "pmid": "38035618",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_37337095",
+      "title": "A systematic review and meta-analysis of 90 cohort studies of social isolation, loneliness and mortality.",
+      "publisher": "Nature Human Behaviour",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37337095/",
+      "doi": null,
+      "pmid": "37337095",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_38891210",
+      "title": "A Systematic Review of the Relationship between Social Isolation and Physical Health in Adults.",
+      "publisher": "Healthcare",
+      "year": 2024,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38891210/",
+      "doi": null,
+      "pmid": "38891210",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_36760434",
+      "title": "Adult friendship and wellbeing: A systematic review with practical implications.",
+      "publisher": "Frontiers in Psychology",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36760434/",
+      "doi": null,
+      "pmid": "36760434",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_31741017",
+      "title": "The effectiveness of interventions for reducing subjective and objective social isolation among people with mental health problems: a systematic review.",
+      "publisher": "Social Psychiatry and Psychiatric Epidemiology",
+      "year": 2020,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31741017/",
+      "doi": null,
+      "pmid": "31741017",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_31177310",
+      "title": "A systematic review of influences on implementation of peer support work for adults with mental health problems.",
+      "publisher": "Social Psychiatry and Psychiatric Epidemiology",
+      "year": 2020,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31177310/",
+      "doi": null,
+      "pmid": "31177310",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_37822096",
+      "title": "Effect of a single session of yoga and meditation on stress reactivity: A systematic review.",
+      "publisher": "Stress and Health",
+      "year": 2024,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37822096/",
+      "doi": null,
+      "pmid": "37822096",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_37796866",
+      "title": "The effect of mindfulness interventions on stress in medical students: A systematic review and meta-analysis.",
+      "publisher": "PLOS One",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37796866/",
+      "doi": null,
+      "pmid": "37796866",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_40000118",
+      "title": "Reducing Stress in Health Care Workers Using Mindfulness: A Systematic Review.",
+      "publisher": "Journal of Doctoral Nursing Practice",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40000118/",
+      "doi": null,
+      "pmid": "40000118",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_39150318",
+      "title": "A Systematic Review of Breathing Exercise Interventions: An Integrative Complementary Approach for Anxiety and Stress in Adult Populations.",
+      "publisher": "Journal of Holistic Nursing",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39150318/",
+      "doi": null,
+      "pmid": "39150318",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_38322293",
+      "title": "Efficacy of Progressive Muscle Relaxation in Adults for Stress, Anxiety, and Depression: A Systematic Review.",
+      "publisher": "Psychology Research and Behavior Management",
+      "year": 2024,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38322293/",
+      "doi": null,
+      "pmid": "38322293",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    },
+    {
+      "sourceId": "source_36624160",
+      "title": "Effect of breathwork on stress and mental health: A meta-analysis of randomised-controlled trials.",
+      "publisher": "Scientific Reports",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36624160/",
+      "doi": null,
+      "pmid": "36624160",
+      "licenseUsageNote": "Bibliographic metadata and a team-authored paraphrase only. Verify source scope, attribution, and usage before human approval."
+    }
+  ],
+  "suggestions": [
+    {
+      "suggestionId": "suggest_notice_moment",
+      "text": "Write down one moment from today that you may want to remember tomorrow.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_gratitude_note",
+      "text": "If it feels natural, note one thing you appreciated today without forcing a positive interpretation.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_wind_down",
+      "text": "Choose one brief, familiar wind-down activity before your next usual sleep period.",
+      "tags": [
+        "rest_routines"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_consistent_window",
+      "text": "Notice whether keeping a similar wind-down time feels supportive over the next few days.",
+      "tags": [
+        "rest_routines"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_short_break",
+      "text": "Consider one short pause away from the current task before returning to it.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_detach_work",
+      "text": "At the end of the task, name one boundary that marks work or study as finished for now.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_reach_out",
+      "text": "If it feels welcome, send a simple message to someone you trust.",
+      "tags": [
+        "social_connection"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_check_in",
+      "text": "Consider asking someone you trust for a brief check-in rather than solving everything alone.",
+      "tags": [
+        "social_connection"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_breath_pause",
+      "text": "If comfortable, take a few unforced slower breaths and stop if it feels unpleasant.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_grounding_pause",
+      "text": "Pause and name a few neutral things you can see, hear, or feel around you.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "suggestionId": "suggest_release_tension",
+      "text": "If comfortable, briefly soften one area where you notice ordinary muscle tension.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    }
+  ],
+  "claimCards": [
+    {
+      "claimCardId": "claim_reflective_journaling_01",
+      "sourceId": "source_40397857",
+      "claimType": "reflective_journaling",
+      "displayClaim": "Structured reflective or expressive writing has been studied as a way of organizing experiences and noticing personally meaningful themes.",
+      "limitations": "Writing approaches, populations, and outcomes vary; this does not establish what an individual reflection means.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_notice_moment",
+        "suggest_gratitude_note"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_reflective_journaling_02",
+      "sourceId": "source_36536513",
+      "claimType": "reflective_journaling",
+      "displayClaim": "Structured reflective or expressive writing has been studied as a way of organizing experiences and noticing personally meaningful themes.",
+      "limitations": "Writing approaches, populations, and outcomes vary; this does not establish what an individual reflection means.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_notice_moment",
+        "suggest_gratitude_note"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_reflective_journaling_03",
+      "sourceId": "source_27071807",
+      "claimType": "reflective_journaling",
+      "displayClaim": "Structured reflective or expressive writing has been studied as a way of organizing experiences and noticing personally meaningful themes.",
+      "limitations": "Writing approaches, populations, and outcomes vary; this does not establish what an individual reflection means.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_notice_moment",
+        "suggest_gratitude_note"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_reflective_journaling_04",
+      "sourceId": "source_26151818",
+      "claimType": "reflective_journaling",
+      "displayClaim": "Structured reflective or expressive writing has been studied as a way of organizing experiences and noticing personally meaningful themes.",
+      "limitations": "Writing approaches, populations, and outcomes vary; this does not establish what an individual reflection means.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_notice_moment",
+        "suggest_gratitude_note"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_reflective_journaling_05",
+      "sourceId": "source_38047154",
+      "claimType": "reflective_journaling",
+      "displayClaim": "Structured reflective or expressive writing has been studied as a way of organizing experiences and noticing personally meaningful themes.",
+      "limitations": "Writing approaches, populations, and outcomes vary; this does not establish what an individual reflection means.",
+      "tags": [
+        "reflective_journaling"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_notice_moment",
+        "suggest_gratitude_note"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_rest_routines_06",
+      "sourceId": "source_29397329",
+      "claimType": "rest_routines",
+      "displayClaim": "Research on rest and sleep health includes regular routines, relaxation practices, and other behavioral approaches.",
+      "limitations": "These are general study contexts, not personalized sleep advice or an explanation of an individual's current state.",
+      "tags": [
+        "rest_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_wind_down",
+        "suggest_consistent_window"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_rest_routines_07",
+      "sourceId": "source_41259946",
+      "claimType": "rest_routines",
+      "displayClaim": "Research on rest and sleep health includes regular routines, relaxation practices, and other behavioral approaches.",
+      "limitations": "These are general study contexts, not personalized sleep advice or an explanation of an individual's current state.",
+      "tags": [
+        "rest_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_wind_down",
+        "suggest_consistent_window"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_rest_routines_08",
+      "sourceId": "source_41981687",
+      "claimType": "rest_routines",
+      "displayClaim": "Research on rest and sleep health includes regular routines, relaxation practices, and other behavioral approaches.",
+      "limitations": "These are general study contexts, not personalized sleep advice or an explanation of an individual's current state.",
+      "tags": [
+        "rest_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_wind_down",
+        "suggest_consistent_window"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_rest_routines_09",
+      "sourceId": "source_32590219",
+      "claimType": "rest_routines",
+      "displayClaim": "Research on rest and sleep health includes regular routines, relaxation practices, and other behavioral approaches.",
+      "limitations": "These are general study contexts, not personalized sleep advice or an explanation of an individual's current state.",
+      "tags": [
+        "rest_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_wind_down",
+        "suggest_consistent_window"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_10",
+      "sourceId": "source_35980721",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_11",
+      "sourceId": "source_36044424",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_12",
+      "sourceId": "source_30380126",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_13",
+      "sourceId": "source_36933419",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_14",
+      "sourceId": "source_28750245",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_workload_breaks_15",
+      "sourceId": "source_38035618",
+      "claimType": "workload_breaks",
+      "displayClaim": "Work-break research examines how brief pauses and recovery practices relate to wellbeing and task experience.",
+      "limitations": "Effects vary by task, person, and setting; this does not prove that workload caused an individual's feelings.",
+      "tags": [
+        "workload_breaks"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_short_break",
+        "suggest_detach_work"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_social_connection_16",
+      "sourceId": "source_37337095",
+      "claimType": "social_connection",
+      "displayClaim": "Research commonly studies relationships between social connection, perceived support, loneliness, and wellbeing.",
+      "limitations": "Most findings are population-level and cannot determine an individual's health or guarantee that contact will help.",
+      "tags": [
+        "social_connection"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_reach_out",
+        "suggest_check_in"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_social_connection_17",
+      "sourceId": "source_38891210",
+      "claimType": "social_connection",
+      "displayClaim": "Research commonly studies relationships between social connection, perceived support, loneliness, and wellbeing.",
+      "limitations": "Most findings are population-level and cannot determine an individual's health or guarantee that contact will help.",
+      "tags": [
+        "social_connection"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_reach_out",
+        "suggest_check_in"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_social_connection_18",
+      "sourceId": "source_36760434",
+      "claimType": "social_connection",
+      "displayClaim": "Research commonly studies relationships between social connection, perceived support, loneliness, and wellbeing.",
+      "limitations": "Most findings are population-level and cannot determine an individual's health or guarantee that contact will help.",
+      "tags": [
+        "social_connection"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_reach_out",
+        "suggest_check_in"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_social_connection_19",
+      "sourceId": "source_31741017",
+      "claimType": "social_connection",
+      "displayClaim": "Research commonly studies relationships between social connection, perceived support, loneliness, and wellbeing.",
+      "limitations": "Most findings are population-level and cannot determine an individual's health or guarantee that contact will help.",
+      "tags": [
+        "social_connection"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_reach_out",
+        "suggest_check_in"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_social_connection_20",
+      "sourceId": "source_31177310",
+      "claimType": "social_connection",
+      "displayClaim": "Research commonly studies relationships between social connection, perceived support, loneliness, and wellbeing.",
+      "limitations": "Most findings are population-level and cannot determine an individual's health or guarantee that contact will help.",
+      "tags": [
+        "social_connection"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_reach_out",
+        "suggest_check_in"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_21",
+      "sourceId": "source_37822096",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_22",
+      "sourceId": "source_37796866",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_23",
+      "sourceId": "source_40000118",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_24",
+      "sourceId": "source_39150318",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_25",
+      "sourceId": "source_38322293",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    },
+    {
+      "claimCardId": "claim_grounding_routines_26",
+      "sourceId": "source_36624160",
+      "claimType": "grounding_routines",
+      "displayClaim": "Brief breathing, mindfulness, or relaxation practices have been studied as optional ways to pause and redirect attention.",
+      "limitations": "Study methods and outcomes vary; these practices are not diagnosis, treatment, or emergency support.",
+      "tags": [
+        "grounding_routines"
+      ],
+      "supportLevel": "moderate",
+      "allowedSuggestionIds": [
+        "suggest_breath_pause",
+        "suggest_grounding_pause",
+        "suggest_release_tension"
+      ],
+      "status": "approved",
+      "approvals": [
+        {
+          "reviewerId": "yanish",
+          "reviewedAt": "2026-07-24"
+        },
+        {
+          "reviewerId": "rajeev",
+          "reviewedAt": "2026-07-24"
+        }
+      ],
+      "active": true
+    }
+  ]
+}

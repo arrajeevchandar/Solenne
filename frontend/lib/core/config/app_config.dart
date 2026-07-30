@@ -11,9 +11,15 @@ class AppConfig {
     'CLOUDINARY_UPLOAD_PRESET',
     defaultValue: cloudinaryDefaultUploadPreset,
   );
+  static const exportApiBaseUrl = String.fromEnvironment(
+    'EXPORT_API_BASE_URL',
+    defaultValue: '',
+  );
 
   static bool get hasCloudinaryConfig =>
       cloudinaryCloudName.isNotEmpty && cloudinaryUploadPreset.isNotEmpty;
+
+  static bool get hasExportApi => exportApiBaseUrl.trim().isNotEmpty;
 
   static List<String> get missingCloudinaryFields {
     return [

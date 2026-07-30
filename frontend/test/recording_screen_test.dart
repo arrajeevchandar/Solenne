@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:solenne_frontend/screens/recording/recording_screen.dart';
 
 void main() {
-  test('completion actions remain visible after the entry is received', () {
+  test('completion actions become visible once recording is paused', () {
     expect(
       recordingCompletionActionsVisible(
-        isStopped: true,
+        isPaused: true,
         isReceived: false,
       ),
       isTrue,
@@ -13,7 +13,7 @@ void main() {
 
     expect(
       recordingCompletionActionsVisible(
-        isStopped: false,
+        isPaused: false,
         isReceived: true,
       ),
       isTrue,
@@ -23,7 +23,7 @@ void main() {
   test('completion actions stay hidden before and during recording', () {
     expect(
       recordingCompletionActionsVisible(
-        isStopped: false,
+        isPaused: false,
         isReceived: false,
       ),
       isFalse,

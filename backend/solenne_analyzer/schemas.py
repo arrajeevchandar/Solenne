@@ -37,6 +37,9 @@ class FacialResult:
     arousal: float = 0.0
     confidence: float = 0.0
     warnings: list[str] = field(default_factory=list)
+    bestFrameTimestampSeconds: float | None = None
+    bestFrameScore: float | None = None
+    bestFrameMethod: Literal["face", "technical"] | None = None
 
 
 @dataclass
@@ -98,6 +101,7 @@ class LlmDiagnostics:
     tokenEstimate: int = 0
     latencyMs: int | None = None
     failureReason: str | None = None
+    grounding: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -113,7 +117,15 @@ class AnalysisResult:
     fused: FusedResult = field(default_factory=FusedResult)
     insights: list[Insight] = field(default_factory=list)
     aiInsights: list[AiInsight] = field(default_factory=list)
-    insightProvider: Literal["template", "groq", "fallback"] = "template"
+    groundingShadowInsights: list[AiInsight] = field(default_factory=list)
+    insightProvider: Literal[
+        "template",
+        "groq",
+        "fallback",
+        "groq_grounded",
+        "grounded_template",
+        "safety",
+    ] = "template"
     llmDiagnostics: LlmDiagnostics = field(default_factory=LlmDiagnostics)
     status: Literal["complete", "failed"] = "complete"
     warnings: list[str] = field(default_factory=list)
