@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY solenne_analyzer ./solenne_analyzer
 
 ENTRYPOINT ["python", "-m", "solenne_analyzer", "worker"]
-CMD ["--once"]
+CMD ["worker", "--once"]

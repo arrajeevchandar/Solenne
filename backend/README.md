@@ -102,6 +102,11 @@ FIREBASE_SERVICE_ACCOUNT=serviceAccountKey.json
 POLL_INTERVAL_SECONDS=5
 CLOUDINARY_CLOUD_NAME=dqjd3lszl
 CLOUDINARY_UPLOAD_FOLDER=solenne/journals
+CLOUDINARY_API_KEY=<secret-manager-value>
+CLOUDINARY_API_SECRET=<secret-manager-value>
+MAX_EXPORT_ZIP_BYTES=104857600
+EXPORT_EXPIRY_HOURS=24
+EXPORT_ALLOWED_ORIGINS=*
 WHISPER_MODEL=base
 MAX_VIDEO_SECONDS=180
 ```
@@ -114,11 +119,33 @@ Process one queued journal or keep the worker running:
 .\.venv\Scripts\python.exe -m solenne_analyzer worker --job-id JOURNAL_ID
 ```
 
-The worker validates the Cloudinary source, downloads into a temporary folder,
-runs the full pipeline with Groq enabled, writes transcript/metrics/insights to
-the journal document, and removes all temporary media. In Cloud Run, omit
+The worker prioritizes journal deletion, expired-export cleanup, and export
+generation before analysis work. It validates Cloudinary sources, uses
+temporary folders for media and ZIP assembly, and removes temporary data after
+each job. Cloudinary API credentials are required only for deletion and export
+queues and must remain server-side. In Cloud Run, omit
 `FIREBASE_SERVICE_ACCOUNT` and use the runtime service account through
 Application Default Credentials.
+
+Run the authenticated one-time export download service from the same image:
+
+```bash
+python -m solenne_analyzer serve-exports --host 0.0.0.0 --port 8080
+```
+
+Deploy that command as a Cloud Run service with public network ingress; the
+service verifies the Flutter user's Firebase ID token before serving any ZIP.
+Pass its HTTPS origin to Flutter as:
+
+```bash
+flutter run --dart-define=EXPORT_API_BASE_URL=https://<export-service>
+```
+
+Deploy the queue rules and indexes before releasing the updated client:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes
+```
 
 ## Test
 

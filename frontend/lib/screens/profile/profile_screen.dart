@@ -4,7 +4,9 @@ import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/profile_avatar.dart';
+import '../../features/archive/archive_repository.dart';
 import '../auth/auth_screen.dart';
+import 'archive_export_sheet.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -187,17 +189,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _Glass(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    _SectionTitle('Entry archive'),
-                    SizedBox(height: 10),
+                  children: [
+                    const _SectionTitle('Entry archive'),
+                    const SizedBox(height: 10),
                     _ArchiveRow(
                       icon: Icons.audio_file_rounded,
                       label: 'Export audio files',
+                      onTap: () => showArchiveExportSheet(
+                        context,
+                        initialKind: ExportKind.audio,
+                      ),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     _ArchiveRow(
                       icon: Icons.description_rounded,
                       label: 'Export text transcripts',
+                      onTap: () => showArchiveExportSheet(
+                        context,
+                        initialKind: ExportKind.transcript,
+                      ),
                     ),
                   ],
                 ),
@@ -384,34 +394,49 @@ class _VoiceOption extends StatelessWidget {
 class _ArchiveRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _ArchiveRow({required this.icon, required this.label});
+  const _ArchiveRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color: AppColors.quicksand.withValues(alpha: 0.72),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: AppTextStyles.body(
-              fontSize: 14,
-              color: AppColors.shellstone.withValues(alpha: 0.82),
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: AppColors.quicksand.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTextStyles.body(
+                    fontSize: 14,
+                    color: AppColors.shellstone.withValues(alpha: 0.82),
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 17,
+                color: AppColors.shellstone.withValues(alpha: 0.44),
+              ),
+            ],
           ),
         ),
-        Icon(
-          Icons.arrow_forward_rounded,
-          size: 17,
-          color: AppColors.shellstone.withValues(alpha: 0.44),
-        ),
-      ],
+      ),
     );
   }
 }

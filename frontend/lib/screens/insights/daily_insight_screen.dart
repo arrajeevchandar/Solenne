@@ -313,8 +313,8 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
           style: AppTextStyles.display(fontSize: 22),
         ),
         content: Text(
-          'This permanently removes the reflection and its insights from your '
-          'journal. This cannot be undone.',
+          'This permanently removes the reflection, transcript, insights, and '
+          'saved video. This cannot be undone.',
           style: AppTextStyles.body(
             fontSize: 13,
             color: AppColors.shellstone.withValues(alpha: 0.76),

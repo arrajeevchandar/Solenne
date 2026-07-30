@@ -84,6 +84,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reprocess.add_argument("--user-id", required=True)
     reprocess.add_argument("--journal-id", required=True)
+
+    export_service = subparsers.add_parser(
+        "serve-exports",
+        help="Serve authenticated, single-use export downloads.",
+    )
+    export_service.add_argument("--host", default="0.0.0.0")
+    export_service.add_argument("--port", type=int, default=8080)
     return parser
 
 
@@ -110,18 +117,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "worker":
         import logging
 
-        from .worker.runner import AnalysisWorker
+        from .worker.dispatcher import QueueWorker
 
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s %(levelname)s %(name)s %(message)s",
         )
-        worker = AnalysisWorker(WorkerConfig.from_env())
+        worker = QueueWorker(WorkerConfig.from_env())
         if args.watch:
             worker.watch()
             return 0
         processed = (
-            worker.process_job(args.job_id) if args.job_id else worker.process_next()
+            worker.process_analysis_job(args.job_id)
+            if args.job_id
+            else worker.process_next()
         )
         print("processed=1" if processed else "processed=0")
         return 0
@@ -144,5 +153,16 @@ def main(argv: list[str] | None = None) -> int:
         gateway = FirebaseGateway(WorkerConfig.from_env())
         gateway.requeue_journal(args.user_id, args.journal_id)
         print(f"requeued=1\nuserId={args.user_id}\njournalId={args.journal_id}")
+        return 0
+    if args.command == "serve-exports":
+        import uvicorn
+
+        from .export_api import create_app
+
+        uvicorn.run(
+            create_app(config=WorkerConfig.from_env()),
+            host=args.host,
+            port=args.port,
+        )
         return 0
     return 2
