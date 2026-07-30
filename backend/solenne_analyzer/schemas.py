@@ -37,6 +37,9 @@ class FacialResult:
     arousal: float = 0.0
     confidence: float = 0.0
     warnings: list[str] = field(default_factory=list)
+    bestFrameTimestampSeconds: float | None = None
+    bestFrameScore: float | None = None
+    bestFrameMethod: Literal["face", "technical"] | None = None
 
 
 @dataclass

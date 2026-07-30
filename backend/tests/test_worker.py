@@ -12,6 +12,7 @@ from solenne_analyzer.worker.firebase_gateway import (
 )
 from solenne_analyzer.worker.media_source import (
     MediaSourceError,
+    cloudinary_thumbnail_url,
     validate_cloudinary_video_url,
 )
 from solenne_analyzer.worker.result_mapper import analysis_result_to_firestore
@@ -54,7 +55,10 @@ class WorkerResultTests(unittest.TestCase):
         payload = analysis_result_to_firestore(result)
 
         self.assertEqual(payload["analysisStatus"], "complete")
-        self.assertEqual(payload["analysisVersion"], "2026-07-v3-rich-grounded")
+        self.assertEqual(
+            payload["analysisVersion"],
+            "2026-07-v4-adaptive-detailed-thumbnail",
+        )
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertNotIn("segments", payload["transcript"])
         self.assertEqual(payload["aiInsights"][0]["moodLabel"], "grounded")
@@ -118,6 +122,7 @@ class WorkerRunnerTests(unittest.TestCase):
                 result = AnalysisResult(runId=run_id or "job-1", sourceVideo="local")
                 result.transcript.text = "Today felt steady."
                 result.transcript.wordCount = 3
+                result.facial.bestFrameTimestampSeconds = 12.345
                 return result
 
         worker = AnalysisWorker(self.config, gateway=gateway)
@@ -130,6 +135,10 @@ class WorkerRunnerTests(unittest.TestCase):
             self.assertTrue(worker.process_next())
 
         self.assertIsNotNone(gateway.completed)
+        self.assertIn(
+            "/video/upload/so_12.345,f_jpg,q_auto/",
+            gateway.completed["thumbnailUrl"],
+        )
         self.assertIsNone(gateway.failed)
         self.assertTrue(downloaded)
         self.assertFalse(downloaded[0].exists())
@@ -149,6 +158,19 @@ class WorkerRunnerTests(unittest.TestCase):
 
         self.assertIsNone(gateway.completed)
         self.assertEqual(gateway.failed, "download unavailable")
+
+    def test_cloudinary_thumbnail_uses_selected_timestamp_and_jpg(self) -> None:
+        url = cloudinary_thumbnail_url(
+            "https://res.cloudinary.com/demo/video/upload/v1/"
+            "solenne/journals/entry.webm?token=ignored",
+            8.5,
+        )
+
+        self.assertEqual(
+            url,
+            "https://res.cloudinary.com/demo/video/upload/"
+            "so_8.5,f_jpg,q_auto/v1/solenne/journals/entry.jpg",
+        )
 
 
 class _FakeGateway:

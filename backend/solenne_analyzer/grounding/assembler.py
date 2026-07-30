@@ -84,9 +84,9 @@ def _rationale(
         reason = "This appeared because of the journal details cited below."
     if claims:
         return (
-            f"{reason} The attached source offers general context only for the "
-            "matched theme shown below; it does not determine what your individual "
-            "experience means."
+            f"{reason} Public wellbeing context supports a cautious reflection on "
+            "that theme, while leaving the meaning of your individual experience "
+            "open to you."
         )
     return (
         f"{reason} The reflection stays with your own words and leaves their "

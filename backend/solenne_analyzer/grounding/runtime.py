@@ -4,7 +4,10 @@ import logging
 import re
 import time
 
-from ..ai.validators import crisis_language_present
+from ..ai.validators import (
+    adaptive_insight_limit_for_word_count,
+    crisis_language_present,
+)
 from ..config import AnalyzerConfig
 from ..schemas import AiInsight, AnalysisResult, LlmDiagnostics
 from .assembler import assemble_insights
@@ -81,7 +84,8 @@ def generate_grounded_insights(
         )
 
     grounding.catalogVersion = catalog.catalogVersion
-    retrieved = retrieve_claims(facts, catalog, limit=3)
+    card_limit = adaptive_insight_limit_for_word_count(result.transcript.wordCount)
+    retrieved = retrieve_claims(facts, catalog, limit=5)
     grounding.retrievedClaimIds = [item.claimCardId for item in retrieved]
     journal_narrative = build_journal_narrative(result)
     last_llm = LlmDiagnostics(
@@ -98,6 +102,7 @@ def generate_grounded_insights(
             config,
             journal_narrative=journal_narrative,
             revision_feedback=revision_feedback,
+            max_drafts=min(5, card_limit),
         )
         if not drafts:
             failure = last_llm.failureReason or "Grounded generation returned no drafts."
@@ -386,11 +391,24 @@ def _deterministic_summary(
             ]
             if later_sentences:
                 parts.append(max(later_sentences, key=len))
-        return _truncate_words(" ".join(parts), 420)
+        combined = _replace_third_person_subjects(" ".join(parts))
+        if re.search(r"\b(?:you|your|yours|yourself)\b", combined, re.IGNORECASE):
+            return _truncate_words(combined, 600)
+        return _truncate_words(
+            f"You described this experience in your own words: {combined}",
+            600,
+        )
     if excerpts:
-        return _truncate_words(excerpts[0], 420)
+        excerpt = _replace_third_person_subjects(excerpts[0])
+        return _truncate_words(
+            f"You described this experience in your own words: {excerpt}",
+            600,
+        )
     if themes:
-        return f"This reflection included themes of {_join_words(themes)}."
+        return (
+            f"Your reflection included themes of {_join_words(themes)}, giving you "
+            "a few distinct parts of the experience to consider."
+        )
     return (
         "Your reflection was captured, but there was not enough transcript detail "
         "for a source-supported interpretation."
@@ -405,6 +423,21 @@ def _truncate_words(value: str, max_chars: int) -> str:
     if " " in shortened:
         shortened = shortened.rsplit(" ", 1)[0]
     return shortened.rstrip(" ,;:-")
+
+
+def _replace_third_person_subjects(value: str) -> str:
+    clean = " ".join(value.split())
+    replacements = (
+        (r"\b(?:a|the) student was\b", "you were"),
+        (r"\b(?:a|the) student is\b", "you are"),
+        (r"\bthe (?:user|speaker|person|journal owner) was\b", "you were"),
+        (r"\bthe (?:user|speaker|person|journal owner) is\b", "you are"),
+        (r"\b(?:a|the) student\b", "you"),
+        (r"\bthe (?:user|speaker|person|journal owner)\b", "you"),
+    )
+    for pattern, replacement in replacements:
+        clean = re.sub(pattern, replacement, clean, flags=re.IGNORECASE)
+    return clean
 
 
 def _observation_rationale(facts: list[ObservationFact]) -> str:

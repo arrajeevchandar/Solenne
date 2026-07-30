@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/profile_avatar.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
 
@@ -39,9 +40,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static bool _isAllowedImage(XFile image) {
     final mime = image.mimeType?.toLowerCase();
     if (mime != null && mime.isNotEmpty) {
-      return mime == 'image/jpeg' ||
-          mime == 'image/jpg' ||
-          mime == 'image/png';
+      return mime == 'image/jpeg' || mime == 'image/jpg' || mime == 'image/png';
     }
     final target = '${image.name} ${image.path}'.toLowerCase();
     return target.contains('.jpg') ||
@@ -83,6 +82,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       await user.reload();
+      ref.invalidate(authStateProvider);
+      ref.invalidate(userProfileProvider);
       if (mounted) setState(() {});
     } catch (error) {
       if (mounted) setState(() => _photoError = error.toString());
@@ -109,11 +110,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           SetOptions(merge: true),
         );
         await user.reload();
+        ref.invalidate(authStateProvider);
+        ref.invalidate(userProfileProvider);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated.')));
       Navigator.of(context).pop();
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -125,7 +128,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(firebaseAuthProvider).currentUser;
-    final photoUrl = user?.photoURL;
+    final profile = ref.watch(userProfileProvider).value;
+    final photoUrl = profile?.photoUrl ?? user?.photoURL;
 
     return Scaffold(
       body: SolenneBackground(
@@ -176,24 +180,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        CircleAvatar(
+                        ProfileAvatar(
+                          photoUrl: photoUrl,
                           radius: 48,
-                          backgroundColor: AppColors.sapphire.withValues(
-                            alpha: 0.32,
-                          ),
-                          backgroundImage:
-                              photoUrl == null || photoUrl.isEmpty
-                              ? null
-                              : NetworkImage(photoUrl),
-                          child: photoUrl == null || photoUrl.isEmpty
-                              ? Icon(
-                                  Icons.person_rounded,
-                                  size: 44,
-                                  color: AppColors.shellstone.withValues(
-                                    alpha: 0.86,
-                                  ),
-                                )
-                              : null,
+                          iconSize: 44,
                         ),
                         Positioned(
                           right: -2,

@@ -20,14 +20,15 @@ The object MUST match this exact shape, and every string field MUST be non-empty
 {"drafts":[{"title":string,"summary":string,"moodLabel":string,"dayThemes":[string],
 "reflectionQuestions":[string],"observationFactIds":[string],"claimCardIds":[string],
 "suggestionIds":[string],"confidence":number,"safetyNote":string}]}
-Include 1 to 3 drafts. title <= 80 characters. summary <= 420 characters. confidence between 0 and 1.
-For a detailed journal, each summary MUST be a substantive 20 to 70 word reflection that connects
-at least two concrete details from the supplied narrative. Include at least two distinct
-reflectionQuestions and two concise dayThemes when the narrative supports them. When a selected
+Include 1 to 5 drafts. title <= 80 characters. summary <= 600 characters. confidence between 0 and 1.
+For a detailed journal, each summary MUST be a substantive 35 to 75 word reflection that connects
+2 to 4 concrete details from the supplied narrative. Include 2 to 4 distinct reflectionQuestions
+and two concise dayThemes when the narrative supports them. When a selected
 claim offers two eligible suggestion IDs, select two relevant IDs. If the journal contains two
 clearly different themes, prefer separate non-overlapping drafts instead of repeating one idea.
 Stay close to what appeared in this recording and explain the tension, priority, or meaningful
-contrast the person described rather than merely restating a feeling label. Observation facts
+contrast directly to the journal owner rather than merely restating a feeling label. Every summary
+must use you or your. Never call them a student, the user, the speaker, or the person. Observation facts
 (word counts, confidence scores, durations, IDs) are internal grounding signals only: never
 mention, quote, or describe numbers, metrics, IDs, or confidence values in the title, summary,
 dayThemes, or reflectionQuestions.
@@ -48,16 +49,16 @@ GROUNDED_SCHEMA = {
             "drafts": {
                 "type": "array",
                 "minItems": 1,
-                "maxItems": 3,
+                "maxItems": 5,
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
                         "title": {"type": "string"},
-                        "summary": {"type": "string"},
+                        "summary": {"type": "string", "maxLength": 600},
                         "moodLabel": {"type": "string"},
                         "dayThemes": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
-                        "reflectionQuestions": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+                        "reflectionQuestions": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
                         "observationFactIds": {"type": "array", "items": {"type": "string"}},
                         "claimCardIds": {"type": "array", "items": {"type": "string"}, "maxItems": 2},
                         "suggestionIds": {"type": "array", "items": {"type": "string"}, "maxItems": 2},
@@ -149,7 +150,9 @@ def generate_grounded_drafts(
     *,
     journal_narrative: dict[str, Any] | None = None,
     revision_feedback: str | None = None,
+    max_drafts: int = 3,
 ) -> tuple[list[GroundedInsightDraft], LlmDiagnostics]:
+    max_drafts = max(1, min(5, max_drafts))
     context = build_grounding_context(facts, claims, journal_narrative)
     diagnostics = LlmDiagnostics(
         status="failed",
@@ -162,16 +165,18 @@ def generate_grounded_drafts(
         diagnostics.failureReason = "GROQ_API_KEY is not configured."
         return [], diagnostics
     prompt = (
-        "Create one to three gentle reflection drafts.\n"
+        f"Create between one and {max_drafts} gentle reflection drafts, using fewer "
+        "when the journal does not support distinct themes.\n"
         "Summaries must combine the journal narrative (paraphrase, excerpts, topics, phrases) "
         "with the observation facts so they sound specific to this recording. For a detailed "
-        "journal, use 20 to 70 words and connect at least two concrete narrative details rather "
+        "journal, use 35 to 75 words and connect 2 to 4 concrete narrative details rather "
         "than returning a one-line restatement.\n"
         "Select relevant claimCardIds and suggestionIds when observation facts support them "
         "so curated catalog next steps can be attached; select two allowed suggestion IDs when "
         "two are available.\n"
-        "Keep dayThemes grounded in the narrative topics/phrases and include two distinct "
-        "reflection questions for each substantive draft.\n\n"
+        "Keep dayThemes grounded in the narrative topics/phrases and include 2 to 4 distinct "
+        "reflection questions for each substantive draft. Address the journal owner directly "
+        "with you or your; never call them a student, user, speaker, or person.\n\n"
         f"GROUNDING_CONTEXT_JSON:\n{json.dumps(context, ensure_ascii=False)}"
     )
     if revision_feedback:
@@ -180,8 +185,13 @@ def generate_grounded_drafts(
     last_error: Exception | None = None
     for response_format in _response_formats(config.groq_model):
         try:
-            content = _chat(prompt, response_format, config)
-            drafts = parse_grounded_drafts_json(content)
+            content = _chat(
+                prompt,
+                response_format,
+                config,
+                max_drafts=max_drafts,
+            )
+            drafts = parse_grounded_drafts_json(content)[:max_drafts]
             diagnostics.status = "complete"
             diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
             diagnostics.failureReason = None
@@ -193,11 +203,17 @@ def generate_grounded_drafts(
     return [], diagnostics
 
 
-def _chat(prompt: str, response_format: dict, config: AnalyzerConfig) -> str:
+def _chat(
+    prompt: str,
+    response_format: dict,
+    config: AnalyzerConfig,
+    *,
+    max_drafts: int = 3,
+) -> str:
     payload = {
         "model": config.groq_model,
         "temperature": 0.15,
-        "max_tokens": 1200,
+        "max_tokens": max(1200, min(3600, 700 + (max_drafts * 500))),
         "response_format": response_format,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},

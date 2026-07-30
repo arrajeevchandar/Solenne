@@ -4,7 +4,10 @@ import re
 
 from ..ai.context_builder import build_insight_context, estimate_tokens
 from ..ai.groq_client import generate_groq_insights
-from ..ai.validators import crisis_language_present
+from ..ai.validators import (
+    adaptive_insight_limit_for_word_count,
+    crisis_language_present,
+)
 from ..grounding.runtime import generate_grounded_insights, generate_safety_insights
 from ..grounding.validators import validate_grounded_user_language
 from ..schemas import AiInsight, AnalysisResult, LlmDiagnostics
@@ -59,7 +62,11 @@ def _generate_combined_insights(
         insight for insight in grounded if _is_source_supported(insight)
     ]
     grounded_to_show = source_supported or ([] if legacy_insights else grounded)
-    combined = _combine_distinct_insights(legacy_insights, grounded_to_show)
+    combined = _combine_distinct_insights(
+        legacy_insights,
+        grounded_to_show,
+        limit=adaptive_insight_limit_for_word_count(result.transcript.wordCount),
+    )
     provider = _combined_provider(
         legacy_provider,
         grounded_provider,
@@ -71,41 +78,144 @@ def _generate_combined_insights(
 def _combine_distinct_insights(
     narrative: list[AiInsight],
     grounded: list[AiInsight],
+    *,
+    limit: int = 8,
 ) -> list[AiInsight]:
-    """Combine both paths without showing the same titled reflection twice.
+    """Combine both paths without showing semantically duplicate reflections.
 
-    An exact normalized-title collision merges the stronger journal narrative with
-    the validated evidence-v2 payload. Distinct narrative cards are preserved, so
-    combined mode still presents both personal interpretation and reviewed public
-    context.
+    Matching cards preserve richer safe narrative wording and grounded evidence.
+    When the adaptive budget is exceeded, merged cards lead and the remaining
+    narrative and grounded cards alternate in their original order.
     """
+    limit = max(1, min(8, limit))
     combined: list[AiInsight] = []
-    title_indexes: dict[str, int] = {}
+    origins: list[str] = []
+    merged_indexes: set[int] = set()
+
     for insight in narrative:
-        key = _normalized_title(insight.title)
-        if key and key in title_indexes:
+        existing_index = _matching_insight_index(combined, insight)
+        if existing_index is not None:
+            combined[existing_index] = _merge_duplicate_insights(
+                combined[existing_index],
+                insight,
+            )
+            merged_indexes.add(existing_index)
             continue
-        if key:
-            title_indexes[key] = len(combined)
         combined.append(insight)
+        origins.append("narrative")
+
     for insight in grounded:
-        key = _normalized_title(insight.title)
-        existing_index = title_indexes.get(key) if key else None
+        existing_index = _matching_insight_index(combined, insight)
         if existing_index is None:
-            if key:
-                title_indexes[key] = len(combined)
             combined.append(insight)
+            origins.append("grounded")
             continue
-        combined[existing_index] = _merge_matching_insights(
+        combined[existing_index] = _merge_duplicate_insights(
             combined[existing_index],
             insight,
         )
-    if len(combined) <= 3:
+        merged_indexes.add(existing_index)
+
+    if len(combined) <= limit:
         return combined
-    selected = combined[:3]
-    if grounded and not any(_is_schema_v2(item) for item in selected):
-        selected[-1] = grounded[0]
+
+    selected_indexes = sorted(merged_indexes)[:limit]
+    narrative_indexes = [
+        index
+        for index, origin in enumerate(origins)
+        if origin == "narrative" and index not in merged_indexes
+    ]
+    grounded_indexes = [
+        index
+        for index, origin in enumerate(origins)
+        if origin == "grounded" and index not in merged_indexes
+    ]
+    while len(selected_indexes) < limit and (narrative_indexes or grounded_indexes):
+        if narrative_indexes and len(selected_indexes) < limit:
+            selected_indexes.append(narrative_indexes.pop(0))
+        if grounded_indexes and len(selected_indexes) < limit:
+            selected_indexes.append(grounded_indexes.pop(0))
+
+    selected = [combined[index] for index in selected_indexes]
+    supported = [item for item in combined if _is_source_supported(item)]
+    if supported and not any(_is_source_supported(item) for item in selected):
+        selected[-1] = supported[0]
     return selected
+
+
+def _matching_insight_index(
+    existing: list[AiInsight],
+    candidate: AiInsight,
+) -> int | None:
+    for index, insight in enumerate(existing):
+        if _normalized_title(insight.title) == _normalized_title(candidate.title):
+            return index
+        if _token_overlap(insight, candidate) >= 0.70:
+            return index
+    return None
+
+
+def _token_overlap(left: AiInsight, right: AiInsight) -> float:
+    left_tokens = _semantic_tokens(f"{left.title} {left.summary}")
+    right_tokens = _semantic_tokens(f"{right.title} {right.summary}")
+    if min(len(left_tokens), len(right_tokens)) < 3:
+        return 0.0
+    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
+
+
+def _semantic_tokens(value: str) -> set[str]:
+    stop_words = {
+        "a", "an", "and", "are", "as", "at", "because", "both", "but", "for",
+        "from", "in", "is", "it", "of", "on", "or", "that", "the", "this",
+        "to", "was", "were", "while", "with", "you", "your",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+        if token not in stop_words
+    }
+
+
+def _merge_duplicate_insights(
+    left: AiInsight,
+    right: AiInsight,
+) -> AiInsight:
+    if _is_schema_v2(right) and not _is_schema_v2(left):
+        return _merge_matching_insights(left, right)
+    if _is_schema_v2(left) and not _is_schema_v2(right):
+        return _merge_matching_insights(right, left)
+
+    richer, other = (
+        (left, right)
+        if len(left.summary.split()) >= len(right.summary.split())
+        else (right, left)
+    )
+    merged = AiInsight(
+        title=richer.title,
+        summary=richer.summary,
+        moodLabel=richer.moodLabel or other.moodLabel,
+        dayThemes=_distinct_strings(
+            [*richer.dayThemes, *other.dayThemes],
+            limit=5,
+        ),
+        suggestions=_distinct_strings(
+            [*richer.suggestions, *other.suggestions],
+            limit=4,
+        ),
+        reflectionQuestions=_distinct_strings(
+            [*richer.reflectionQuestions, *other.reflectionQuestions],
+            limit=4,
+        ),
+        evidence=richer.evidence or other.evidence,
+        confidence=max(richer.confidence, other.confidence),
+        safetyNote=_merge_safety_notes(richer.safetyNote, other.safetyNote),
+    )
+    if _is_schema_v2(merged):
+        try:
+            validate_grounded_user_language(merged)
+        except ValueError:
+            return left if _is_schema_v2(left) else right
+    return merged
 
 
 def _merge_matching_insights(
@@ -132,7 +242,7 @@ def _merge_matching_insights(
         ),
         reflectionQuestions=_distinct_strings(
             [*grounded.reflectionQuestions, *narrative.reflectionQuestions],
-            limit=3,
+            limit=4,
         ),
         evidence=grounded.evidence,
         confidence=grounded.confidence,
@@ -238,7 +348,7 @@ def _fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:
         return [
             AiInsight(
                 title="Reflection signal",
-                summary=insight.text,
+                summary=_direct_fallback_summary(insight.text),
                 moodLabel=_mood_label(result),
                 dayThemes=result.nlp.topics[:4] or result.nlp.keyPhrases[:4],
                 suggestions=[
@@ -296,3 +406,20 @@ def _mood_label(result: AnalysisResult) -> str:
     if result.fused.overallArousal > 0.55:
         return "activated"
     return "reflective"
+
+
+def _direct_fallback_summary(value: str) -> str:
+    clean = " ".join(value.split())
+    replacements = (
+        (r"\b(?:a|the) student was\b", "you were"),
+        (r"\b(?:a|the) student is\b", "you are"),
+        (r"\bthe (?:user|speaker|person|journal owner) was\b", "you were"),
+        (r"\bthe (?:user|speaker|person|journal owner) is\b", "you are"),
+        (r"\b(?:a|the) student\b", "you"),
+        (r"\bthe (?:user|speaker|person|journal owner)\b", "you"),
+    )
+    for pattern, replacement in replacements:
+        clean = re.sub(pattern, replacement, clean, flags=re.IGNORECASE)
+    if re.search(r"\b(?:you|your|yours|yourself)\b", clean, re.IGNORECASE):
+        return clean
+    return f"Your reflection surfaced this observation: {clean}"

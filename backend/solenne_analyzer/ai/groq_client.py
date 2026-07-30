@@ -7,6 +7,7 @@ import httpx
 from .prompts import INSIGHT_JSON_SCHEMA, SYSTEM_PROMPT, build_user_prompt
 from .validators import (
     InsightQualityError,
+    adaptive_insight_limit,
     parse_ai_insights_json,
     validate_ai_insight_quality,
 )
@@ -52,7 +53,9 @@ def generate_groq_insights(
                     response_format,
                     revision_feedback=revision_feedback,
                 )
-                insights = parse_ai_insights_json(content)
+                insights = parse_ai_insights_json(content)[
+                    : adaptive_insight_limit(context)
+                ]
                 validate_ai_insight_quality(insights, context)
                 diagnostics.status = "complete"
                 diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
@@ -87,10 +90,11 @@ def _chat_completion(
     *,
     revision_feedback: str | None = None,
 ) -> str:
+    card_limit = adaptive_insight_limit(context)
     payload = {
         "model": config.groq_model,
         "temperature": 0.25,
-        "max_tokens": 1200,
+        "max_tokens": _max_output_tokens(card_limit),
         "response_format": response_format,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -132,6 +136,10 @@ def _chat_completion(
     if choice.get("finish_reason") == "length":
         raise ValueError("Groq completion reached the output token limit.")
     return choice["message"]["content"]
+
+
+def _max_output_tokens(card_limit: int) -> int:
+    return max(1200, min(4800, 700 + (card_limit * 500)))
 
 
 def _response_formats(model: str) -> list[dict]:

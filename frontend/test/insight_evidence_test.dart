@@ -70,6 +70,28 @@ void main() {
     );
   });
 
+  test('external references alone do not create expandable evidence', () {
+    final evidence = InsightEvidence.fromMap(const {
+      'schemaVersion': 2,
+      'userEvidence': [],
+      'externalReferences': [
+        {
+          'claimCardId': 'claim-1',
+          'sourceId': 'source-1',
+          'title': 'Stored audit source',
+          'url': 'https://example.org/source',
+        },
+      ],
+      'verification': {
+        'status': 'source_supported',
+        'method': 'curated_claim_match',
+      },
+    });
+
+    expect(evidence.externalReferences, hasLength(1));
+    expect(evidence.hasContent, isFalse);
+  });
+
   test('legacy and malformed evidence remain safe', () {
     final legacy = InsightEvidence.fromMap(const {
       'metrics': {'pauseRatio': 0.4},

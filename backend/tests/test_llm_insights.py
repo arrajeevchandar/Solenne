@@ -67,6 +67,7 @@ class LlmInsightsTest(unittest.TestCase):
 
     def test_combined_mode_shows_legacy_and_grounded_cards(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.wordCount = 78
         result.insights = [
             Insight(
                 templateId="T",
@@ -188,8 +189,9 @@ class LlmInsightsTest(unittest.TestCase):
         grounded = AiInsight(
             title="mixed-emotions!",
             summary=(
-                "Pride in the hackathon placement appeared alongside sadness about "
-                "missing first place and questions about the effort behind the result."
+                "Your pride in the hackathon placement appeared alongside sadness about "
+                "missing first place, while you questioned the preparation and team "
+                "effort behind the result."
             ),
             moodLabel="bittersweet",
             dayThemes=["mixed emotions", "achievement"],
@@ -377,6 +379,7 @@ class LlmInsightsTest(unittest.TestCase):
 
     def test_combined_mode_caps_cards_and_keeps_source_support(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.wordCount = 100
         narrative = [
             AiInsight(title=f"Narrative {index}", summary="A narrative card.", moodLabel="")
             for index in range(1, 4)
@@ -426,6 +429,133 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(len(insights), 3)
         self.assertTrue(
             any(item.evidence.get("schemaVersion") == 2 for item in insights)
+        )
+
+    def test_long_entry_can_surface_more_than_three_distinct_cards(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.wordCount = 220
+        narrative_subjects = [
+            ("Team collaboration", "Your reflection explored teamwork, shared decisions, and how collaboration shaped the day."),
+            ("Creative confidence", "Your journal described creative experimentation, growing confidence, and ideas you want to revisit."),
+            ("Rest and energy", "Your words connected sleep, physical energy, and the quieter pace you needed after finishing."),
+            ("Future priorities", "Your entry considered upcoming goals, personal priorities, and the commitments you may choose next."),
+        ]
+        narrative = [
+            AiInsight(
+                title=title,
+                summary=summary,
+                moodLabel="reflective",
+            )
+            for title, summary in narrative_subjects
+        ]
+        grounded_subjects = [
+            ("Social connection", "Your journal named friendship, conversation, and the support you noticed from people around you."),
+            ("Grounding routine", "Your reflection mentioned breathing, a deliberate pause, and the steadier attention you found afterward."),
+        ]
+        grounded = [
+            AiInsight(
+                title=title,
+                summary=summary,
+                moodLabel="reflective",
+                evidence={
+                    "schemaVersion": 2,
+                    "externalReferences": [{"claimCardId": f"claim-{index}"}],
+                    "verification": {"status": "source_supported"},
+                },
+            )
+            for index, (title, summary) in enumerate(grounded_subjects, start=1)
+        ]
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    grounded,
+                    LlmDiagnostics(
+                        status="complete",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "groq_grounded",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    narrative,
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, _ = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(len(insights), 5)
+        self.assertGreater(len(insights), 3)
+        self.assertTrue(any(item.evidence.get("schemaVersion") == 2 for item in insights))
+
+    def test_semantic_duplicate_merges_without_matching_title(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.wordCount = 80
+        narrative = AiInsight(
+            title="Pride and a missed target",
+            summary=(
+                "Your hackathon placement brought pride while the missed first-place "
+                "target left disappointment about preparation and team effort."
+            ),
+            moodLabel="bittersweet",
+        )
+        grounded = AiInsight(
+            title="A complicated achievement",
+            summary=(
+                "Your hackathon placement brought pride, while a missed first-place "
+                "target left disappointment about team preparation and effort."
+            ),
+            moodLabel="bittersweet",
+            evidence={
+                "schemaVersion": 2,
+                "rationale": "Your reflection named pride and disappointment.",
+                "externalReferences": [{"claimCardId": "claim-reflection"}],
+                "verification": {"status": "source_supported"},
+            },
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    [grounded],
+                    LlmDiagnostics(
+                        status="complete",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "groq_grounded",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+        ):
+            insights, _, _ = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(
+            insights[0].evidence["verification"]["status"],
+            "source_supported",
         )
 
     def test_shadow_mode_preserves_legacy_output_and_stores_candidate(self):

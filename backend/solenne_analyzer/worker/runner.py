@@ -10,7 +10,12 @@ from ..config import AnalyzerConfig, DEFAULT_OUTPUT_DIR
 from ..pipeline.orchestrator import PipelineRunner
 from .config import WorkerConfig
 from .firebase_gateway import ClaimedJob, FirebaseGateway
-from .media_source import download_cloudinary_video, validate_cloudinary_video_url
+from .media_source import (
+    MediaSourceError,
+    cloudinary_thumbnail_url,
+    download_cloudinary_video,
+    validate_cloudinary_video_url,
+)
 from .result_mapper import analysis_result_to_firestore
 
 
@@ -83,7 +88,21 @@ class AnalysisWorker:
                 result = runner.analyze(video_path, run_id=job.id)
                 if result.status != "complete":
                     raise RuntimeError(result.errorMessage or "Analysis pipeline failed.")
-                self.gateway.complete(job, analysis_result_to_firestore(result))
+                payload = analysis_result_to_firestore(result)
+                timestamp = result.facial.bestFrameTimestampSeconds
+                if timestamp is not None:
+                    try:
+                        payload["thumbnailUrl"] = cloudinary_thumbnail_url(
+                            video_url,
+                            timestamp,
+                        )
+                    except (MediaSourceError, ValueError) as error:
+                        LOGGER.warning(
+                            "Could not derive best-frame thumbnail for %s: %s",
+                            job.id,
+                            _safe_error(error),
+                        )
+                self.gateway.complete(job, payload)
             LOGGER.info("Completed analysis job %s", job.id)
         except Exception as error:
             LOGGER.error("Analysis job %s failed: %s", job.id, _safe_error(error))

@@ -20,7 +20,9 @@ BLOCKED_TERMS = {
 
 MIN_SUBSTANTIVE_WORDS = 30
 MIN_SUBSTANTIVE_CONFIDENCE = 0.45
-MIN_SUMMARY_WORDS = 15
+MIN_SUMMARY_WORDS = 35
+MAX_SUMMARY_WORDS = 75
+MAX_AI_INSIGHTS = 8
 MIN_EVIDENCE_REASON_WORDS = 8
 MIN_SUPPORTING_ITEMS = 2
 UNSUPPORTED_INFERENCE_PHRASES = {
@@ -30,6 +32,14 @@ UNSUPPORTED_INFERENCE_PHRASES = {
     "your personality",
     "personality trait",
     "hidden intention",
+}
+THIRD_PERSON_SUBJECT_PHRASES = {
+    "a student",
+    "the student",
+    "the user",
+    "the speaker",
+    "the person",
+    "the journal owner",
 }
 
 _ANCHOR_STOP_WORDS = {
@@ -82,18 +92,18 @@ def validate_ai_insight_payload(payload: dict[str, Any]) -> list[AiInsight]:
     if not isinstance(raw_items, list) or not raw_items:
         raise ValueError("AI response must include a non-empty aiInsights list.")
     insights: list[AiInsight] = []
-    for item in raw_items[:3]:
+    for item in raw_items[:MAX_AI_INSIGHTS]:
         if not isinstance(item, dict):
             raise ValueError("Each AI insight must be an object.")
         normalized = _normalize_item(item)
         insight = AiInsight(
             title=_clean_text(normalized["title"], max_len=80),
-            summary=_clean_text(normalized["summary"], max_len=420),
+            summary=_clean_text(normalized["summary"], max_len=600),
             moodLabel=_clean_text(normalized["moodLabel"], max_len=48),
             dayThemes=_clean_list(normalized["dayThemes"], max_items=5, max_len=48),
             suggestions=_clean_list(normalized["suggestions"], max_items=4, max_len=140),
             reflectionQuestions=_clean_list(
-                normalized["reflectionQuestions"], max_items=3, max_len=140
+                normalized["reflectionQuestions"], max_items=4, max_len=140
             ),
             evidence=_sanitize_evidence(normalized["evidence"]),
             confidence=clamp(float(normalized["confidence"]), 0.0, 1.0),
@@ -127,6 +137,40 @@ def is_substantive_insight_context(context: dict[str, Any]) -> bool:
     )
 
 
+def adaptive_insight_limit(context: dict[str, Any]) -> int:
+    transcript = context.get("transcript")
+    transcript = transcript if isinstance(transcript, dict) else {}
+    narrative = _context_narrative(context)
+    if crisis_language_present(narrative):
+        return 1
+    raw_word_count = transcript.get("wordCount", 0)
+    try:
+        word_count = int(raw_word_count)
+    except (TypeError, ValueError):
+        word_count = 0
+    if word_count <= 0:
+        word_count = _usable_narrative_word_count(transcript)
+    return adaptive_insight_limit_for_word_count(word_count)
+
+
+def adaptive_insight_limit_for_word_count(word_count: int) -> int:
+    if word_count < 30:
+        return 1
+    if word_count < 80:
+        return 2
+    if word_count < 140:
+        return 3
+    if word_count < 220:
+        return 4
+    if word_count < 320:
+        return 5
+    if word_count < 450:
+        return 6
+    if word_count < 600:
+        return 7
+    return MAX_AI_INSIGHTS
+
+
 def expected_day_theme_count(context: dict[str, Any]) -> int:
     metrics = context.get("metrics")
     metrics = metrics if isinstance(metrics, dict) else {}
@@ -150,11 +194,26 @@ def validate_ai_insight_quality(
     context: dict[str, Any],
 ) -> None:
     """Require rich, distinct cards only when the journal has enough source detail."""
+    direct_address_failures = [
+        f"card {index} summary must address the journal owner directly with you or your"
+        for index, insight in enumerate(insights, start=1)
+        if not _uses_direct_address(insight.summary)
+    ]
+    if direct_address_failures:
+        raise InsightQualityError("; ".join(direct_address_failures))
+    oversized = [
+        f"card {index} summary must contain no more than {MAX_SUMMARY_WORDS} words"
+        for index, insight in enumerate(insights, start=1)
+        if len(_word_tokens(insight.summary)) > MAX_SUMMARY_WORDS
+    ]
+    if oversized:
+        raise InsightQualityError("; ".join(oversized))
+
     if not is_substantive_insight_context(context):
         return
 
     failures: list[str] = []
-    if len(insights) < 2:
+    if adaptive_insight_limit(context) >= 2 and len(insights) < 2:
         failures.append("return at least 2 distinct insight cards")
 
     context_anchors = _context_anchor_tokens(context)
@@ -215,6 +274,18 @@ def validate_ai_insight_quality(
 
     if failures:
         raise InsightQualityError("; ".join(dict.fromkeys(failures)))
+
+
+def _uses_direct_address(value: str) -> bool:
+    lowered = " ".join(value.lower().replace("’", "'").split())
+    if any(phrase in lowered for phrase in THIRD_PERSON_SUBJECT_PHRASES):
+        return False
+    return bool(
+        re.search(
+            r"\b(?:you|your|yours|yourself|you're|you've|you'll|you'd)\b",
+            lowered,
+        )
+    )
 
 
 def _normalize_item(item: dict[str, Any]) -> dict[str, Any]:

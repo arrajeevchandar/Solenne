@@ -27,11 +27,12 @@ class GroqClientTest(unittest.TestCase):
     def test_substantive_prompt_requests_rich_distinct_cards(self):
         prompt = build_user_prompt(_substantive_context())
 
-        self.assertIn("Return 2 distinct insight cards", prompt)
-        self.assertIn("specific 15-to-70-word summary", prompt)
+        self.assertIn("Return between 2 and 2 distinct insight cards", prompt)
+        self.assertIn("specific 35-to-75-word summary", prompt)
         self.assertIn("at least 2 distinct concise day themes", prompt)
-        self.assertIn("at least 2 gentle, practical suggestions", prompt)
-        self.assertIn("at least 2 open-ended reflection questions", prompt)
+        self.assertIn("2 to 4 gentle, practical suggestions", prompt)
+        self.assertIn("2 to 4 open-ended reflection questions", prompt)
+        self.assertIn("using you or your", prompt)
         self.assertIn("evidence.reason", prompt)
 
     def test_short_entry_prompt_allows_one_focused_card(self):
@@ -75,7 +76,7 @@ class GroqClientTest(unittest.TestCase):
             completion.call_args_list[0].kwargs["revision_feedback"]
         )
         feedback = completion.call_args_list[1].kwargs["revision_feedback"]
-        self.assertIn("summary must contain at least 15 words", feedback)
+        self.assertIn("summary must contain at least 35 words", feedback)
         self.assertIn("at least 2 distinct suggestions", feedback)
 
     def test_sparse_response_is_retried_only_once(self):
@@ -92,7 +93,32 @@ class GroqClientTest(unittest.TestCase):
         self.assertEqual(insights, [])
         self.assertEqual(diagnostics.status, "failed")
         self.assertEqual(completion.call_count, 2)
-        self.assertIn("summary must contain at least 15 words", diagnostics.failureReason)
+        self.assertIn("summary must contain at least 35 words", diagnostics.failureReason)
+
+    def test_third_person_summary_gets_one_direct_address_revision(self):
+        third_person = json.loads(_rich_response())
+        third_person["aiInsights"][0]["summary"] = (
+            "A student described the hackathon placement, the missed first-position "
+            "target, the effort invested by the team, and the disappointment that sat "
+            "beside pride while considering how preparation could change another result."
+        )
+        with patch(
+            "solenne_analyzer.ai.groq_client._chat_completion",
+            side_effect=[json.dumps(third_person), _rich_response()],
+        ) as completion:
+            insights, diagnostics = generate_groq_insights(
+                _substantive_context(),
+                _config(),
+                token_estimate=300,
+            )
+
+        self.assertEqual(diagnostics.status, "complete")
+        self.assertEqual(len(insights), 2)
+        self.assertEqual(completion.call_count, 2)
+        self.assertIn(
+            "must address the journal owner directly",
+            completion.call_args_list[1].kwargs["revision_feedback"],
+        )
 
     def test_structured_model_stops_after_one_quality_revision(self):
         config = _config()
@@ -301,10 +327,12 @@ def _rich_response() -> str:
             "aiInsights": [
                 {
                     "title": "Pride alongside disappointment",
-                    "summary": (
-                        "Your hackathon placement brought genuine pride, while missing "
-                        "the first-position target left disappointment about the effort "
-                        "your team invested."
+                "summary": (
+                    "Your hackathon placement brought genuine pride, while missing "
+                    "the first-position target left disappointment about the effort "
+                    "your team invested. You also connected the outcome with preparation, "
+                    "the standard you hoped to reach, and questions about what this "
+                    "experience should mean beyond the final position."
                     ),
                     "moodLabel": "bittersweet",
                     "dayThemes": ["achievement", "mixed emotions"],
@@ -328,10 +356,12 @@ def _rich_response() -> str:
                 },
                 {
                     "title": "A learning thread in the result",
-                    "summary": (
-                        "You recognized the achievement while examining effort, "
-                        "expectations, and what reaching first position represented "
-                        "for you after the hackathon."
+                "summary": (
+                    "You recognized the achievement while examining effort, "
+                    "expectations, and what reaching first position represented "
+                    "for you after the hackathon. Your reflection made room for learning "
+                    "from the preparation and choosing which realistic improvement "
+                    "would matter next without dismissing what your team achieved."
                     ),
                     "moodLabel": "reflective",
                     "dayThemes": ["learning", "expectations"],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/profile_avatar.dart';
 import '../auth/auth_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -21,10 +22,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.royalBlue,
-        title: Text(
-          'Log out?',
-          style: AppTextStyles.display(fontSize: 22),
-        ),
+        title: Text('Log out?', style: AppTextStyles.display(fontSize: 22)),
         content: Text(
           'You will need to sign in again to reach your reflections.',
           style: AppTextStyles.body(
@@ -60,10 +58,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     await ref.read(authRepositoryProvider).signOut();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      fadeThroughRoute(const AuthScreen()),
-      (_) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushAndRemoveUntil(fadeThroughRoute(const AuthScreen()), (_) => false);
   }
 
   @override
@@ -107,9 +104,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.edit_rounded,
                       label: 'Edit profile',
                       detail: 'Username, name, and photo',
-                      onTap: () => Navigator.of(context).push(
-                        fadeThroughRoute(const EditProfileScreen()),
-                      ),
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const EditProfileScreen())),
                     ),
                     const SizedBox(height: 12),
                     _SettingsRow(
@@ -219,24 +216,15 @@ class _ProfileSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(firebaseAuthProvider).currentUser;
-    final photoUrl = user?.photoURL;
+    final profile = ref.watch(userProfileProvider).value;
     return SolenneGlass(
       padding: const EdgeInsets.all(14),
       borderRadius: 20,
       child: Row(
         children: [
-          CircleAvatar(
+          ProfileAvatar(
+            photoUrl: profile?.photoUrl ?? user?.photoURL,
             radius: 26,
-            backgroundColor: AppColors.sapphire.withValues(alpha: 0.32),
-            backgroundImage: photoUrl == null || photoUrl.isEmpty
-                ? null
-                : NetworkImage(photoUrl),
-            child: photoUrl == null || photoUrl.isEmpty
-                ? Icon(
-                    Icons.person_rounded,
-                    color: AppColors.shellstone.withValues(alpha: 0.86),
-                  )
-                : null,
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -244,14 +232,14 @@ class _ProfileSummary extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user?.displayName ?? 'username',
+                  profile?.displayName ?? user?.displayName ?? 'username',
                   style: AppTextStyles.body(
                     fontSize: 16,
                     color: AppColors.swanWing.withValues(alpha: 0.92),
                   ),
                 ),
                 Text(
-                  user?.email ?? 'username@email.com',
+                  profile?.email ?? user?.email ?? 'username@email.com',
                   style: AppTextStyles.mono(
                     fontSize: 9,
                     color: AppColors.shellstone.withValues(alpha: 0.54),

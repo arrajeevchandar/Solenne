@@ -60,6 +60,17 @@ ALLOWED_EVIDENCE_PATHS = {
     "durationSeconds",
 }
 MIN_SUBSTANTIVE_NARRATIVE_WORDS = 30
+MIN_DETAILED_SUMMARY_WORDS = 35
+MAX_DETAILED_SUMMARY_WORDS = 75
+MAX_GROUNDED_DRAFTS = 5
+THIRD_PERSON_SUBJECT_PHRASES = {
+    "a student",
+    "the student",
+    "the user",
+    "the speaker",
+    "the person",
+    "the journal owner",
+}
 NARRATIVE_STOP_WORDS = {
     "about",
     "after",
@@ -93,17 +104,17 @@ def parse_grounded_drafts_json(content: str) -> list[GroundedInsightDraft]:
     if not isinstance(raw_items, list) or not raw_items:
         raise ValueError("Grounded response must include a non-empty drafts list.")
     drafts: list[GroundedInsightDraft] = []
-    for index, item in enumerate(raw_items[:3]):
+    for index, item in enumerate(raw_items[:MAX_GROUNDED_DRAFTS]):
         if not isinstance(item, dict):
             raise ValueError(f"drafts[{index}] must be an object.")
-        summary = _text(item.get("summary"), f"drafts[{index}].summary", 420)
+        summary = _text(item.get("summary"), f"drafts[{index}].summary", 600)
         draft = GroundedInsightDraft(
             title=_text(item.get("title"), f"drafts[{index}].title", 80),
             summary=summary,
             moodLabel=_text(item.get("moodLabel"), f"drafts[{index}].moodLabel", 48),
             dayThemes=tuple(_text_list(item.get("dayThemes"), 5, 48)),
             reflectionQuestions=tuple(
-                _text_list(item.get("reflectionQuestions"), 3, 140)
+                _text_list(item.get("reflectionQuestions"), 4, 140)
             ),
             observationFactIds=tuple(
                 _id_list(item.get("observationFactIds"), "observationFactIds")
@@ -237,6 +248,18 @@ def validate_draft_quality(
     journal_narrative: dict[str, Any],
 ) -> None:
     """Reject valid JSON that is too sparse for a substantive journal entry."""
+    for index, draft in enumerate(drafts):
+        if not _uses_direct_address(draft.summary):
+            raise ValueError(
+                f"drafts[{index}].summary must address the journal owner directly "
+                "with you or your."
+            )
+        if len(_words(draft.summary)) > MAX_DETAILED_SUMMARY_WORDS:
+            raise ValueError(
+                f"drafts[{index}].summary must contain no more than "
+                f"{MAX_DETAILED_SUMMARY_WORDS} words."
+            )
+
     paraphrase = str(journal_narrative.get("paraphrase") or "")
     excerpts = " ".join(
         str(item)
@@ -267,10 +290,11 @@ def validate_draft_quality(
     )
     seen_titles: set[str] = set()
     for index, draft in enumerate(drafts):
-        if len(_words(draft.summary)) < 15:
+        if len(_words(draft.summary)) < MIN_DETAILED_SUMMARY_WORDS:
             raise ValueError(
                 f"drafts[{index}].summary is too brief for the supplied journal; "
-                "connect at least two concrete narrative details in 15 or more words."
+                f"connect 2 to 4 concrete narrative details in "
+                f"{MIN_DETAILED_SUMMARY_WORDS} or more words."
             )
         summary_anchors = set(_words(draft.summary)) & narrative_anchors
         if len(summary_anchors) < expected_anchors:
@@ -320,6 +344,11 @@ def validate_assembled_insights(
     fact_by_id = {item.evidenceId: item for item in facts}
     for index, insight in enumerate(insights):
         _reject_ai_insight_language(insight)
+        if not _uses_direct_address(insight.summary):
+            raise ValueError(
+                f"insight[{index}].summary must address the journal owner directly "
+                "with you or your."
+            )
         evidence = insight.evidence
         if evidence.get("schemaVersion") != 2:
             raise ValueError(f"insight[{index}] is missing evidence schemaVersion 2.")
@@ -371,6 +400,11 @@ def validate_assembled_insights(
 def validate_grounded_user_language(insight: AiInsight) -> None:
     """Apply grounded wording rules before an insight receives evidence-v2 labeling."""
     _reject_ai_insight_language(insight)
+    if not _uses_direct_address(insight.summary):
+        raise ValueError(
+            "Grounded insight summary must address the journal owner directly "
+            "with you or your."
+        )
 
 
 def _reject_language(draft: GroundedInsightDraft) -> None:
@@ -404,6 +438,18 @@ def _reject_ai_insight_language(insight: AiInsight) -> None:
     blocked = BLOCKED_PERSONAL_PHRASES | BLOCKED_RESEARCH_PHRASES
     if any(phrase in text for phrase in blocked):
         raise ValueError("Assembled insight contains unsupported or clinical language.")
+
+
+def _uses_direct_address(value: str) -> bool:
+    lowered = " ".join(value.lower().replace("’", "'").split())
+    if any(phrase in lowered for phrase in THIRD_PERSON_SUBJECT_PHRASES):
+        return False
+    return bool(
+        re.search(
+            r"\b(?:you|your|yours|yourself|you're|you've|you'll|you'd)\b",
+            lowered,
+        )
+    )
 
 
 def _text(value: Any, label: str, max_len: int) -> str:

@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-07-v3-rich-grounded';
+  static const analysisVersion = '2026-07-v4-adaptive-detailed-thumbnail';
 
   JournalRepository({required this.firestore, required this.auth});
 

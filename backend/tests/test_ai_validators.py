@@ -2,6 +2,7 @@ import unittest
 
 from solenne_analyzer.ai.validators import (
     InsightQualityError,
+    adaptive_insight_limit_for_word_count,
     crisis_language_present,
     parse_ai_insights_json,
     validate_ai_insight_payload,
@@ -135,7 +136,7 @@ class AiValidatorTest(unittest.TestCase):
         with self.assertRaises(InsightQualityError) as raised:
             validate_ai_insight_quality(insights, _substantive_context())
 
-        self.assertIn("summary must contain at least 15 words", str(raised.exception))
+        self.assertIn("summary must contain at least 35 words", str(raised.exception))
         self.assertIn("at least 2 distinct day themes", str(raised.exception))
         self.assertIn("at least 2 distinct suggestions", str(raised.exception))
         self.assertIn(
@@ -171,7 +172,7 @@ class AiValidatorTest(unittest.TestCase):
 
     def test_quality_validator_allows_sparse_low_signal_card(self):
         insights = validate_ai_insight_payload(
-            {"aiInsights": [{"summary": "A brief reflection was captured."}]}
+            {"aiInsights": [{"summary": "Your brief reflection was captured."}]}
         )
         context = {
             "transcript": {
@@ -189,7 +190,7 @@ class AiValidatorTest(unittest.TestCase):
 
     def test_quality_validator_allows_sparse_low_confidence_card(self):
         insights = validate_ai_insight_payload(
-            {"aiInsights": [{"summary": "A cautious reflection was captured."}]}
+            {"aiInsights": [{"summary": "Your cautious reflection was captured."}]}
         )
         context = _substantive_context()
         context["transcript"]["confidence"] = 0.2
@@ -198,7 +199,7 @@ class AiValidatorTest(unittest.TestCase):
 
     def test_quality_validator_uses_visible_narrative_not_original_length(self):
         insights = validate_ai_insight_payload(
-            {"aiInsights": [{"summary": "A brief visible reflection was captured."}]}
+            {"aiInsights": [{"summary": "Your brief visible reflection was captured."}]}
         )
         context = {
             "transcript": {
@@ -211,6 +212,62 @@ class AiValidatorTest(unittest.TestCase):
         }
 
         validate_ai_insight_quality(insights, context)
+
+    def test_adaptive_card_boundaries(self):
+        boundaries = {
+            0: 1,
+            29: 1,
+            30: 2,
+            79: 2,
+            80: 3,
+            139: 3,
+            140: 4,
+            219: 4,
+            220: 5,
+            319: 5,
+            320: 6,
+            449: 6,
+            450: 7,
+            599: 7,
+            600: 8,
+            1200: 8,
+        }
+        for word_count, expected in boundaries.items():
+            with self.subTest(word_count=word_count):
+                self.assertEqual(
+                    adaptive_insight_limit_for_word_count(word_count),
+                    expected,
+                )
+
+    def test_parser_accepts_up_to_eight_cards(self):
+        payload = {
+            "aiInsights": [
+                {
+                    "title": f"Theme {index}",
+                    "summary": f"Your reflection includes distinct theme number {index}.",
+                }
+                for index in range(8)
+            ]
+        }
+
+        self.assertEqual(len(validate_ai_insight_payload(payload)), 8)
+
+    def test_quality_validator_rejects_third_person_summary(self):
+        payload = _rich_payload()
+        payload["aiInsights"][0]["summary"] = (
+            "A student described the hackathon placement, the missed first-place "
+            "target, the effort invested by the team, and the disappointment that "
+            "sat beside pride while considering what preparation could change next."
+        )
+
+        with self.assertRaisesRegex(
+            InsightQualityError,
+            "must address the journal owner directly",
+        ):
+            validate_ai_insight_quality(
+                validate_ai_insight_payload(payload),
+                _substantive_context(),
+            )
 
     def test_quality_validator_allows_sparse_safety_card(self):
         insights = validate_ai_insight_payload(
@@ -269,7 +326,9 @@ def _rich_payload() -> dict:
                 "summary": (
                     "Your hackathon placement brought genuine pride, while missing the "
                     "first-place target left room for disappointment about the effort "
-                    "your team invested."
+                    "your team invested. You also connected the result with preparation, "
+                    "the standard you hoped to reach, and questions about what the "
+                    "experience should mean beyond the final position."
                 ),
                 "moodLabel": "bittersweet",
                 "dayThemes": ["achievement", "mixed emotions"],
@@ -296,7 +355,9 @@ def _rich_payload() -> dict:
                 "summary": (
                     "You recognized the achievement while also looking closely at effort, "
                     "expectations, and what reaching first position represented for you "
-                    "after the hackathon."
+                    "after the hackathon. Your reflection made room for both learning "
+                    "from the preparation and deciding which improvement would matter "
+                    "most without dismissing what your team already achieved."
                 ),
                 "moodLabel": "reflective",
                 "dayThemes": ["learning", "expectations"],

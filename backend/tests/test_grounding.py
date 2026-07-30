@@ -96,6 +96,37 @@ class CatalogTests(unittest.TestCase):
             [item["type"] for item in formats], ["json_schema", "json_object"]
         )
 
+    def test_grounded_parser_accepts_five_drafts(self):
+        payload = {
+            "drafts": [
+                {
+                    "title": f"Theme {index}",
+                    "summary": (
+                        f"Your reflection connected theme {index} with several concrete "
+                        "details that you named while considering what mattered, what "
+                        "felt unresolved, and which gentle next step could help you "
+                        "carry the experience forward without forcing a conclusion."
+                    ),
+                    "moodLabel": "reflective",
+                    "dayThemes": [f"theme-{index}"],
+                    "reflectionQuestions": ["What feels important to you?"],
+                    "observationFactIds": ["fact-1"],
+                    "claimCardIds": [],
+                    "suggestionIds": [],
+                    "confidence": 0.5,
+                    "safetyNote": (
+                        "Solenne offers wellness reflections, not medical advice."
+                    ),
+                }
+                for index in range(5)
+            ]
+        }
+
+        self.assertEqual(
+            len(parse_grounded_drafts_json(json.dumps(payload))),
+            5,
+        )
+
     def test_cli_exposes_catalog_and_selected_reprocess_commands(self):
         parser = build_parser()
         catalog_args = parser.parse_args(["catalog", "validate"])
@@ -225,7 +256,7 @@ class ObservationAndAssemblyTests(unittest.TestCase):
         claims = retrieve_claims(facts, catalog)
         draft = GroundedInsightDraft(
             title="A demanding task",
-            summary="Work and a deadline were present in this reflection.",
+            summary="Your reflection included work and a deadline.",
             moodLabel="reflective",
             dayThemes=("work",),
             reflectionQuestions=("What part of the task needs the clearest boundary?",),
@@ -282,9 +313,11 @@ class GroundingRuntimeTests(unittest.TestCase):
                     GroundedInsightDraft(
                         title="Work was present",
                         summary=(
-                            "Work and a deadline shaped this reflection, alongside an "
-                            "effort to decide what mattered and where a clearer stopping "
-                            "point could help."
+                            "Your reflection connected a demanding work deadline with "
+                            "the effort you had already invested and the unfinished parts "
+                            "still asking for attention. You were also trying to decide "
+                            "what mattered most, where a clearer stopping point could "
+                            "help, and which expectation could become more realistic."
                         ),
                         moodLabel="reflective",
                         dayThemes=("work", "deadline"),
@@ -345,9 +378,11 @@ class GroundingRuntimeTests(unittest.TestCase):
                     GroundedInsightDraft(
                         title="A demanding task",
                         summary=(
-                            "Work and a deadline shaped this reflection, while you tried "
-                            "to decide what mattered and which expectation should remain "
-                            "open rather than forcing a conclusion."
+                            "Your reflection connected a demanding work deadline with "
+                            "the effort you had already invested and the unfinished parts "
+                            "still asking for attention. You were deciding what mattered "
+                            "most, which expectation should remain open, and where you "
+                            "could avoid forcing a conclusion before you felt ready."
                         ),
                         moodLabel="reflective",
                         dayThemes=("work", "deadline"),
@@ -407,13 +442,15 @@ class GroundingRuntimeTests(unittest.TestCase):
                     item.evidenceId for item in facts if item.kind == "topic"
                 )
                 if revision_feedback is None:
-                    summary = "Work and a deadline were present."
+                    summary = "Your reflection included work and a deadline."
                     questions = ("What should I do next?",)
                 else:
                     summary = (
-                        "Work and a deadline shaped this reflection, while you also "
-                        "tried to identify what mattered and where a clearer boundary "
-                        "could make the task feel more manageable."
+                        "Your reflection connected a demanding work deadline with "
+                        "the effort you had already invested and the unfinished parts "
+                        "still asking for attention. You were also identifying what "
+                        "mattered most, where a clearer boundary could help, and which "
+                        "expectation could become more manageable without being ignored."
                     )
                     questions = (
                         "Which part of the deadline matters most right now?",
@@ -457,7 +494,7 @@ class GroundingRuntimeTests(unittest.TestCase):
         self.assertEqual(len(feedback), 2)
         self.assertIsNone(feedback[0])
         self.assertIn("too brief", feedback[1] or "")
-        self.assertGreaterEqual(len(insights[0].summary.split()), 15)
+        self.assertGreaterEqual(len(insights[0].summary.split()), 35)
         self.assertEqual(len(insights[0].reflectionQuestions), 2)
         self.assertEqual(diagnostics.grounding["attempts"], 2)
 

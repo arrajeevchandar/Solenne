@@ -16,9 +16,7 @@ class InsightEvidence {
   bool get isV2 => schemaVersion == 2;
   bool get isSafetyBypass => verification.reason == 'safety_bypass';
   bool get hasContent =>
-      rationale?.trim().isNotEmpty == true ||
-      userEvidence.isNotEmpty ||
-      externalReferences.isNotEmpty;
+      rationale?.trim().isNotEmpty == true || userEvidence.isNotEmpty;
 
   factory InsightEvidence.fromMap(Map<String, dynamic> map) {
     return InsightEvidence(

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from .validators import expected_day_theme_count, is_substantive_insight_context
+from .validators import (
+    adaptive_insight_limit,
+    expected_day_theme_count,
+    is_substantive_insight_context,
+)
 
 
 SYSTEM_PROMPT = """You are Solenne, a private wellness journal insight assistant.
@@ -24,13 +28,13 @@ INSIGHT_JSON_SCHEMA = {
             "aiInsights": {
                 "type": "array",
                 "minItems": 1,
-                "maxItems": 3,
+                "maxItems": 8,
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
                         "title": {"type": "string"},
-                        "summary": {"type": "string"},
+                        "summary": {"type": "string", "maxLength": 600},
                         "moodLabel": {"type": "string"},
                         "dayThemes": {
                             "type": "array",
@@ -45,7 +49,7 @@ INSIGHT_JSON_SCHEMA = {
                         "reflectionQuestions": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "maxItems": 3,
+                            "maxItems": 4,
                         },
                         "evidence": {"type": "object"},
                         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
@@ -75,6 +79,7 @@ def build_user_prompt(
     *,
     revision_feedback: str | None = None,
 ) -> str:
+    card_limit = adaptive_insight_limit(context)
     theme_count = expected_day_theme_count(context)
     theme_requirement = (
         f"at least {theme_count} distinct concise day theme"
@@ -84,11 +89,13 @@ def build_user_prompt(
     )
     quality_requirements = (
         "This entry contains enough journal detail for a substantive response. "
-        "Return 2 distinct insight cards with different titles and different focuses. "
-        "For each card, write a specific 15-to-70-word summary that connects at least "
-        "two concrete details from the supplied journal context. Include "
-        f"{theme_requirement}at least 2 gentle, practical suggestions that are distinct, "
-        "and at least 2 open-ended reflection questions that are distinct. "
+        f"Return between 2 and {card_limit} distinct insight cards according to the "
+        "number of meaningful, non-overlapping themes actually supported by the entry; "
+        "fewer than the maximum is better than padding or repetition. "
+        "For each card, write a specific 35-to-75-word summary that connects 2 to 4 "
+        "concrete details from the supplied journal context. Include "
+        f"{theme_requirement}2 to 4 gentle, practical suggestions that are distinct, "
+        "and 2 to 4 open-ended reflection questions that are distinct. "
         "The evidence.reason must be a meaningful sentence of at least 8 words that "
         "names the supplied observations behind that card without quoting metric values. "
         "Do not pad, repeat, or restate the same idea across cards. "
@@ -118,7 +125,9 @@ def build_user_prompt(
         "do not infer a personality, mindset, hidden intention, or cause. Do not copy the "
         "transcript or include runId, journalId, sourceVideo, URLs, or other internal "
         "identifiers in evidence. "
-        "Keep each summary under 70 words, each suggestion under 24 words, and "
+        "Every summary must speak directly to the journal owner using you or your. "
+        "Never describe them as a student, the user, the speaker, or the person. "
+        "Keep each summary at no more than 75 words, each suggestion under 24 words, and "
         "each reflection question under 22 words. Use observations, not diagnoses. "
         f"{quality_requirements}\n\n"
         f"ANALYSIS_CONTEXT_JSON:\n{json.dumps(context, ensure_ascii=False)}"

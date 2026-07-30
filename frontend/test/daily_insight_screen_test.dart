@@ -143,10 +143,9 @@ void main() {
     expect(find.textContaining('RUN ID'), findsNothing);
   });
 
-  testWidgets('renders source-supported evidence and opens an HTTPS source', (
+  testWidgets('renders source-supported reasoning without paper metadata', (
     tester,
   ) async {
-    Uri? opened;
     final entry = _entry(
       analysisStatus: 'complete',
       insights: const [
@@ -198,15 +197,7 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(
-      _app(
-        entry,
-        launcher: (uri) async {
-          opened = uri;
-          return true;
-        },
-      ),
-    );
+    await tester.pumpWidget(_app(entry));
     await tester.pumpAndSettle();
 
     expect(find.text('SOURCE-SUPPORTED'), findsOneWidget);
@@ -221,14 +212,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('FROM YOUR REFLECTION'), findsOneWidget);
-    expect(find.text('PUBLIC RESEARCH CONTEXT'), findsOneWidget);
-    expect(find.text('Reviewed work-break source'), findsOneWidget);
-    expect(find.textContaining('General context only.'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('OPEN SOURCE'));
-    await tester.tap(find.text('OPEN SOURCE'));
-    await tester.pump();
-    expect(opened, Uri.parse('https://example.org/work-breaks'));
+    expect(find.text('PUBLIC RESEARCH CONTEXT'), findsNothing);
+    expect(find.text('Reviewed work-break source'), findsNothing);
+    expect(find.textContaining('General context only.'), findsNothing);
+    expect(find.text('OPEN SOURCE'), findsNothing);
   });
 
   testWidgets('shows a grounded rationale without evidence rows', (
@@ -320,13 +307,12 @@ void main() {
   });
 }
 
-Widget _app(JournalEntry entry, {SourceLauncher? launcher}) {
+Widget _app(JournalEntry entry) {
   return ProviderScope(
     overrides: [
       journalByIdStreamProvider.overrideWith(
         (ref, entryId) => Stream.value(entry),
       ),
-      if (launcher != null) sourceLauncherProvider.overrideWithValue(launcher),
     ],
     child: MaterialApp(
       theme: AppTheme.dark,

@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../features/journals/insight_evidence.dart';
@@ -12,12 +11,6 @@ import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../app_shell.dart';
-
-typedef SourceLauncher = Future<bool> Function(Uri uri);
-
-final sourceLauncherProvider = Provider<SourceLauncher>((ref) {
-  return (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
-});
 
 class DailyInsightScreen extends ConsumerWidget {
   const DailyInsightScreen({super.key, required this.entryId});
@@ -1102,14 +1095,14 @@ class _AnalysisStateCard extends StatelessWidget {
   }
 }
 
-class _InsightCard extends ConsumerWidget {
+class _InsightCard extends StatelessWidget {
   const _InsightCard({required this.insight, required this.index});
 
   final AiInsight insight;
   final int index;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final parsedEvidence = insight.parsedEvidence;
     final isV2 = parsedEvidence.isV2;
     final isSafety = parsedEvidence.isSafetyBypass;
@@ -1119,17 +1112,6 @@ class _InsightCard extends ConsumerWidget {
     final hasExpandableEvidence =
         !isSafety &&
         (isV2 ? parsedEvidence.hasContent : legacyEvidence.hasContent);
-
-    Future<void> openSource(ExternalReference source) async {
-      final uri = source.safeUri;
-      if (uri == null) return;
-      final opened = await ref.read(sourceLauncherProvider)(uri);
-      if (!opened && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This source could not be opened.')),
-        );
-      }
-    }
 
     return SolenneGlass(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
@@ -1264,10 +1246,7 @@ class _InsightCard extends ConsumerWidget {
                 ),
                 children: [
                   if (isV2)
-                    _GroundedEvidenceBody(
-                      evidence: parsedEvidence,
-                      onOpenSource: openSource,
-                    )
+                    _GroundedEvidenceBody(evidence: parsedEvidence)
                   else
                     _LegacyEvidenceBody(evidence: legacyEvidence),
                 ],
@@ -1326,13 +1305,9 @@ class _GroundingBadge extends StatelessWidget {
 }
 
 class _GroundedEvidenceBody extends StatelessWidget {
-  const _GroundedEvidenceBody({
-    required this.evidence,
-    required this.onOpenSource,
-  });
+  const _GroundedEvidenceBody({required this.evidence});
 
   final InsightEvidence evidence;
-  final Future<void> Function(ExternalReference source) onOpenSource;
 
   @override
   Widget build(BuildContext context) {
@@ -1357,31 +1332,6 @@ class _GroundedEvidenceBody extends StatelessWidget {
           const SizedBox(height: 10),
           for (final item in evidence.userEvidence)
             _PersonalEvidenceRow(item: item),
-        ],
-        if (evidence.externalReferences.isNotEmpty) ...[
-          if (rationale.isNotEmpty || evidence.userEvidence.isNotEmpty)
-            const SizedBox(height: 16),
-          const _EvidenceSectionHeader(
-            icon: Icons.public_rounded,
-            label: 'PUBLIC RESEARCH CONTEXT',
-          ),
-          const SizedBox(height: 10),
-          for (final source in evidence.externalReferences)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SourceReferenceCard(
-                source: source,
-                onOpen: () => onOpenSource(source),
-              ),
-            ),
-          Text(
-            'Research context is general. It does not determine why this personal reflection occurred.',
-            style: AppTextStyles.body(
-              fontSize: 9,
-              fontStyle: FontStyle.italic,
-              color: AppColors.shellstone.withValues(alpha: 0.54),
-            ),
-          ),
         ],
       ],
     );
@@ -1497,119 +1447,6 @@ class _PersonalEvidenceRow extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceReferenceCard extends StatelessWidget {
-  const _SourceReferenceCard({required this.source, required this.onOpen});
-
-  final ExternalReference source;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(17),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.sapphire.withValues(alpha: 0.22),
-            AppColors.royalBlue.withValues(alpha: 0.12),
-          ],
-        ),
-        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  source.title,
-                  style: AppTextStyles.display(fontSize: 17),
-                ),
-              ),
-              if (source.supportLevel.trim().isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(left: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: AppColors.quicksand.withValues(alpha: 0.09),
-                  ),
-                  child: Text(
-                    source.supportLevel.toUpperCase(),
-                    style: AppTextStyles.mono(
-                      fontSize: 6,
-                      color: AppColors.quicksand.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (source.publicationLine.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              source.publicationLine,
-              style: AppTextStyles.mono(
-                fontSize: 6.5,
-                color: AppColors.shellstone.withValues(alpha: 0.48),
-              ),
-            ),
-          ],
-          if (source.matchedClaim.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              source.matchedClaim,
-              style: AppTextStyles.body(
-                fontSize: 10.5,
-                color: AppColors.swanWing.withValues(alpha: 0.76),
-              ),
-            ),
-          ],
-          if (source.limitations.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'LIMITATION · ${source.limitations}',
-              style: AppTextStyles.mono(
-                fontSize: 6.3,
-                color: AppColors.shellstone.withValues(alpha: 0.48),
-              ),
-            ),
-          ],
-          if (source.safeUri != null) ...[
-            const SizedBox(height: 5),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onOpen,
-                icon: const Icon(Icons.open_in_new_rounded, size: 13),
-                label: const Text('OPEN SOURCE'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.quicksand,
-                  textStyle: AppTextStyles.mono(fontSize: 6.5),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
