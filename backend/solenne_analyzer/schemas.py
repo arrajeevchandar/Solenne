@@ -102,6 +102,10 @@ class LlmDiagnostics:
     latencyMs: int | None = None
     failureReason: str | None = None
     grounding: dict[str, Any] = field(default_factory=dict)
+    acceptedCardCount: int = 0
+    rejectedCardCount: int = 0
+    revisionUsed: bool = False
+    validationWarnings: list[str] = field(default_factory=list)
 
 
 @dataclass

@@ -57,7 +57,7 @@ class WorkerResultTests(unittest.TestCase):
         self.assertEqual(payload["analysisStatus"], "complete")
         self.assertEqual(
             payload["analysisVersion"],
-            "2026-07-v4-adaptive-detailed-thumbnail",
+            "2026-08-v5-resilient-detailed-insights",
         )
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertNotIn("segments", payload["transcript"])

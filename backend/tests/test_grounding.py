@@ -30,6 +30,7 @@ from solenne_analyzer.grounding.runtime import (
 )
 from solenne_analyzer.grounding.validators import (
     parse_grounded_drafts_json,
+    parse_grounded_drafts_json_partial,
     validate_assembled_insights,
     validate_draft_references,
 )
@@ -84,6 +85,22 @@ class CatalogTests(unittest.TestCase):
             errors = validate_catalog_file(path)
         self.assertTrue(any("HTTPS" in item for item in errors))
         self.assertTrue(any("copied source content" in item for item in errors))
+
+
+class GroundedPartialParsingTests(unittest.TestCase):
+    def test_partial_parser_preserves_valid_draft(self):
+        payload = _draft_json(
+            "Your reflection connected work, a deadline, existing effort, and the "
+            "unfinished tasks still needing attention. You also considered which "
+            "expectation mattered most, where a stopping point could help, and what "
+            "could remain open without forcing an immediate conclusion."
+        )
+        payload["drafts"].append({"title": "Missing fields"})
+
+        drafts, failures = parse_grounded_drafts_json_partial(json.dumps(payload))
+
+        self.assertEqual(len(drafts), 1)
+        self.assertTrue(any("drafts[1]" in item for item in failures))
 
     def test_llama_models_only_request_json_object_format(self):
         # Groq Llama models reject json_schema (HTTP 400); we must not send it to them.
@@ -295,6 +312,8 @@ class GroundingRuntimeTests(unittest.TestCase):
 
         self.assertIn("missed first position", summary)
         self.assertIn("preparation and effort", summary)
+        self.assertGreaterEqual(len(summary.split()), 35)
+        self.assertLessEqual(len(summary.split()), 75)
 
     def test_enforce_runtime_generates_source_supported_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -358,6 +377,106 @@ class GroundingRuntimeTests(unittest.TestCase):
         )
         self.assertIn("rationale", insights[0].evidence)
         self.assertEqual(calls, [None])
+
+    def test_grounded_runtime_preserves_valid_draft_and_repairs_only_invalid_one(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = _write_catalog(Path(temp), _catalog_payload())
+            config = AnalyzerConfig(
+                enable_llm_insights=True,
+                groq_api_key="test-key",
+                grounding_mode="enforce",
+                grounding_catalog_path=path,
+            )
+            accepted_seen: list[list[str]] = []
+
+            def fake_generate(
+                facts,
+                claims,
+                _config,
+                revision_feedback=None,
+                accepted_drafts=None,
+                **_kwargs,
+            ):
+                accepted_seen.append([item.title for item in (accepted_drafts or [])])
+                topic_id = next(item.evidenceId for item in facts if item.kind == "topic")
+                valid = GroundedInsightDraft(
+                    title="Effort around the deadline",
+                    summary=(
+                        "Your reflection connected a demanding work deadline with the "
+                        "effort you had already invested and the unfinished parts still "
+                        "asking for attention. You also considered what mattered most, "
+                        "where a stopping point could help, and which expectation could "
+                        "become more realistic without dismissing your progress."
+                    ),
+                    moodLabel="reflective",
+                    dayThemes=("work", "deadline"),
+                    reflectionQuestions=(
+                        "Which part of the deadline matters most right now?",
+                        "Where would a stopping point feel supportive?",
+                    ),
+                    observationFactIds=(topic_id,),
+                    claimCardIds=(claims[0].claimCardId,),
+                    suggestionIds=("suggest_break",),
+                    confidence=0.8,
+                    safetyNote="Solenne offers wellness reflections, not medical advice.",
+                )
+                if revision_feedback is None:
+                    invalid = GroundedInsightDraft(
+                        title="Unfinished work",
+                        summary="Your reflection mentioned unfinished work.",
+                        moodLabel="reflective",
+                        dayThemes=("work", "deadline"),
+                        reflectionQuestions=("What remains?",),
+                        observationFactIds=(topic_id,),
+                        claimCardIds=(claims[0].claimCardId,),
+                        suggestionIds=("suggest_break",),
+                        confidence=0.7,
+                        safetyNote="Solenne offers wellness reflections, not medical advice.",
+                    )
+                    return [valid, invalid], LlmDiagnostics(status="complete")
+                replacement = GroundedInsightDraft(
+                    title="Choosing what remains open",
+                    summary=(
+                        "You named the unfinished work alongside the deadline, the effort "
+                        "already invested, and the expectations still competing for your "
+                        "attention. Your reflection also made room to decide what can remain "
+                        "open, which task deserves focus, and where a realistic boundary "
+                        "could protect the progress you have already made."
+                    ),
+                    moodLabel="reflective",
+                    dayThemes=("unfinished work", "priorities"),
+                    reflectionQuestions=(
+                        "What can remain open without being ignored?",
+                        "Which task deserves your attention first?",
+                    ),
+                    observationFactIds=(topic_id,),
+                    claimCardIds=(claims[0].claimCardId,),
+                    suggestionIds=("suggest_break",),
+                    confidence=0.78,
+                    safetyNote="Solenne offers wellness reflections, not medical advice.",
+                )
+                return [replacement], LlmDiagnostics(status="complete")
+
+            with patch(
+                "solenne_analyzer.grounding.runtime.generate_grounded_drafts",
+                fake_generate,
+            ):
+                result = _analysis_result(topics=["work"], phrases=["deadline"])
+                result.transcript.text = (
+                    "Today I reflected on a demanding work deadline, the effort already "
+                    "invested, unfinished tasks, competing expectations, and where a "
+                    "realistic stopping point could protect the progress already made. "
+                    "I wanted to separate the most important priority from the work that "
+                    "could remain open until another day without losing momentum."
+                )
+                result.transcript.wordCount = len(result.transcript.text.split())
+                insights, diagnostics, provider = generate_grounded_insights(result, config)
+
+        self.assertEqual(provider, "groq_grounded")
+        self.assertEqual(len(insights), 2)
+        self.assertEqual(accepted_seen, [[], ["Effort around the deadline"]])
+        self.assertEqual(diagnostics.acceptedCardCount, 2)
+        self.assertTrue(diagnostics.revisionUsed)
 
     def test_retrieved_candidate_does_not_force_a_source_selection(self):
         with tempfile.TemporaryDirectory() as temp:

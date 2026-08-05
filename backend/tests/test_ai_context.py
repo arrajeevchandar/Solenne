@@ -50,6 +50,7 @@ class AiContextTest(unittest.TestCase):
         context = build_insight_context(result)
 
         self.assertEqual(context["transcript"]["keyExcerpts"], [transcript])
+        self.assertEqual(context["transcript"]["text"], transcript)
         excerpt_text = " ".join(context["transcript"]["keyExcerpts"])
         self.assertIn("sad because", excerpt_text)
         self.assertIn("first position", excerpt_text)
@@ -85,6 +86,28 @@ class AiContextTest(unittest.TestCase):
             sum(len(excerpt) for excerpt in excerpts),
             MAX_KEY_EXCERPTS_TOTAL_CHARS,
         )
+
+    def test_long_journal_excerpts_cover_middle_and_end_without_salience_terms(self):
+        sentences = [
+            f"Section {index} described a distinct ordinary event."
+            for index in range(1, 31)
+        ]
+
+        excerpts = key_excerpts(" ".join(sentences))
+
+        self.assertIn(sentences[0], excerpts)
+        self.assertIn(sentences[-1], excerpts)
+        self.assertTrue(any(sentence in excerpts for sentence in sentences[10:21]))
+
+    def test_context_omits_full_transcript_above_six_hundred_words(self):
+        result = AnalysisResult(runId="long", sourceVideo="journal.mp4")
+        result.transcript.text = " ".join(f"word{index}" for index in range(601))
+        result.transcript.wordCount = 601
+
+        context = build_insight_context(result)
+
+        self.assertEqual(context["transcript"]["text"], "")
+        self.assertTrue(context["transcript"]["keyExcerpts"])
 
 
 if __name__ == "__main__":

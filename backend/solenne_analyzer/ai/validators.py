@@ -32,6 +32,10 @@ UNSUPPORTED_INFERENCE_PHRASES = {
     "your personality",
     "personality trait",
     "hidden intention",
+    "sign of self-awareness",
+    "personal growth",
+    "which is affecting",
+    "highlighting a need",
 }
 THIRD_PERSON_SUBJECT_PHRASES = {
     "a student",
@@ -87,6 +91,27 @@ def parse_ai_insights_json(content: str) -> list[AiInsight]:
     return validate_ai_insight_payload(payload)
 
 
+def parse_ai_insights_json_partial(
+    content: str,
+) -> tuple[list[AiInsight], list[str]]:
+    """Parse independent cards while preserving structurally valid siblings."""
+    payload = json.loads(content)
+    raw_items = payload.get("aiInsights") or payload.get("insights")
+    if not isinstance(raw_items, list) or not raw_items:
+        raise ValueError("AI response must include a non-empty aiInsights list.")
+    insights: list[AiInsight] = []
+    failures: list[str] = []
+    for index, item in enumerate(raw_items[:MAX_AI_INSIGHTS], start=1):
+        if not isinstance(item, dict):
+            failures.append(f"card {index} must be an object")
+            continue
+        try:
+            insights.append(_insight_from_item(item))
+        except (TypeError, ValueError) as error:
+            failures.append(f"card {index}: {error}")
+    return insights, failures
+
+
 def validate_ai_insight_payload(payload: dict[str, Any]) -> list[AiInsight]:
     raw_items = payload.get("aiInsights") or payload.get("insights")
     if not isinstance(raw_items, list) or not raw_items:
@@ -95,23 +120,27 @@ def validate_ai_insight_payload(payload: dict[str, Any]) -> list[AiInsight]:
     for item in raw_items[:MAX_AI_INSIGHTS]:
         if not isinstance(item, dict):
             raise ValueError("Each AI insight must be an object.")
-        normalized = _normalize_item(item)
-        insight = AiInsight(
-            title=_clean_text(normalized["title"], max_len=80),
-            summary=_clean_text(normalized["summary"], max_len=600),
-            moodLabel=_clean_text(normalized["moodLabel"], max_len=48),
-            dayThemes=_clean_list(normalized["dayThemes"], max_items=5, max_len=48),
-            suggestions=_clean_list(normalized["suggestions"], max_items=4, max_len=140),
-            reflectionQuestions=_clean_list(
-                normalized["reflectionQuestions"], max_items=4, max_len=140
-            ),
-            evidence=_sanitize_evidence(normalized["evidence"]),
-            confidence=clamp(float(normalized["confidence"]), 0.0, 1.0),
-            safetyNote=_clean_text(normalized["safetyNote"], max_len=260),
-        )
-        _reject_blocked_language(insight)
-        insights.append(insight)
+        insights.append(_insight_from_item(item))
     return insights
+
+
+def _insight_from_item(item: dict[str, Any]) -> AiInsight:
+    normalized = _normalize_item(item)
+    insight = AiInsight(
+        title=_clean_text(normalized["title"], max_len=80),
+        summary=_clean_text(normalized["summary"], max_len=600),
+        moodLabel=_clean_text(normalized["moodLabel"], max_len=48),
+        dayThemes=_clean_list(normalized["dayThemes"], max_items=5, max_len=48),
+        suggestions=_clean_list(normalized["suggestions"], max_items=4, max_len=140),
+        reflectionQuestions=_clean_list(
+            normalized["reflectionQuestions"], max_items=4, max_len=140
+        ),
+        evidence=_sanitize_evidence(normalized["evidence"]),
+        confidence=clamp(float(normalized["confidence"]), 0.0, 1.0),
+        safetyNote=_clean_text(normalized["safetyNote"], max_len=260),
+    )
+    _reject_blocked_language(insight)
+    return insight
 
 
 def is_substantive_insight_context(context: dict[str, Any]) -> bool:
@@ -194,86 +223,193 @@ def validate_ai_insight_quality(
     context: dict[str, Any],
 ) -> None:
     """Require rich, distinct cards only when the journal has enough source detail."""
-    direct_address_failures = [
-        f"card {index} summary must address the journal owner directly with you or your"
-        for index, insight in enumerate(insights, start=1)
-        if not _uses_direct_address(insight.summary)
-    ]
-    if direct_address_failures:
-        raise InsightQualityError("; ".join(direct_address_failures))
-    oversized = [
-        f"card {index} summary must contain no more than {MAX_SUMMARY_WORDS} words"
-        for index, insight in enumerate(insights, start=1)
-        if len(_word_tokens(insight.summary)) > MAX_SUMMARY_WORDS
-    ]
-    if oversized:
-        raise InsightQualityError("; ".join(oversized))
-
-    if not is_substantive_insight_context(context):
-        return
-
-    failures: list[str] = []
-    if adaptive_insight_limit(context) >= 2 and len(insights) < 2:
+    accepted, failures = partition_ai_insights_by_quality(insights, context)
+    if (
+        is_substantive_insight_context(context)
+        and adaptive_insight_limit(context) >= 2
+        and len(accepted) < 2
+    ):
         failures.append("return at least 2 distinct insight cards")
+    if failures:
+        raise InsightQualityError("; ".join(dict.fromkeys(failures)))
 
-    context_anchors = _context_anchor_tokens(context)
+
+def partition_ai_insights_by_quality(
+    insights: list[AiInsight],
+    context: dict[str, Any],
+    *,
+    existing: list[AiInsight] | None = None,
+) -> tuple[list[AiInsight], list[str]]:
+    """Return valid cards and card-scoped failures without rejecting the batch."""
+    accepted = list(existing or [])
+    new_cards: list[AiInsight] = []
+    failures: list[str] = []
     seen_titles: set[str] = set()
     seen_summaries: set[str] = set()
+    for insight in accepted:
+        title_key = _normalized_comparison_text(insight.title)
+        summary_key = _normalized_comparison_text(insight.summary)
+        if title_key:
+            seen_titles.add(title_key)
+        if summary_key:
+            seen_summaries.add(summary_key)
+
     for index, insight in enumerate(insights, start=1):
         label = f"card {index}"
+        card_failures = _card_quality_failures(insight, context, label)
         title_key = _normalized_comparison_text(insight.title)
         summary_key = _normalized_comparison_text(insight.summary)
         if title_key in seen_titles:
-            failures.append(f"{label} repeats another card title")
-        elif title_key:
-            seen_titles.add(title_key)
+            card_failures.append(f"{label} repeats another card title")
         if summary_key in seen_summaries:
-            failures.append(f"{label} repeats another card summary")
-        elif summary_key:
+            card_failures.append(f"{label} repeats another card summary")
+        if card_failures:
+            failures.extend(card_failures)
+            continue
+        if title_key:
+            seen_titles.add(title_key)
+        if summary_key:
             seen_summaries.add(summary_key)
+        new_cards.append(insight)
+    return new_cards, list(dict.fromkeys(failures))
 
-        if len(_word_tokens(insight.summary)) < MIN_SUMMARY_WORDS:
-            failures.append(
-                f"{label} summary must contain at least {MIN_SUMMARY_WORDS} words"
-            )
-        expected_anchors = min(2, len(context_anchors))
-        summary_anchors = set(_word_tokens(insight.summary)) & context_anchors
-        if len(summary_anchors) < expected_anchors:
-            failures.append(
-                f"{label} summary must name at least {expected_anchors} concrete "
-                "details from the journal context"
-            )
-        expected_themes = expected_day_theme_count(context)
-        if _distinct_text_count(insight.dayThemes) < expected_themes:
-            failures.append(
-                f"{label} must include at least {expected_themes} distinct day themes"
-            )
-        if _distinct_text_count(insight.suggestions) < MIN_SUPPORTING_ITEMS:
-            failures.append(
-                f"{label} must include at least {MIN_SUPPORTING_ITEMS} distinct suggestions"
-            )
-        if _distinct_text_count(insight.reflectionQuestions) < MIN_SUPPORTING_ITEMS:
-            failures.append(
-                f"{label} must include at least {MIN_SUPPORTING_ITEMS} distinct "
-                "reflection questions"
-            )
-        reason = insight.evidence.get("reason")
-        if (
-            not isinstance(reason, str)
-            or len(_word_tokens(reason)) < MIN_EVIDENCE_REASON_WORDS
-        ):
-            failures.append(
-                f"{label} evidence.reason must contain at least "
-                f"{MIN_EVIDENCE_REASON_WORDS} meaningful words"
-            )
-        elif len(set(_word_tokens(reason)) & context_anchors) < expected_anchors:
-            failures.append(
-                f"{label} evidence.reason must name at least {expected_anchors} "
-                "concrete journal details"
-            )
 
-    if failures:
-        raise InsightQualityError("; ".join(dict.fromkeys(failures)))
+def repair_sparse_ai_insight(
+    insight: AiInsight,
+    context: dict[str, Any],
+) -> AiInsight:
+    """Complete a safe sparse card using only supplied journal themes."""
+    if not _uses_direct_address(insight.summary):
+        return insight
+    labels = _repair_labels(insight, context)
+    summary = " ".join(insight.summary.split())
+    if len(_word_tokens(summary)) < MIN_SUMMARY_WORDS and labels:
+        summary += (
+            f" Your words also connected {_join_labels(labels[:4])}, giving you room "
+            "to notice how these parts fit together and which detail deserves your "
+            "attention next."
+        )
+    if len(_word_tokens(summary)) < MIN_SUMMARY_WORDS:
+        summary += (
+            " You can hold these details together without reducing your experience "
+            "to one feeling or forcing an immediate conclusion."
+        )
+    summary_words = summary.split()
+    summary = " ".join(summary_words[:MAX_SUMMARY_WORDS]).rstrip(" ,;:-")
+
+    primary = labels[0] if labels else "this experience"
+    secondary = labels[1] if len(labels) > 1 else primary
+    suggestions = list(dict.fromkeys(insight.suggestions))
+    questions = list(dict.fromkeys(insight.reflectionQuestions))
+    if len(suggestions) < MIN_SUPPORTING_ITEMS:
+        suggestions.extend(
+            [
+                f"Write down what felt most important about {primary}.",
+                f"Choose one detail about {secondary} to revisit gently.",
+            ]
+        )
+    if len(questions) < MIN_SUPPORTING_ITEMS:
+        questions.extend(
+            [
+                f"Which part of {primary} mattered most to you?",
+                f"What would you like to understand about {secondary}?",
+            ]
+        )
+    themes = list(dict.fromkeys([*insight.dayThemes, *labels]))[:5]
+    return AiInsight(
+        title=insight.title,
+        summary=summary,
+        moodLabel=insight.moodLabel,
+        dayThemes=themes,
+        suggestions=list(dict.fromkeys(suggestions))[:4],
+        reflectionQuestions=list(dict.fromkeys(questions))[:4],
+        evidence=insight.evidence,
+        confidence=insight.confidence,
+        safetyNote=insight.safetyNote,
+    )
+
+
+def _repair_labels(insight: AiInsight, context: dict[str, Any]) -> list[str]:
+    metrics = context.get("metrics")
+    metrics = metrics if isinstance(metrics, dict) else {}
+    text_metrics = metrics.get("text")
+    text_metrics = text_metrics if isinstance(text_metrics, dict) else {}
+    supplied = [
+        *insight.dayThemes,
+        *(text_metrics.get("topics") or []),
+        *(text_metrics.get("keyPhrases") or []),
+    ]
+    blocked = {
+        "anything", "cannot", "don't", "even", "everything", "give", "good",
+        "honestly", "know", "right", "self reflection", "situation", "something",
+        "youre", "you're",
+    }
+    labels: list[str] = []
+    for item in supplied:
+        clean = " ".join(str(item).replace("_", " ").lower().split())
+        clean = {"expect": "expectations", "expecting": "expectations"}.get(
+            clean,
+            clean,
+        )
+        if not clean or clean in blocked or clean in labels:
+            continue
+        labels.append(clean)
+    return labels
+
+
+def _join_labels(values: list[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return ", ".join(values[:-1]) + f", and {values[-1]}"
+
+
+def _card_quality_failures(
+    insight: AiInsight,
+    context: dict[str, Any],
+    label: str,
+) -> list[str]:
+    failures: list[str] = []
+    if not _uses_direct_address(insight.summary):
+        failures.append(
+            f"{label} summary must address the journal owner directly with you or your"
+        )
+    if len(_word_tokens(insight.summary)) > MAX_SUMMARY_WORDS:
+        failures.append(
+            f"{label} summary must contain no more than {MAX_SUMMARY_WORDS} words"
+        )
+    if not is_substantive_insight_context(context):
+        return failures
+
+    context_anchors = _context_anchor_tokens(context)
+
+    if len(_word_tokens(insight.summary)) < MIN_SUMMARY_WORDS:
+        failures.append(
+            f"{label} summary must contain at least {MIN_SUMMARY_WORDS} words"
+        )
+    expected_anchors = min(2, len(context_anchors))
+    summary_anchors = set(_word_tokens(insight.summary)) & context_anchors
+    if len(summary_anchors) < expected_anchors:
+        failures.append(
+            f"{label} summary must name at least {expected_anchors} concrete "
+            "details from the journal context"
+        )
+    expected_themes = expected_day_theme_count(context)
+    if _distinct_text_count(insight.dayThemes) < expected_themes:
+        failures.append(
+            f"{label} must include at least {expected_themes} distinct day themes"
+        )
+    if _distinct_text_count(insight.suggestions) < MIN_SUPPORTING_ITEMS:
+        failures.append(
+            f"{label} must include at least {MIN_SUPPORTING_ITEMS} distinct suggestions"
+        )
+    if _distinct_text_count(insight.reflectionQuestions) < MIN_SUPPORTING_ITEMS:
+        failures.append(
+            f"{label} must include at least {MIN_SUPPORTING_ITEMS} distinct "
+            "reflection questions"
+        )
+    return failures
 
 
 def _uses_direct_address(value: str) -> bool:
@@ -493,11 +629,22 @@ def _sanitize_evidence(value: Any) -> dict[str, Any]:
         return str(item)[:160]
 
     cleaned = sanitize(value)
-    return cleaned if isinstance(cleaned, dict) else {}
+    if not isinstance(cleaned, dict):
+        return {}
+    reason = cleaned.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return {}
+    lowered = reason.lower()
+    if any(term in lowered for term in BLOCKED_TERMS):
+        return {}
+    if any(term in lowered for term in UNSUPPORTED_INFERENCE_PHRASES):
+        return {}
+    if "medical advice" in lowered and "not medical advice" not in lowered:
+        return {}
+    return cleaned
 
 
 def _reject_blocked_language(insight: AiInsight) -> None:
-    reason = insight.evidence.get("reason")
     text = " ".join(
         [
             insight.title,
@@ -507,7 +654,6 @@ def _reject_blocked_language(insight: AiInsight) -> None:
             " ".join(insight.suggestions),
             " ".join(insight.reflectionQuestions),
             insight.safetyNote,
-            reason if isinstance(reason, str) else "",
         ]
     ).lower()
     if any(term in text for term in BLOCKED_TERMS):

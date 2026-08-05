@@ -40,6 +40,8 @@ BLOCKED_PERSONAL_PHRASES = {
     "your personality",
     "personality trait",
     "hidden intention",
+    "shows your ability",
+    "demonstrates your ability",
 }
 BLOCKED_RESEARCH_PHRASES = {
     "research shows",
@@ -99,34 +101,52 @@ NARRATIVE_STOP_WORDS = {
 
 
 def parse_grounded_drafts_json(content: str) -> list[GroundedInsightDraft]:
+    drafts, failures = parse_grounded_drafts_json_partial(content)
+    if failures:
+        raise ValueError("; ".join(failures))
+    return drafts
+
+
+def parse_grounded_drafts_json_partial(
+    content: str,
+) -> tuple[list[GroundedInsightDraft], list[str]]:
     payload = json.loads(content)
     raw_items = payload.get("drafts") if isinstance(payload, dict) else None
     if not isinstance(raw_items, list) or not raw_items:
         raise ValueError("Grounded response must include a non-empty drafts list.")
     drafts: list[GroundedInsightDraft] = []
+    failures: list[str] = []
     for index, item in enumerate(raw_items[:MAX_GROUNDED_DRAFTS]):
         if not isinstance(item, dict):
-            raise ValueError(f"drafts[{index}] must be an object.")
-        summary = _text(item.get("summary"), f"drafts[{index}].summary", 600)
-        draft = GroundedInsightDraft(
-            title=_text(item.get("title"), f"drafts[{index}].title", 80),
-            summary=summary,
-            moodLabel=_text(item.get("moodLabel"), f"drafts[{index}].moodLabel", 48),
-            dayThemes=tuple(_text_list(item.get("dayThemes"), 5, 48)),
-            reflectionQuestions=tuple(
-                _text_list(item.get("reflectionQuestions"), 4, 140)
-            ),
-            observationFactIds=tuple(
-                _id_list(item.get("observationFactIds"), "observationFactIds")
-            ),
-            claimCardIds=tuple(_id_list(item.get("claimCardIds"), "claimCardIds")),
-            suggestionIds=tuple(_id_list(item.get("suggestionIds"), "suggestionIds")),
-            confidence=clamp(float(item.get("confidence", 0.0)), 0.0, 1.0),
-            safetyNote=_text(item.get("safetyNote"), f"drafts[{index}].safetyNote", 260),
-        )
-        _reject_language(draft)
-        drafts.append(draft)
-    return drafts
+            failures.append(f"drafts[{index}] must be an object.")
+            continue
+        try:
+            drafts.append(_draft_from_item(item, index))
+        except (TypeError, ValueError) as error:
+            failures.append(str(error))
+    return drafts, failures
+
+
+def _draft_from_item(item: dict[str, Any], index: int) -> GroundedInsightDraft:
+    summary = _text(item.get("summary"), f"drafts[{index}].summary", 600)
+    draft = GroundedInsightDraft(
+        title=_text(item.get("title"), f"drafts[{index}].title", 80),
+        summary=summary,
+        moodLabel=_text(item.get("moodLabel"), f"drafts[{index}].moodLabel", 48),
+        dayThemes=tuple(_text_list(item.get("dayThemes"), 5, 48)),
+        reflectionQuestions=tuple(
+            _text_list(item.get("reflectionQuestions"), 4, 140)
+        ),
+        observationFactIds=tuple(
+            _id_list(item.get("observationFactIds"), "observationFactIds")
+        ),
+        claimCardIds=tuple(_id_list(item.get("claimCardIds"), "claimCardIds")),
+        suggestionIds=tuple(_id_list(item.get("suggestionIds"), "suggestionIds")),
+        confidence=clamp(float(item.get("confidence", 0.0)), 0.0, 1.0),
+        safetyNote=_text(item.get("safetyNote"), f"drafts[{index}].safetyNote", 260),
+    )
+    _reject_language(draft)
+    return draft
 
 
 def sanitize_draft_references(

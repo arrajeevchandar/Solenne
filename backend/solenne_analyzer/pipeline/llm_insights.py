@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import re
 
 from ..ai.context_builder import build_insight_context, estimate_tokens
@@ -67,6 +68,22 @@ def _generate_combined_insights(
         grounded_to_show,
         limit=adaptive_insight_limit_for_word_count(result.transcript.wordCount),
     )
+    legacy_diagnostics.acceptedCardCount = len(combined)
+    legacy_diagnostics.rejectedCardCount += grounded_diagnostics.rejectedCardCount
+    legacy_diagnostics.revisionUsed = (
+        legacy_diagnostics.revisionUsed or grounded_diagnostics.revisionUsed
+    )
+    legacy_diagnostics.validationWarnings.extend(
+        item
+        for item in grounded_diagnostics.validationWarnings
+        if item not in legacy_diagnostics.validationWarnings
+    )
+    if combined and (
+        legacy_diagnostics.status == "complete"
+        or grounded_diagnostics.status == "complete"
+    ):
+        legacy_diagnostics.status = "complete"
+        legacy_diagnostics.failureReason = None
     provider = _combined_provider(
         legacy_provider,
         grounded_provider,
@@ -340,62 +357,43 @@ def _generate_legacy_insights(
     insights, diagnostics = generate_groq_insights(context, config, token_estimate)
     if diagnostics.status == "complete" and insights:
         return insights, diagnostics, "groq"
-    return _fallback_ai_insights(result), diagnostics, "fallback"
+    return _contextual_fallback_ai_insights(result), diagnostics, "fallback"
 
 
-def _fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:
-    if result.insights:
-        return [
+def _contextual_fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:
+    """Build journal-specific recovery cards without fabricated evidence."""
+    themes = _fallback_themes(result)
+    card_count = 2 if result.transcript.wordCount >= 30 and len(themes) >= 3 else 1
+    cards: list[AiInsight] = []
+    for index in range(card_count):
+        pair_start = index * 2
+        primary = themes[pair_start % len(themes)]
+        secondary = themes[(pair_start + 1) % len(themes)]
+        title = _fallback_title(primary, secondary)
+        summary = _fallback_summary(primary, secondary, themes)
+        cards.append(
             AiInsight(
-                title="Reflection signal",
-                summary=_direct_fallback_summary(insight.text),
+                title=title[:1].upper() + title[1:],
+                summary=summary,
                 moodLabel=_mood_label(result),
-                dayThemes=result.nlp.topics[:4] or result.nlp.keyPhrases[:4],
+                dayThemes=list(dict.fromkeys([primary, secondary])),
                 suggestions=[
-                    "Notice one small moment from today that you may want to remember tomorrow."
+                    f"Write down what felt most important about {primary}.",
+                    f"Choose one small next step connected to {secondary}.",
                 ],
                 reflectionQuestions=[
-                    "What felt most important in this reflection?",
-                    "What is one gentle next step from here?",
+                    f"Which part of {primary} mattered most to you?",
+                    f"What would you like to understand about {secondary}?",
                 ],
-                evidence=insight.evidence,
-                confidence=insight.confidence,
+                evidence={},
+                confidence=min(
+                    0.75,
+                    max(result.transcript.confidence, result.nlp.confidence),
+                ),
                 safetyNote="Solenne offers wellness reflections, not medical advice.",
             )
-            for insight in result.insights[:2]
-        ]
-    return [
-        AiInsight(
-            title="Reflection captured",
-            summary=(
-                "Your entry was saved and analyzed. The strongest available signals came "
-                "from your words, voice, and overall reflection pattern."
-            ),
-            moodLabel=_mood_label(result),
-            dayThemes=result.nlp.topics[:4] or result.nlp.keyPhrases[:4],
-            suggestions=[
-                "Choose one sentence from today that you want to carry forward.",
-                "Record again tomorrow and compare what feels different.",
-            ],
-            reflectionQuestions=[
-                "What did this reflection help you notice?",
-                "What would make tomorrow feel a little steadier?",
-            ],
-            evidence={
-                "reason": (
-                    "This appeared because the available recording signals were strong "
-                    "enough to support a cautious reflection about this entry."
-                ),
-                "metrics": {
-                    "overallValence": result.fused.overallValence,
-                    "overallArousal": result.fused.overallArousal,
-                    "confidence": result.fused.confidence,
-                },
-            },
-            confidence=min(0.75, result.fused.confidence),
-            safetyNote="Solenne offers wellness reflections, not medical advice.",
         )
-    ]
+    return cards
 
 
 def _mood_label(result: AnalysisResult) -> str:
@@ -408,18 +406,90 @@ def _mood_label(result: AnalysisResult) -> str:
     return "reflective"
 
 
-def _direct_fallback_summary(value: str) -> str:
-    clean = " ".join(value.split())
-    replacements = (
-        (r"\b(?:a|the) student was\b", "you were"),
-        (r"\b(?:a|the) student is\b", "you are"),
-        (r"\bthe (?:user|speaker|person|journal owner) was\b", "you were"),
-        (r"\bthe (?:user|speaker|person|journal owner) is\b", "you are"),
-        (r"\b(?:a|the) student\b", "you"),
-        (r"\bthe (?:user|speaker|person|journal owner)\b", "you"),
+def _fallback_themes(result: AnalysisResult) -> list[str]:
+    supplied = [
+        clean
+        for item in [*result.nlp.topics, *result.nlp.keyPhrases]
+        if (clean := _clean_fallback_theme(item))
+    ]
+    transcript = result.transcript.text.lower()
+    for source, display in (
+        ("proud", "pride"),
+        ("guilty", "guilt"),
+        ("happy", "happiness"),
+        ("sad", "sadness"),
+    ):
+        if re.search(rf"\b{source}\b", transcript):
+            supplied.append(display)
+    if re.search(r"\binteractions?\b", transcript):
+        supplied.append("interactions")
+    stop = {
+        "about", "after", "again", "anything", "because", "being", "cannot", "could",
+        "dont", "even", "everything", "feel", "feeling", "from", "give", "going",
+        "good", "have", "honestly", "journal", "know", "like", "recently",
+        "reflection", "right", "situation",
+        "that", "their", "them", "there", "these", "they", "this", "today",
+        "what", "when", "with", "would", "your", "youre",
+    }
+    counts = Counter(
+        token
+        for token in re.findall(r"[a-z0-9]+", result.transcript.text.lower())
+        if len(token) >= 4 and token not in stop
     )
-    for pattern, replacement in replacements:
-        clean = re.sub(pattern, replacement, clean, flags=re.IGNORECASE)
-    if re.search(r"\b(?:you|your|yours|yourself)\b", clean, re.IGNORECASE):
-        return clean
-    return f"Your reflection surfaced this observation: {clean}"
+    supplied.extend(
+        clean
+        for token, _ in counts.most_common(10)
+        if (clean := _clean_fallback_theme(token))
+    )
+    themes = list(dict.fromkeys(item for item in supplied if item))
+    return (themes or ["today's experience", "what mattered"])[0:4]
+
+
+def _clean_fallback_theme(value: str) -> str:
+    clean = value.replace("_", " ").strip().lower()
+    blocked = {
+        "anything", "cannot", "can't", "done", "don't", "everything", "feel",
+        "give", "good", "honestly", "know", "people", "point", "right",
+        "self reflection", "situation", "something", "things", "understand",
+    }
+    if not clean or clean in blocked:
+        return ""
+    replacements = {
+        "expect": "expectations",
+        "expecting": "expectations",
+        "guilty": "guilt",
+        "proud": "pride",
+    }
+    return replacements.get(clean, clean)
+
+
+def _fallback_summary(
+    primary: str,
+    secondary: str,
+    themes: list[str],
+) -> str:
+    supporting = [item for item in themes if item not in {primary, secondary}][:2]
+    support_text = (
+        f" while also naming {_join_theme_labels(supporting)}"
+        if supporting
+        else ""
+    )
+    return (
+        f"You returned to {primary} and {secondary}{support_text}. Your reflection "
+        "held these parts together, giving you room to consider how they relate, "
+        "which detail carried the most weight, and what you want to approach "
+        "differently without forcing one part of the experience to cancel another."
+    )
+
+
+def _fallback_title(primary: str, secondary: str) -> str:
+    emotions = {"pride", "guilt", "happiness", "sadness"}
+    connector = " alongside " if {primary, secondary} <= emotions else " and "
+    title = f"{primary}{connector}{secondary}"
+    return title[:1].upper() + title[1:]
+
+
+def _join_theme_labels(values: list[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    return " and ".join(values)

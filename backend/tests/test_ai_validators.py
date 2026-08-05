@@ -5,6 +5,7 @@ from solenne_analyzer.ai.validators import (
     adaptive_insight_limit_for_word_count,
     crisis_language_present,
     parse_ai_insights_json,
+    parse_ai_insights_json_partial,
     validate_ai_insight_payload,
     validate_ai_insight_quality,
 )
@@ -156,19 +157,24 @@ class AiValidatorTest(unittest.TestCase):
         self.assertIn("repeats another card title", str(raised.exception))
         self.assertIn("repeats another card summary", str(raised.exception))
 
-    def test_quality_validator_rejects_inferred_mindset_reasoning(self):
+    def test_quality_validator_strips_inferred_mindset_reasoning_from_evidence(self):
         payload = _rich_payload()
         payload["aiInsights"][1]["evidence"]["reason"] = (
             "Your speech patterns indicate a reflective and analytical mindset "
             "focused on learning from the experience."
         )
-        with self.assertRaises(ValueError) as raised:
-            validate_ai_insight_payload(payload)
+        insights = validate_ai_insight_payload(payload)
 
-        self.assertIn(
-            "must not infer a personality or mindset",
-            str(raised.exception),
+        self.assertEqual(insights[1].evidence, {})
+
+    def test_visible_personal_growth_inference_is_rejected(self):
+        payload = _rich_payload()
+        payload["aiInsights"][0]["summary"] += (
+            " This is a sign of self-awareness and personal growth."
         )
+
+        with self.assertRaisesRegex(InsightQualityError, "personality or mindset"):
+            validate_ai_insight_payload(payload)
 
     def test_quality_validator_allows_sparse_low_signal_card(self):
         insights = validate_ai_insight_payload(
@@ -251,6 +257,27 @@ class AiValidatorTest(unittest.TestCase):
         }
 
         self.assertEqual(len(validate_ai_insight_payload(payload)), 8)
+
+    def test_partial_parser_preserves_valid_sibling(self):
+        payload = _rich_payload()
+        payload["aiInsights"].append({"summary": 42})
+
+        insights, failures = parse_ai_insights_json_partial(
+            __import__("json").dumps(payload)
+        )
+
+        self.assertEqual(len(insights), 2)
+        self.assertTrue(any("card 3" in item for item in failures))
+
+    def test_substantive_card_can_omit_narrative_evidence(self):
+        payload = _rich_payload()
+        for item in payload["aiInsights"]:
+            item["evidence"] = {}
+        insights = validate_ai_insight_payload(payload)
+
+        validate_ai_insight_quality(insights, _substantive_context())
+
+        self.assertEqual([item.evidence for item in insights], [{}, {}])
 
     def test_quality_validator_rejects_third_person_summary(self):
         payload = _rich_payload()

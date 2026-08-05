@@ -94,6 +94,11 @@ def generate_grounded_insights(
         model=config.groq_model,
     )
     revision_feedback: str | None = None
+    accepted_drafts: list[GroundedInsightDraft] = []
+    accepted_insights: list[AiInsight] = []
+    seen_titles: set[str] = set()
+    validation_warnings: list[str] = []
+    rejected_total = 0
     for attempt in range(1, 3):
         grounding.attempts = attempt
         drafts, last_llm = generate_grounded_drafts(
@@ -102,7 +107,19 @@ def generate_grounded_insights(
             config,
             journal_narrative=journal_narrative,
             revision_feedback=revision_feedback,
-            max_drafts=min(5, card_limit),
+            accepted_drafts=accepted_drafts,
+            max_drafts=max(1, min(5, card_limit) - len(accepted_drafts)),
+        )
+        grounding.validationFailures.extend(
+            item
+            for item in last_llm.validationWarnings
+            if item not in grounding.validationFailures
+        )
+        rejected_total += last_llm.rejectedCardCount
+        validation_warnings.extend(
+            item
+            for item in last_llm.validationWarnings
+            if item not in validation_warnings
         )
         if not drafts:
             failure = last_llm.failureReason or "Grounded generation returned no drafts."
@@ -112,37 +129,53 @@ def generate_grounded_insights(
                 break
             revision_feedback = failure
             continue
-        try:
-            drafts = sanitize_draft_references(drafts, facts, retrieved, catalog)
-            validate_draft_references(drafts, facts, retrieved, catalog)
-            validate_draft_quality(
-                drafts,
-                retrieved,
-                catalog,
-                journal_narrative,
-            )
-            insights = assemble_insights(drafts, facts, retrieved, catalog)
-            validate_assembled_insights(insights, facts, catalog)
-            grounding.status = (
-                "source_supported"
-                if any(
-                    item.evidence["verification"]["status"] == "source_supported"
-                    for item in insights
-                )
-                else "user_data_only"
-            )
-            grounding.reason = None if grounding.status == "source_supported" else "no_catalog_match"
-            grounding.latencyMs = _elapsed_ms(started)
-            last_llm.grounding = grounding.to_dict()
-            return insights, last_llm, "groq_grounded"
-        except ValueError as error:
-            revision_feedback = str(error)
+        valid_drafts, valid_insights, failures = _validate_grounded_drafts_individually(
+            drafts,
+            facts,
+            retrieved,
+            catalog,
+            journal_narrative,
+            seen_titles,
+        )
+        accepted_drafts.extend(valid_drafts)
+        accepted_insights.extend(valid_insights)
+        last_llm.acceptedCardCount = len(accepted_insights)
+        rejected_total += len(failures)
+        last_llm.rejectedCardCount = rejected_total
+        last_llm.revisionUsed = attempt > 1
+        validation_warnings.extend(
+            item for item in failures if item not in validation_warnings
+        )
+        last_llm.validationWarnings = list(validation_warnings)
+        if failures:
+            revision_feedback = "; ".join(failures)
             LOGGER.warning(
                 "Grounded draft validation failed on attempt %s: %s",
                 attempt,
                 revision_feedback,
             )
-            grounding.validationFailures.append(revision_feedback)
+            grounding.validationFailures.extend(
+                item for item in failures if item not in grounding.validationFailures
+            )
+            continue
+        if accepted_insights:
+            return _grounded_success(
+                accepted_insights,
+                last_llm,
+                grounding,
+                started,
+            )
+
+    if accepted_insights:
+        last_llm.rejectedCardCount = rejected_total
+        last_llm.revisionUsed = grounding.attempts > 1
+        last_llm.validationWarnings = list(validation_warnings)
+        return _grounded_success(
+            accepted_insights,
+            last_llm,
+            grounding,
+            started,
+        )
 
     # The LLM was reachable but could not produce a usable draft, while a curated claim
     # did match the transcript. Build a deterministic grounded draft from the journal
@@ -174,6 +207,65 @@ def generate_grounded_insights(
     )
 
 
+def _validate_grounded_drafts_individually(
+    drafts: list[GroundedInsightDraft],
+    facts: list[ObservationFact],
+    retrieved: list[ClaimCard],
+    catalog: GroundingCatalog,
+    journal_narrative: dict,
+    seen_titles: set[str],
+) -> tuple[list[GroundedInsightDraft], list[AiInsight], list[str]]:
+    valid_drafts: list[GroundedInsightDraft] = []
+    valid_insights: list[AiInsight] = []
+    failures: list[str] = []
+    for index, draft in enumerate(drafts):
+        try:
+            cleaned = sanitize_draft_references([draft], facts, retrieved, catalog)[0]
+            title_key = " ".join(re.findall(r"[a-z0-9]+", cleaned.title.lower()))
+            if title_key and title_key in seen_titles:
+                raise ValueError(f"drafts[{index}] repeats an accepted title.")
+            validate_draft_references([cleaned], facts, retrieved, catalog)
+            validate_draft_quality(
+                [cleaned],
+                retrieved,
+                catalog,
+                journal_narrative,
+            )
+            insights = assemble_insights([cleaned], facts, retrieved, catalog)
+            validate_assembled_insights(insights, facts, catalog)
+        except ValueError as error:
+            failures.append(f"drafts[{index}]: {error}")
+            continue
+        if title_key:
+            seen_titles.add(title_key)
+        valid_drafts.append(cleaned)
+        valid_insights.extend(insights)
+    return valid_drafts, valid_insights, failures
+
+
+def _grounded_success(
+    insights: list[AiInsight],
+    diagnostics: LlmDiagnostics,
+    grounding: GroundingDiagnostics,
+    started: float,
+) -> tuple[list[AiInsight], LlmDiagnostics, str]:
+    grounding.status = (
+        "source_supported"
+        if any(
+            item.evidence["verification"]["status"] == "source_supported"
+            for item in insights
+        )
+        else "user_data_only"
+    )
+    grounding.reason = None if grounding.status == "source_supported" else "no_catalog_match"
+    grounding.latencyMs = _elapsed_ms(started)
+    diagnostics.status = "complete"
+    diagnostics.failureReason = None
+    diagnostics.acceptedCardCount = len(insights)
+    diagnostics.grounding = grounding.to_dict()
+    return insights, diagnostics, "groq_grounded"
+
+
 def _deterministic_grounded_insights(
     result: AnalysisResult,
     facts: list[ObservationFact],
@@ -193,6 +285,12 @@ def _deterministic_grounded_insights(
     try:
         cleaned = sanitize_draft_references([draft], facts, retrieved, catalog)
         validate_draft_references(cleaned, facts, retrieved, catalog)
+        validate_draft_quality(
+            cleaned,
+            retrieved,
+            catalog,
+            build_journal_narrative(result),
+        )
         insights = assemble_insights(cleaned, facts, retrieved, catalog)
         validate_assembled_insights(insights, facts, catalog)
     except ValueError as error:
@@ -228,14 +326,24 @@ def _deterministic_draft(
         return None
 
     narrative = build_journal_narrative(result)
-    themes = [str(fact.value) for fact in matched_facts][:3]
+    themes = _grounded_themes(
+        [
+            *(str(fact.value) for fact in matched_facts),
+            *list(narrative.get("topics") or []),
+            *list(narrative.get("keyPhrases") or []),
+        ]
+    )
     paraphrase = str(narrative.get("paraphrase") or "").strip()
     excerpts = [
         str(item).strip()
         for item in (narrative.get("keyExcerpts") or [])
         if str(item).strip()
     ]
-    summary = _deterministic_summary(paraphrase, excerpts, themes)
+    summary = (
+        _thematic_grounded_summary(themes)
+        if len(themes) >= 2
+        else _deterministic_summary(paraphrase, excerpts, themes)
+    )
 
     observation_ids = tuple(fact.evidenceId for fact in matched_facts[:4])
     claim_ids = tuple(claim.claimCardId for claim in used_claims)
@@ -247,7 +355,7 @@ def _deterministic_draft(
         )
     )[:2]
     return GroundedInsightDraft(
-        title="A grounded note from this reflection",
+        title=_grounded_title(themes),
         summary=summary,
         moodLabel="reflective",
         dayThemes=tuple(themes),
@@ -293,12 +401,18 @@ def _user_data_only_insight(
         topics or phrases,
     )
     return AiInsight(
-        title="A note from this reflection",
+        title=_grounded_title(topics or phrases),
         summary=summary,
         moodLabel="reflective",
         dayThemes=topics or phrases,
-        suggestions=[],
-        reflectionQuestions=["What felt most important to name in this reflection?"],
+        suggestions=[
+            "Write down one detail from this experience that you want to carry forward.",
+            "Choose one part of this reflection that you may want to revisit gently.",
+        ],
+        reflectionQuestions=[
+            "What felt most important to name in this reflection?",
+            "Which part of this experience would you like to understand more clearly?",
+        ],
         evidence={
             "schemaVersion": 2,
             "rationale": _observation_rationale(selected),
@@ -381,29 +495,33 @@ def _deterministic_summary(
     excerpts: list[str],
     themes: list[str],
 ) -> str:
-    if paraphrase:
-        parts = [paraphrase.strip()]
-        if excerpts:
-            later_sentences = [
-                sentence.strip()
-                for sentence in re.split(r"(?<=[.!?])\s+", excerpts[0])
-                if sentence.strip() and sentence.strip() not in paraphrase
-            ]
-            if later_sentences:
-                parts.append(max(later_sentences, key=len))
+    source_text = " ".join([paraphrase, *excerpts]).strip()
+    substantive = len(source_text.split()) >= 30
+    parts: list[str] = []
+    for candidate in [paraphrase, *excerpts]:
+        clean = " ".join(candidate.split())
+        for existing in parts:
+            if existing in clean:
+                clean = clean.replace(existing, "", 1).strip()
+        if not clean or any(clean == item for item in parts):
+            continue
+        parts.append(clean)
+        if len(" ".join(parts).split()) >= 55 or len(parts) >= 4:
+            break
+    if parts:
         combined = _replace_third_person_subjects(" ".join(parts))
-        if re.search(r"\b(?:you|your|yours|yourself)\b", combined, re.IGNORECASE):
-            return _truncate_words(combined, 600)
-        return _truncate_words(
-            f"You described this experience in your own words: {combined}",
-            600,
-        )
-    if excerpts:
-        excerpt = _replace_third_person_subjects(excerpts[0])
-        return _truncate_words(
-            f"You described this experience in your own words: {excerpt}",
-            600,
-        )
+        if not re.search(
+            r"\b(?:you|your|yours|yourself)\b",
+            combined,
+            re.IGNORECASE,
+        ):
+            combined = f"You described this experience in your own words: {combined}"
+        if substantive and len(combined.split()) < 35 and themes:
+            combined += (
+                f" Your words also returned to {_join_words(themes[:3])}, leaving "
+                "you room to decide which part matters most now."
+            )
+        return _truncate_summary(combined)
     if themes:
         return (
             f"Your reflection included themes of {_join_words(themes)}, giving you "
@@ -413,6 +531,78 @@ def _deterministic_summary(
         "Your reflection was captured, but there was not enough transcript detail "
         "for a source-supported interpretation."
     )
+
+
+def _grounded_title(themes: list[str]) -> str:
+    replacements = {
+        "guilty": "guilt",
+        "proud": "pride",
+        "happy": "happiness",
+        "sad": "sadness",
+    }
+    cleaned = [
+        replacements.get(value, value)
+        for item in themes
+        if (value := " ".join(str(item).replace("_", " ").lower().split()))
+        and value not in {"self reflection", "reflection"}
+    ]
+    cleaned = list(dict.fromkeys(cleaned))
+    if len(cleaned) >= 2:
+        title = f"{cleaned[0]} alongside {cleaned[1]}"
+    elif cleaned:
+        title = f"Exploring {cleaned[0]}"
+    else:
+        title = "What stood out in your words"
+    return title[:1].upper() + title[1:]
+
+
+def _grounded_themes(values: list[str]) -> list[str]:
+    replacements = {
+        "expect": "expectations",
+        "expecting": "expectations",
+        "guilty": "guilt",
+        "proud": "pride",
+        "happy": "happiness",
+        "sad": "sadness",
+    }
+    blocked = {
+        "anything", "cannot", "done", "don't", "everything", "feel", "give",
+        "good", "honestly", "know", "people", "point", "right",
+        "self reflection", "situation", "something", "understand", "youre",
+    }
+    output: list[str] = []
+    for item in values:
+        clean = " ".join(str(item).replace("_", " ").lower().split())
+        clean = replacements.get(clean, clean)
+        if not clean or clean in blocked or clean in output:
+            continue
+        output.append(clean)
+    return (output or ["what mattered", "your experience"])[:4]
+
+
+def _thematic_grounded_summary(themes: list[str]) -> str:
+    opening = (
+        f"You named {themes[0]} alongside {themes[1]}"
+        if len(themes) == 2
+        else (
+            f"You named {themes[0]} alongside {themes[1]} while also returning to "
+            f"{_join_words(themes[2:4])}"
+        )
+    )
+    return (
+        f"{opening}. Your reflection held these parts together, giving you room to "
+        "consider how they relate, which detail carried the most weight, and what "
+        "you want to carry forward without forcing one part of the experience to "
+        "cancel another."
+    )
+
+
+def _truncate_summary(value: str) -> str:
+    clean = " ".join(value.split())
+    words = clean.split()
+    if len(words) > 75:
+        clean = " ".join(words[:75]).rstrip(" ,;:-")
+    return _truncate_words(clean, 600)
 
 
 def _truncate_words(value: str, max_chars: int) -> str:

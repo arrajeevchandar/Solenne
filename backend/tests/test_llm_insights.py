@@ -39,6 +39,40 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(provider, "fallback")
         self.assertTrue(ai_insights)
 
+    def test_failed_model_uses_detailed_contextual_recovery_without_generic_titles(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.text = (
+            "I worked through a difficult project review and explained why the "
+            "feedback mattered. I also described a conversation with my teammate "
+            "and the changes we want to make before the next presentation. I felt "
+            "more settled after writing down the priorities and choosing where to begin."
+        )
+        result.transcript.wordCount = len(result.transcript.text.split())
+        result.transcript.confidence = 0.9
+        result.nlp.paraphrase = (
+            "I worked through a difficult project review. I described feedback "
+            "and a conversation with my teammate."
+        )
+        result.nlp.topics = ["study"]
+        result.nlp.keyPhrases = ["feedback", "teammate", "priorities"]
+
+        insights, diagnostics, provider = generate_llm_insights(
+            result,
+            AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
+        )
+
+        self.assertEqual(provider, "fallback")
+        self.assertEqual(diagnostics.status, "skipped")
+        self.assertEqual(len(insights), 2)
+        self.assertTrue(all(35 <= len(item.summary.split()) <= 75 for item in insights))
+        self.assertTrue(all(len(item.suggestions) == 2 for item in insights))
+        self.assertTrue(all(len(item.reflectionQuestions) == 2 for item in insights))
+        self.assertTrue(all(item.evidence == {} for item in insights))
+        self.assertFalse(
+            {item.title for item in insights}
+            & {"Reflection signal", "Reflection captured", "A note from this reflection"}
+        )
+
     def test_enforce_mode_uses_grounded_output(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         grounded = AiInsight(

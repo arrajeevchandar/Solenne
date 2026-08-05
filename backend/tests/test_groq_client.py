@@ -95,6 +95,98 @@ class GroqClientTest(unittest.TestCase):
         self.assertEqual(completion.call_count, 2)
         self.assertIn("summary must contain at least 35 words", diagnostics.failureReason)
 
+    def test_valid_card_survives_while_only_invalid_card_is_repaired(self):
+        first = json.loads(_rich_response())
+        first["aiInsights"][1] = json.loads(_sparse_response())["aiInsights"][1]
+        replacement = json.loads(_rich_response())
+        replacement["aiInsights"] = replacement["aiInsights"][1:]
+        with patch(
+            "solenne_analyzer.ai.groq_client._chat_completion",
+            side_effect=[json.dumps(first), json.dumps(replacement)],
+        ) as completion:
+            insights, diagnostics = generate_groq_insights(
+                _substantive_context(),
+                _config(),
+                token_estimate=300,
+            )
+
+        self.assertEqual([item.title for item in insights], [
+            "Pride alongside disappointment",
+            "A learning thread in the result",
+        ])
+        self.assertEqual(diagnostics.status, "complete")
+        self.assertEqual(diagnostics.acceptedCardCount, 2)
+        self.assertTrue(diagnostics.revisionUsed)
+        accepted = completion.call_args_list[1].kwargs["accepted_cards"]
+        self.assertEqual([item.title for item in accepted], [
+            "Pride alongside disappointment"
+        ])
+        self.assertEqual(completion.call_args_list[1].kwargs["replacement_count"], 1)
+
+    def test_valid_first_pass_card_survives_broken_revision(self):
+        first = json.loads(_rich_response())
+        first["aiInsights"] = [first["aiInsights"][0], {"summary": 42}]
+        with patch(
+            "solenne_analyzer.ai.groq_client._chat_completion",
+            side_effect=[json.dumps(first), "{not-json"],
+        ):
+            insights, diagnostics = generate_groq_insights(
+                _substantive_context(),
+                _config(),
+                token_estimate=300,
+            )
+
+        self.assertEqual(len(insights), 1)
+        self.assertEqual(insights[0].title, "Pride alongside disappointment")
+        self.assertEqual(diagnostics.status, "complete")
+        self.assertEqual(diagnostics.acceptedCardCount, 1)
+        self.assertGreaterEqual(diagnostics.rejectedCardCount, 1)
+
+    def test_missing_evidence_does_not_trigger_revision(self):
+        response = json.loads(_rich_response())
+        for item in response["aiInsights"]:
+            item["evidence"] = {}
+        with patch(
+            "solenne_analyzer.ai.groq_client._chat_completion",
+            return_value=json.dumps(response),
+        ) as completion:
+            insights, diagnostics = generate_groq_insights(
+                _substantive_context(),
+                _config(),
+                token_estimate=300,
+            )
+
+        self.assertEqual(len(insights), 2)
+        self.assertEqual([item.evidence for item in insights], [{}, {}])
+        self.assertEqual(diagnostics.status, "complete")
+        completion.assert_called_once()
+
+    def test_safe_short_cards_are_completed_after_failed_length_revision(self):
+        response = json.loads(_rich_response())
+        response["aiInsights"][0]["summary"] = (
+            "Your hackathon placement brought pride while missing first place left "
+            "disappointment about preparation and effort."
+        )
+        response["aiInsights"][1]["summary"] = (
+            "You examined the placement, your expectations, and what the team's "
+            "preparation could teach you next."
+        )
+        with patch(
+            "solenne_analyzer.ai.groq_client._chat_completion",
+            return_value=json.dumps(response),
+        ) as completion:
+            insights, diagnostics = generate_groq_insights(
+                _substantive_context(),
+                _config(),
+                token_estimate=300,
+            )
+
+        self.assertEqual(completion.call_count, 2)
+        self.assertEqual(len(insights), 2)
+        self.assertTrue(all(35 <= len(item.summary.split()) <= 75 for item in insights))
+        self.assertEqual(diagnostics.status, "complete")
+        self.assertEqual(diagnostics.acceptedCardCount, 2)
+
     def test_third_person_summary_gets_one_direct_address_revision(self):
         third_person = json.loads(_rich_response())
         third_person["aiInsights"][0]["summary"] = (

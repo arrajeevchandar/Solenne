@@ -9,7 +9,7 @@ import httpx
 from ..config import AnalyzerConfig
 from ..schemas import LlmDiagnostics
 from .models import ClaimCard, GroundedInsightDraft, ObservationFact
-from .validators import parse_grounded_drafts_json
+from .validators import parse_grounded_drafts_json_partial
 
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -150,6 +150,7 @@ def generate_grounded_drafts(
     *,
     journal_narrative: dict[str, Any] | None = None,
     revision_feedback: str | None = None,
+    accepted_drafts: list[GroundedInsightDraft] | None = None,
     max_drafts: int = 3,
 ) -> tuple[list[GroundedInsightDraft], LlmDiagnostics]:
     max_drafts = max(1, min(5, max_drafts))
@@ -180,7 +181,15 @@ def generate_grounded_drafts(
         f"GROUNDING_CONTEXT_JSON:\n{json.dumps(context, ensure_ascii=False)}"
     )
     if revision_feedback:
-        prompt += f"\n\nREVISE_AFTER_VALIDATION_ERROR:\n{revision_feedback[:500]}"
+        accepted = [
+            {"title": item.title, "summary": item.summary}
+            for item in (accepted_drafts or [])
+        ]
+        prompt += (
+            f"\n\nREVISE_AFTER_VALIDATION_ERROR:\n{revision_feedback[:900]}"
+            "\nReturn corrected replacements only. Do not repeat these accepted drafts: "
+            f"{json.dumps(accepted, ensure_ascii=False)}"
+        )
     started = time.perf_counter()
     last_error: Exception | None = None
     for response_format in _response_formats(config.groq_model):
@@ -191,7 +200,13 @@ def generate_grounded_drafts(
                 config,
                 max_drafts=max_drafts,
             )
-            drafts = parse_grounded_drafts_json(content)[:max_drafts]
+            drafts, failures = parse_grounded_drafts_json_partial(content)
+            drafts = drafts[:max_drafts]
+            diagnostics.validationWarnings.extend(failures)
+            diagnostics.rejectedCardCount += len(failures)
+            diagnostics.acceptedCardCount = len(drafts)
+            if not drafts:
+                raise ValueError("; ".join(failures) or "No grounded drafts were usable.")
             diagnostics.status = "complete"
             diagnostics.latencyMs = int((time.perf_counter() - started) * 1000)
             diagnostics.failureReason = None

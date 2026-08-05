@@ -8,9 +8,10 @@ from ..schemas import AnalysisResult
 
 SHORT_TRANSCRIPT_MAX_WORDS = 120
 SHORT_TRANSCRIPT_MAX_CHARS = 1_200
+FULL_TRANSCRIPT_MAX_WORDS = 600
 MAX_KEY_EXCERPTS = 6
 MAX_KEY_EXCERPT_CHARS = 280
-MAX_KEY_EXCERPTS_TOTAL_CHARS = 1_400
+MAX_KEY_EXCERPTS_TOTAL_CHARS = 1_680
 
 SALIENCE_TERMS = {
     "achievement",
@@ -59,11 +60,17 @@ SALIENCE_TERMS = {
 
 
 def build_insight_context(result: AnalysisResult) -> dict:
-    transcript_text = result.transcript.text.strip()
+    transcript_text = " ".join(result.transcript.text.split())
+    full_transcript = (
+        transcript_text
+        if len(transcript_text.split()) <= FULL_TRANSCRIPT_MAX_WORDS
+        else ""
+    )
     return {
         "sourceLabel": Path(result.sourceVideo).name,
         "durationSeconds": round(result.durationSeconds, 2),
         "transcript": {
+            "text": full_transcript,
             "paraphrase": result.nlp.paraphrase,
             "wordCount": result.transcript.wordCount,
             "language": result.transcript.language,
@@ -139,9 +146,11 @@ def key_excerpts(text: str) -> list[str]:
         return [_truncate(clean_text, MAX_KEY_EXCERPT_CHARS)]
 
     selected_indexes = set(range(min(2, len(sentences))))
+    selected_indexes.add(len(sentences) - 1)
     later_candidates = [
         (_salience_score(sentence), index)
-        for index, sentence in enumerate(sentences[2:], start=2)
+        for index, sentence in enumerate(sentences)
+        if index not in selected_indexes
     ]
     later_candidates = [
         (score, index) for score, index in later_candidates if score > 0
@@ -149,6 +158,17 @@ def key_excerpts(text: str) -> list[str]:
     later_candidates.sort(key=lambda item: (-item[0], item[1]))
     for _, index in later_candidates[: MAX_KEY_EXCERPTS - len(selected_indexes)]:
         selected_indexes.add(index)
+
+    # Fill unused slots with evenly distributed sentences. This keeps the context
+    # representative when a journal uses vocabulary outside the small salience list.
+    remaining = [
+        index for index in range(len(sentences)) if index not in selected_indexes
+    ]
+    slots = MAX_KEY_EXCERPTS - len(selected_indexes)
+    while slots > 0 and remaining:
+        position = round((len(remaining) - 1) / 2)
+        selected_indexes.add(remaining.pop(position))
+        slots -= 1
 
     excerpts: list[str] = []
     total_chars = 0
