@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +21,8 @@ class InsightsScreen extends ConsumerWidget {
           error: (_, _) => const <JournalEntry>[],
         );
     final dashboard = JournalDashboard(entries);
+    final model = _InsightModel.fromDashboard(dashboard);
+
     return _CosmicPage(
       child: SafeArea(
         child: SingleChildScrollView(
@@ -33,7 +33,7 @@ class InsightsScreen extends ConsumerWidget {
               Text('Insights', style: AppTextStyles.display(fontSize: 36)),
               const SizedBox(height: 4),
               Text(
-                'A quieter way to notice your patterns.',
+                'Plain-language signals from your weekly check-ins.',
                 style: AppTextStyles.body(
                   fontSize: 14,
                   color: AppColors.shellstone.withValues(alpha: 0.72),
@@ -41,26 +41,25 @@ class InsightsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 22),
-              _WeekSnapshot(dashboard: dashboard),
-              const SizedBox(height: 16),
-              _MetricGrid(dashboard: dashboard),
+              _WellbeingSummaryCard(model: model),
+              const SizedBox(height: 14),
+              _SignalGrid(model: model),
+              const SizedBox(height: 14),
+              _ExplainabilityCard(model: model),
               const SizedBox(height: 22),
               Text(
-                'Patterns',
+                'Patterns Solenne noticed',
                 style: AppTextStyles.body(
                   fontSize: 18,
                   color: AppColors.swanWing.withValues(alpha: 0.94),
                 ),
               ),
               const SizedBox(height: 12),
-              _PatternsCarousel(dashboard: dashboard),
+              _PatternsCarousel(model: model),
               const SizedBox(height: 18),
-              _GentleNudge(
-                onTalkAboutIt: onTalkAboutIt,
-                message: dashboard.latestSuggestion,
-              ),
+              _TalkNudge(onTalkAboutIt: onTalkAboutIt, model: model),
               const SizedBox(height: 16),
-              _LanguageField(terms: dashboard.languageTerms),
+              _WordsInView(model: model),
             ],
           ),
         ),
@@ -69,24 +68,212 @@ class InsightsScreen extends ConsumerWidget {
   }
 }
 
-class _WeekSnapshot extends StatelessWidget {
-  const _WeekSnapshot({required this.dashboard});
+class _InsightModel {
+  const _InsightModel({
+    required this.windowLabel,
+    required this.entryCount,
+    required this.summaryStatus,
+    required this.summary,
+    required this.anxietyLevel,
+    required this.anxietyReason,
+    required this.lowMoodLevel,
+    required this.lowMoodReason,
+    required this.confidence,
+    required this.strongestSignal,
+    required this.patterns,
+    required this.nudge,
+    required this.wordSummary,
+    required this.terms,
+    required this.valencePoints,
+    required this.stressPoints,
+  });
 
-  final JournalDashboard dashboard;
+  final String windowLabel;
+  final int entryCount;
+  final String summaryStatus;
+  final String summary;
+  final String anxietyLevel;
+  final String anxietyReason;
+  final String lowMoodLevel;
+  final String lowMoodReason;
+  final double confidence;
+  final String strongestSignal;
+  final List<String> patterns;
+  final String nudge;
+  final String wordSummary;
+  final List<String> terms;
+  final List<double> valencePoints;
+  final List<double> stressPoints;
+
+  factory _InsightModel.fromDashboard(JournalDashboard dashboard) {
+    final entries = dashboard.insightAnalyzedEntries;
+    final stressPoints = dashboard.stressPoints;
+    final valencePoints = dashboard.valencePoints;
+    final stressAvg = _average(stressPoints);
+    final valenceAvg = _average(valencePoints);
+    final entryCount = dashboard.insightAnalyzedCount;
+    final hasSignals = entries.isNotEmpty;
+
+    final anxietyLevel = !hasSignals
+        ? 'Not ready'
+        : stressAvg >= 0.66
+        ? 'Elevated'
+        : stressAvg >= 0.42
+        ? 'Moderate'
+        : 'Low';
+    final lowMoodLevel = !hasSignals
+        ? 'Not ready'
+        : valenceAvg <= 0.34
+        ? 'Elevated'
+        : valenceAvg <= 0.48
+        ? 'Moderate'
+        : 'Low';
+
+    final status = !hasSignals
+        ? 'Waiting for signals'
+        : anxietyLevel == 'Elevated' || lowMoodLevel == 'Elevated'
+        ? 'Needs attention'
+        : anxietyLevel == 'Moderate' || lowMoodLevel == 'Moderate'
+        ? 'Worth watching'
+        : 'Mostly steady';
+
+    final summary = !hasSignals
+        ? 'Once a few entries are analyzed, this space will translate your voice and words into a simple weekly wellbeing read.'
+        : status == 'Needs attention'
+        ? 'Across $entryCount recent entries, Solenne is seeing more heaviness or tension than your steadier baseline. This is not a diagnosis, but it is a signal worth noticing early.'
+        : status == 'Worth watching'
+        ? 'Across $entryCount recent entries, the signals are mixed: there are some stress or low-energy cues, but not a strong sustained pattern yet.'
+        : 'Across $entryCount recent entries, your signals look mostly steady. Solenne is still watching for changes in energy, language, and emotional tone.';
+
+    final anxietyReason = !hasSignals
+        ? 'Needs analyzed entries first.'
+        : stressAvg >= 0.66
+        ? 'Stress-related language and tension cues are appearing more strongly than usual.'
+        : stressAvg >= 0.42
+        ? 'Some stress cues are present, but they are not dominating the week.'
+        : 'Stress cues are present at a lower level in this window.';
+
+    final lowMoodReason = !hasSignals
+        ? 'Needs analyzed entries first.'
+        : valenceAvg <= 0.34
+        ? 'The overall emotional tone has leaned heavier across the recent entries.'
+        : valenceAvg <= 0.48
+        ? 'There are some quieter emotional cues, but the pattern is not strong.'
+        : 'The recent emotional tone is not showing a strong low-mood signal.';
+
+    final strongestSignal = _strongestSignal(anxietyLevel, lowMoodLevel);
+    final patterns = _patternsFor(
+      dashboard,
+      status,
+      anxietyLevel,
+      lowMoodLevel,
+    );
+    final terms = dashboard.languageTerms;
+    final confidence = (entryCount / 5).clamp(0.0, 1.0).toDouble();
+
+    return _InsightModel(
+      windowLabel: dashboard.insightWindowLabel,
+      entryCount: entryCount,
+      summaryStatus: status,
+      summary: summary,
+      anxietyLevel: anxietyLevel,
+      anxietyReason: anxietyReason,
+      lowMoodLevel: lowMoodLevel,
+      lowMoodReason: lowMoodReason,
+      confidence: confidence,
+      strongestSignal: strongestSignal,
+      patterns: patterns,
+      nudge: dashboard.latestSuggestion,
+      wordSummary: _wordSummary(terms),
+      terms: terms,
+      valencePoints: valencePoints,
+      stressPoints: stressPoints,
+    );
+  }
+
+  static double _average(List<double> values) {
+    if (values.isEmpty) return 0.5;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
+  static String _strongestSignal(String anxiety, String lowMood) {
+    if (anxiety == 'Not ready') return 'Waiting for enough analyzed entries';
+    if (anxiety == 'Elevated' && lowMood == 'Elevated') {
+      return 'Both tension and low-mood cues are elevated';
+    }
+    if (anxiety == 'Elevated') return 'Tension and anxiety-related cues';
+    if (lowMood == 'Elevated') return 'Heavier emotional tone';
+    if (anxiety == 'Moderate') return 'Mild stress cues';
+    if (lowMood == 'Moderate') return 'Mild low-energy cues';
+    return 'No strong concern signal in this window';
+  }
+
+  static List<String> _patternsFor(
+    JournalDashboard dashboard,
+    String status,
+    String anxiety,
+    String lowMood,
+  ) {
+    final patterns = <String>[];
+    if (dashboard.voiceEnergyPoints.length >= 2) {
+      patterns.add(
+        'Voice energy has been ${_trendLabel(dashboard.voiceEnergyPoints)} across the recent entries.',
+      );
+    }
+    if (dashboard.stressPoints.length >= 2) {
+      patterns.add(
+        'Stress cues are ${_trendLabel(dashboard.stressPoints)} compared with earlier entries in this window.',
+      );
+    }
+    if (dashboard.recurringThemes.isNotEmpty) {
+      final theme = dashboard.recurringThemes.first.key;
+      patterns.add(
+        'The theme "$theme" is showing up repeatedly, so Solenne is keeping it in view.',
+      );
+    }
+    if (patterns.isEmpty) {
+      patterns.add(
+        'Solenne needs a few more analyzed entries before naming a reliable pattern.',
+      );
+    }
+    if (status == 'Needs attention') {
+      patterns.add(
+        'This window contains a stronger wellbeing signal than the usual steady range.',
+      );
+    } else if (anxiety == 'Low' && lowMood == 'Low') {
+      patterns.add(
+        'No clear anxiety or low-mood risk pattern is standing out right now.',
+      );
+    }
+    return patterns.take(4).toList(growable: false);
+  }
+
+  static String _trendLabel(List<double> points) {
+    if (points.length < 2) return 'still forming';
+    final delta = points.last - points.first;
+    if (delta > 0.14) return 'rising';
+    if (delta < -0.14) return 'lowering';
+    return 'fairly steady';
+  }
+
+  static String _wordSummary(List<String> terms) {
+    if (terms.isEmpty) {
+      return 'No recurring words are clear enough yet.';
+    }
+    if (terms.length == 1) {
+      return 'The clearest word in view is ${terms.first}.';
+    }
+    return 'The clearest words in view are ${terms.take(3).join(', ')}.';
+  }
+}
+
+class _WellbeingSummaryCard extends StatelessWidget {
+  const _WellbeingSummaryCard({required this.model});
+
+  final _InsightModel model;
 
   @override
   Widget build(BuildContext context) {
-    final points = dashboard.valencePoints;
-    final average = points.isEmpty
-        ? null
-        : points.reduce((a, b) => a + b) / points.length;
-    final label = average == null
-        ? 'More reflections needed'
-        : average >= 0.62
-        ? 'Leaning brighter'
-        : average <= 0.38
-        ? 'A quieter week'
-        : 'Holding steady';
     return _Glass(
       tint: AppColors.sapphire,
       child: Column(
@@ -95,7 +282,7 @@ class _WeekSnapshot extends StatelessWidget {
           Row(
             children: [
               Text(
-                'THIS WEEK',
+                'WEEKLY WELLBEING',
                 style: AppTextStyles.mono(
                   fontSize: 10,
                   color: AppColors.quicksand.withValues(alpha: 0.78),
@@ -103,60 +290,43 @@ class _WeekSnapshot extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '7 days',
+                model.windowLabel,
                 style: AppTextStyles.mono(
                   fontSize: 10,
-                  color: AppColors.shellstone.withValues(alpha: 0.54),
+                  color: AppColors.shellstone.withValues(alpha: 0.58),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  model.summaryStatus,
+                  style: AppTextStyles.display(fontSize: 31),
+                ),
+              ),
+              SizedBox(
+                width: 68,
+                height: 68,
+                child: CustomPaint(
+                  painter: _SignalOrbPainter(
+                    model.valencePoints,
+                    model.stressPoints,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: AppTextStyles.display(fontSize: 30)),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Your overall rhythm',
-                      style: AppTextStyles.body(
-                        fontSize: 12,
-                        color: AppColors.shellstone.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                average == null ? '—' : '${(average * 100).round()}',
-                style: AppTextStyles.display(
-                  fontSize: 44,
-                  color: AppColors.quicksand,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 66,
-            child: CustomPaint(painter: _WeekPulsePainter(points)),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              _DayLabel('S'),
-              _DayLabel('M'),
-              _DayLabel('T'),
-              _DayLabel('W'),
-              _DayLabel('T'),
-              _DayLabel('F'),
-              _DayLabel('S'),
-            ],
+          Text(
+            model.summary,
+            style: AppTextStyles.body(
+              fontSize: 14,
+              color: AppColors.shellstone.withValues(alpha: 0.8),
+            ),
           ),
         ],
       ),
@@ -164,144 +334,101 @@ class _WeekSnapshot extends StatelessWidget {
   }
 }
 
-class _DayLabel extends StatelessWidget {
-  const _DayLabel(this.label);
+class _SignalGrid extends StatelessWidget {
+  const _SignalGrid({required this.model});
 
-  final String label;
+  final _InsightModel model;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: AppTextStyles.mono(
-        fontSize: 9,
-        color: AppColors.shellstone.withValues(alpha: 0.5),
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _SignalCard(
+            icon: Icons.air_rounded,
+            label: 'ANXIETY RISK SIGNAL',
+            level: model.anxietyLevel,
+            reason: model.anxietyReason,
+            points: model.stressPoints,
+            warm: true,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SignalCard(
+            icon: Icons.nightlight_round,
+            label: 'LOW MOOD SIGNAL',
+            level: model.lowMoodLevel,
+            reason: model.lowMoodReason,
+            points: model.valencePoints,
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.dashboard});
-
-  final JournalDashboard dashboard;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final itemWidth = (constraints.maxWidth - 12) / 2;
-        final voice = dashboard.latestVoiceEnergy;
-        final stress = dashboard.latestStress;
-        final outlook = dashboard.latestOutlook;
-        final voiceLabel = voice == null
-            ? '—'
-            : voice > 0.03
-            ? 'Lively'
-            : voice < 0.01
-            ? 'Soft'
-            : 'Steady';
-        final outlookLabel = outlook == null
-            ? '—'
-            : outlook > 0.25
-            ? 'Brighter'
-            : outlook < -0.25
-            ? 'Heavier'
-            : 'Balanced';
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _MetricCard(
-              icon: Icons.graphic_eq_rounded,
-              label: 'VOICE ENERGY',
-              value: voiceLabel,
-              detail: voice == null ? 'Awaiting analysis' : 'Latest entry',
-              points: dashboard.voiceEnergyPoints,
-            ),
-            _MetricCard(
-              icon: Icons.waves_outlined,
-              label: 'TENSION CUES',
-              value: stress == null ? '—' : '${(stress * 100).round()}%',
-              detail: stress == null ? 'Awaiting analysis' : 'From your words',
-              points: dashboard.stressPoints,
-            ),
-            _MetricCard(
-              icon: Icons.explore_outlined,
-              label: 'OUTLOOK',
-              value: outlookLabel,
-              detail: outlook == null ? 'Awaiting analysis' : 'Latest entry',
-              points: dashboard.outlookPoints,
-            ),
-            _MetricCard(
-              icon: Icons.mic_none_rounded,
-              label: 'CHECK-INS',
-              value: '${dashboard.thisWeek} / 7',
-              detail: 'This week',
-              points: dashboard.valencePoints,
-            ),
-          ].map((card) => SizedBox(width: itemWidth, child: card)).toList(),
-        );
-      },
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
+class _SignalCard extends StatelessWidget {
+  const _SignalCard({
     required this.icon,
     required this.label,
-    required this.value,
-    required this.detail,
+    required this.level,
+    required this.reason,
     required this.points,
+    this.warm = false,
   });
 
   final IconData icon;
   final String label;
-  final String value;
-  final String detail;
+  final String level;
+  final String reason;
   final List<double> points;
+  final bool warm;
 
   @override
   Widget build(BuildContext context) {
+    final accent = warm ? AppColors.quicksand : AppColors.sapphire;
     return _Glass(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      padding: const EdgeInsets.fromLTRB(15, 15, 15, 14),
+      tint: AppColors.royalBlue,
       child: SizedBox(
-        height: 124,
+        height: 154,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 17,
-              color: AppColors.quicksand.withValues(alpha: 0.74),
+            Row(
+              children: [
+                Icon(icon, size: 18, color: accent.withValues(alpha: 0.78)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: AppTextStyles.mono(
+                      fontSize: 8.5,
+                      color: AppColors.shellstone.withValues(alpha: 0.58),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
+            Text(level, style: AppTextStyles.display(fontSize: 24)),
+            const SizedBox(height: 7),
             Text(
-              value,
-              maxLines: 1,
+              reason,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.display(fontSize: 27),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: AppTextStyles.mono(
-                fontSize: 8,
-                color: AppColors.shellstone.withValues(alpha: 0.55),
+              style: AppTextStyles.body(
+                fontSize: 10.5,
+                color: AppColors.shellstone.withValues(alpha: 0.72),
               ),
             ),
-            const SizedBox(height: 5),
+            const Spacer(),
             SizedBox(
-              height: 18,
-              child: CustomPaint(painter: _MiniTrendPainter(points: points)),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              detail,
-              style: AppTextStyles.body(
-                fontSize: 10,
-                color: AppColors.quicksand.withValues(alpha: 0.7),
+              height: 28,
+              child: CustomPaint(
+                painter: _MiniTrendPainter(points: points, accent: accent),
               ),
             ),
           ],
@@ -311,50 +438,76 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _PatternsCarousel extends StatelessWidget {
-  const _PatternsCarousel({required this.dashboard});
+class _ExplainabilityCard extends StatelessWidget {
+  const _ExplainabilityCard({required this.model});
 
-  final JournalDashboard dashboard;
+  final _InsightModel model;
 
   @override
   Widget build(BuildContext context) {
-    final themes = dashboard.recurringThemes;
-    if (themes.isEmpty) {
-      return SizedBox(
-        height: 132,
-        child: _Glass(
-          tint: AppColors.sapphire,
-          child: Center(
+    return _Glass(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.sapphire.withValues(alpha: 0.18),
+              border: Border.all(
+                color: AppColors.quicksand.withValues(alpha: 0.24),
+              ),
+            ),
             child: Text(
-              'A few analyzed reflections are needed before a pattern can be named.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.body(
-                fontSize: 12,
-                color: AppColors.shellstone.withValues(alpha: 0.68),
-                fontStyle: FontStyle.italic,
+              '${(model.confidence * 100).round()}%',
+              style: AppTextStyles.mono(
+                fontSize: 11,
+                color: AppColors.quicksand.withValues(alpha: 0.86),
               ),
             ),
           ),
-        ),
-      );
-    }
-    final points = dashboard.valencePoints.length >= 2
-        ? dashboard.valencePoints
-        : const [0.5, 0.5];
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Why Solenne says this',
+                  style: AppTextStyles.body(fontSize: 15),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${model.strongestSignal}. Confidence grows as more entries are analyzed.',
+                  style: AppTextStyles.body(
+                    fontSize: 12,
+                    color: AppColors.shellstone.withValues(alpha: 0.68),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PatternsCarousel extends StatelessWidget {
+  const _PatternsCarousel({required this.model});
+
+  final _InsightModel model;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 184,
+      height: 174,
       child: PageView(
-        controller: PageController(viewportFraction: 0.84),
+        controller: PageController(viewportFraction: 0.86),
         padEnds: false,
         children: [
-          for (final theme in themes)
-            _PatternCard(
-              label: theme.key.toUpperCase(),
-              value: '${theme.value}×',
-              direction: 'noticed',
-              caption: 'Across your analyzed reflections',
-              points: points,
-            ),
+          for (final pattern in model.patterns)
+            _PatternCard(text: pattern, points: model.valencePoints),
         ],
       ),
     );
@@ -362,18 +515,9 @@ class _PatternsCarousel extends StatelessWidget {
 }
 
 class _PatternCard extends StatelessWidget {
-  const _PatternCard({
-    required this.label,
-    required this.value,
-    required this.direction,
-    required this.caption,
-    required this.points,
-  });
+  const _PatternCard({required this.text, required this.points});
 
-  final String label;
-  final String value;
-  final String direction;
-  final String caption;
+  final String text;
   final List<double> points;
 
   @override
@@ -386,43 +530,30 @@ class _PatternCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              label,
+              'OBSERVED PATTERN',
               style: AppTextStyles.mono(
                 fontSize: 9,
                 color: AppColors.quicksand.withValues(alpha: 0.76),
               ),
             ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(value, style: AppTextStyles.display(fontSize: 42)),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    direction,
-                    style: AppTextStyles.body(
-                      fontSize: 12,
-                      color: AppColors.shellstone.withValues(alpha: 0.68),
-                    ),
-                  ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: AppTextStyles.body(
+                  fontSize: 17,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.swanWing.withValues(alpha: 0.88),
                 ),
-              ],
-            ),
-            const Spacer(),
-            SizedBox(
-              height: 44,
-              child: CustomPaint(
-                painter: _MiniTrendPainter(points: points, prominent: true),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              caption,
-              style: AppTextStyles.body(
-                fontSize: 12,
-                color: AppColors.swanWing.withValues(alpha: 0.78),
+            SizedBox(
+              height: 30,
+              child: CustomPaint(
+                painter: _MiniTrendPainter(
+                  points: points,
+                  accent: AppColors.quicksand,
+                ),
               ),
             ),
           ],
@@ -432,16 +563,17 @@ class _PatternCard extends StatelessWidget {
   }
 }
 
-class _GentleNudge extends StatelessWidget {
-  final VoidCallback onTalkAboutIt;
-  final String message;
+class _TalkNudge extends StatelessWidget {
+  const _TalkNudge({required this.onTalkAboutIt, required this.model});
 
-  const _GentleNudge({required this.onTalkAboutIt, required this.message});
+  final VoidCallback onTalkAboutIt;
+  final _InsightModel model;
 
   @override
   Widget build(BuildContext context) {
+    final showWarm = model.summaryStatus == 'Needs attention';
     return _Glass(
-      tint: AppColors.sapphire,
+      tint: showWarm ? AppColors.quicksand : AppColors.sapphire,
       child: Row(
         children: [
           Container(
@@ -466,13 +598,10 @@ class _GentleNudge extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'A softer stretch',
-                  style: AppTextStyles.body(fontSize: 15),
-                ),
+                Text('A gentle nudge', style: AppTextStyles.body(fontSize: 15)),
                 const SizedBox(height: 2),
                 Text(
-                  message,
+                  model.nudge,
                   style: AppTextStyles.body(
                     fontSize: 11,
                     color: AppColors.shellstone.withValues(alpha: 0.68),
@@ -493,10 +622,10 @@ class _GentleNudge extends StatelessWidget {
   }
 }
 
-class _LanguageField extends StatelessWidget {
-  const _LanguageField({required this.terms});
+class _WordsInView extends StatelessWidget {
+  const _WordsInView({required this.model});
 
-  final List<String> terms;
+  final _InsightModel model;
 
   @override
   Widget build(BuildContext context) {
@@ -511,32 +640,29 @@ class _LanguageField extends StatelessWidget {
               color: AppColors.quicksand.withValues(alpha: 0.74),
             ),
           ),
-          const SizedBox(height: 8),
-          const SizedBox(
-            height: 78,
-            child: CustomPaint(painter: _LanguageFieldPainter()),
-          ),
           const SizedBox(height: 10),
-          if (terms.isEmpty)
+          Text(
+            model.wordSummary,
+            style: AppTextStyles.body(
+              fontSize: 14,
+              color: AppColors.shellstone.withValues(alpha: 0.76),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (model.terms.isEmpty)
             Text(
-              'Words and themes will gather here after analysis.',
+              'No clear themes yet.',
               style: AppTextStyles.body(
-                fontSize: 11,
-                color: AppColors.shellstone.withValues(alpha: 0.62),
+                fontSize: 12,
+                color: AppColors.shellstone.withValues(alpha: 0.58),
                 fontStyle: FontStyle.italic,
               ),
             )
           else
             Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (int index = 0; index < terms.length; index++)
-                  _ThemeChip(
-                    label: terms[index],
-                    strength: (1 - index * 0.11).clamp(0.42, 1.0),
-                  ),
-              ],
+              spacing: 8,
+              runSpacing: 8,
+              children: [for (final term in model.terms) _ThemeChip(term)],
             ),
         ],
       ),
@@ -545,213 +671,162 @@ class _LanguageField extends StatelessWidget {
 }
 
 class _ThemeChip extends StatelessWidget {
-  const _ThemeChip({required this.label, required this.strength});
+  const _ThemeChip(this.term);
 
-  final String label;
-  final double strength;
+  final String term;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: AppColors.sapphire.withValues(alpha: 0.16 + strength * 0.14),
-        border: Border.all(
-          color: AppColors.shellstone.withValues(alpha: 0.08 + strength * 0.15),
-        ),
+        borderRadius: BorderRadius.circular(999),
+        color: AppColors.quicksand.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.quicksand.withValues(alpha: 0.2)),
       ),
       child: Text(
-        label,
-        style: AppTextStyles.mono(
-          fontSize: 9,
-          color: AppColors.shellstone.withValues(alpha: 0.58 + strength * 0.25),
+        term,
+        style: AppTextStyles.body(
+          fontSize: 12,
+          color: AppColors.swanWing.withValues(alpha: 0.82),
         ),
       ),
     );
   }
-}
-
-class _WeekPulsePainter extends CustomPainter {
-  const _WeekPulsePainter(this.values);
-
-  final List<double> values;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.length < 2) return;
-    final points = _pointsFor(values, size, verticalPadding: 6);
-    final fillPath = Path()
-      ..moveTo(points.first.dx, size.height)
-      ..lineTo(points.first.dx, points.first.dy);
-    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
-    for (int i = 1; i < points.length; i++) {
-      final previous = points[i - 1];
-      final current = points[i];
-      final controlX = (previous.dx + current.dx) / 2;
-      linePath.cubicTo(
-        controlX,
-        previous.dy,
-        controlX,
-        current.dy,
-        current.dx,
-        current.dy,
-      );
-      fillPath.cubicTo(
-        controlX,
-        previous.dy,
-        controlX,
-        current.dy,
-        current.dx,
-        current.dy,
-      );
-    }
-    fillPath
-      ..lineTo(points.last.dx, size.height)
-      ..close();
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.sapphire.withValues(alpha: 0.46),
-            Colors.transparent,
-          ],
-        ).createShader(Offset.zero & size),
-    );
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = AppColors.quicksand.withValues(alpha: 0.88)
-        ..strokeWidth = 1.6
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-    for (final point in points) {
-      canvas.drawCircle(point, 3, Paint()..color = AppColors.quicksand);
-      canvas.drawCircle(point, 1.1, Paint()..color = AppColors.royalBlue);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WeekPulsePainter oldDelegate) =>
-      oldDelegate.values != values;
-}
-
-class _MiniTrendPainter extends CustomPainter {
-  const _MiniTrendPainter({required this.points, this.prominent = false});
-
-  final List<double> points;
-  final bool prominent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-    final offsets = _pointsFor(
-      points,
-      size,
-      verticalPadding: prominent ? 4 : 2,
-    );
-    final path = Path()..moveTo(offsets.first.dx, offsets.first.dy);
-    for (int i = 1; i < offsets.length; i++) {
-      path.lineTo(offsets[i].dx, offsets[i].dy);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = AppColors.quicksand.withValues(alpha: prominent ? 0.88 : 0.7)
-        ..strokeWidth = prominent ? 1.7 : 1.2
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-    if (prominent) {
-      for (final point in offsets) {
-        canvas.drawCircle(point, 2.5, Paint()..color = AppColors.quicksand);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MiniTrendPainter oldDelegate) =>
-      oldDelegate.points != points || oldDelegate.prominent != prominent;
-}
-
-List<Offset> _pointsFor(
-  List<double> values,
-  Size size, {
-  required double verticalPadding,
-}) {
-  if (values.length < 2) return const [];
-  return List.generate(values.length, (index) {
-    final x = index * size.width / (values.length - 1);
-    final y =
-        size.height -
-        verticalPadding -
-        values[index] * (size.height - verticalPadding * 2);
-    return Offset(x, y);
-  });
-}
-
-class _LanguageFieldPainter extends CustomPainter {
-  const _LanguageFieldPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = math.Random(21);
-    for (int i = 0; i < 48; i++) {
-      final x = random.nextDouble() * size.width;
-      final y =
-          size.height * (0.5 + math.sin(x / size.width * math.pi * 2) * 0.18) +
-          random.nextDouble() * 22 -
-          11;
-      final radius = 1.5 + random.nextDouble() * 5.2;
-      canvas.drawCircle(
-        Offset(x, y),
-        radius,
-        Paint()
-          ..color = Color.lerp(
-            AppColors.sapphire,
-            AppColors.quicksand,
-            random.nextDouble(),
-          )!.withValues(alpha: 0.18 + random.nextDouble() * 0.32),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CosmicPage extends StatelessWidget {
-  final Widget child;
-
   const _CosmicPage({required this.child});
 
+  final Widget child;
+
   @override
-  Widget build(BuildContext context) => SolenneBackground(child: child);
+  Widget build(BuildContext context) {
+    return SolenneBackground(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.55, -0.42),
+                  radius: 1.2,
+                  colors: [
+                    AppColors.sapphire.withValues(alpha: 0.28),
+                    AppColors.royalBlue.withValues(alpha: 0.78),
+                    Colors.black.withValues(alpha: 0.94),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
 }
 
 class _Glass extends StatelessWidget {
-  final Widget child;
-  final Color? tint;
-  final EdgeInsetsGeometry padding;
-
   const _Glass({
     required this.child,
-    this.tint,
     this.padding = const EdgeInsets.all(18),
+    this.tint = AppColors.royalBlue,
   });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
     return SolenneGlass(
       padding: padding,
-      borderRadius: 20,
+      borderRadius: 24,
       tint: tint,
       child: child,
     );
   }
+}
+
+class _SignalOrbPainter extends CustomPainter {
+  const _SignalOrbPainter(this.valence, this.stress);
+
+  final List<double> valence;
+  final List<double> stress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2;
+    final valenceAverage = _InsightModel._average(valence);
+    final stressAverage = _InsightModel._average(stress);
+    final cool = AppColors.sapphire.withValues(
+      alpha: 0.42 + stressAverage * 0.24,
+    );
+    final warm = AppColors.quicksand.withValues(
+      alpha: 0.3 + valenceAverage * 0.28,
+    );
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [warm, cool, Colors.transparent],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawCircle(center, radius, paint);
+    canvas.drawCircle(
+      center,
+      radius * 0.74,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = AppColors.quicksand.withValues(alpha: 0.22),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignalOrbPainter oldDelegate) =>
+      oldDelegate.valence != valence || oldDelegate.stress != stress;
+}
+
+class _MiniTrendPainter extends CustomPainter {
+  const _MiniTrendPainter({required this.points, required this.accent});
+
+  final List<double> points;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final guide = Paint()
+      ..color = AppColors.shellstone.withValues(alpha: 0.1)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(0, size.height * 0.55),
+      Offset(size.width, size.height * 0.55),
+      guide,
+    );
+    if (points.length < 2) return;
+
+    final path = Path();
+    for (var i = 0; i < points.length; i++) {
+      final x = size.width * (i / (points.length - 1));
+      final y = size.height - points[i].clamp(0.0, 1.0) * size.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = 2.1
+        ..color = accent.withValues(alpha: 0.72),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniTrendPainter oldDelegate) =>
+      oldDelegate.points != points || oldDelegate.accent != accent;
 }

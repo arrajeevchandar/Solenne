@@ -17,8 +17,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  String _voice = 'Observational';
-
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -126,34 +124,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _SectionTitle('Voice'),
-                    const SizedBox(height: 12),
-                    _VoiceOption(
-                      label: 'Observational',
-                      text: 'Just notices, rarely offers warmth.',
-                      selected: _voice == 'Observational',
-                      onTap: () => setState(() => _voice = 'Observational'),
-                    ),
-                    _VoiceOption(
-                      label: 'Warm',
-                      text: 'More relational, uses your name more.',
-                      selected: _voice == 'Warm',
-                      onTap: () => setState(() => _voice = 'Warm'),
-                    ),
-                    _VoiceOption(
-                      label: 'Sparse',
-                      text: 'Almost no generated text, minimal AI voice.',
-                      selected: _voice == 'Sparse',
-                      onTap: () => setState(() => _voice = 'Sparse'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              _Glass(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
                     const _SectionTitle('Baseline reset'),
                     const SizedBox(height: 10),
                     Text(
@@ -193,20 +163,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const _SectionTitle('Entry archive'),
                     const SizedBox(height: 10),
                     _ArchiveRow(
-                      icon: Icons.audio_file_rounded,
-                      label: 'Export audio files',
+                      icon: Icons.archive_rounded,
+                      label: 'Export archive',
+                      detail: 'Choose audio or transcripts inside',
                       onTap: () => showArchiveExportSheet(
                         context,
                         initialKind: ExportKind.audio,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _ArchiveRow(
-                      icon: Icons.description_rounded,
-                      label: 'Export text transcripts',
-                      onTap: () => showArchiveExportSheet(
-                        context,
-                        initialKind: ExportKind.transcript,
                       ),
                     ),
                   ],
@@ -321,84 +283,16 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-class _VoiceOption extends StatelessWidget {
-  final String label;
-  final String text;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _VoiceOption({
-    required this.label,
-    required this.text,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected
-                ? AppColors.sapphire.withValues(alpha: 0.48)
-                : AppColors.shellstone.withValues(alpha: 0.13),
-          ),
-          color: selected
-              ? AppColors.sapphire.withValues(alpha: 0.22)
-              : AppColors.royalBlue.withValues(alpha: 0.16),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              size: 18,
-              color: selected
-                  ? AppColors.quicksand.withValues(alpha: 0.82)
-                  : AppColors.shellstone.withValues(alpha: 0.52),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: AppTextStyles.body(
-                      fontSize: 14,
-                      color: AppColors.swanWing.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    text,
-                    style: AppTextStyles.body(
-                      fontSize: 12,
-                      color: AppColors.shellstone.withValues(alpha: 0.62),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ArchiveRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String detail;
   final VoidCallback onTap;
 
   const _ArchiveRow({
     required this.icon,
     required this.label,
+    required this.detail,
     required this.onTap,
   });
 
@@ -420,12 +314,24 @@ class _ArchiveRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  label,
-                  style: AppTextStyles.body(
-                    fontSize: 14,
-                    color: AppColors.shellstone.withValues(alpha: 0.82),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: AppTextStyles.body(
+                        fontSize: 14,
+                        color: AppColors.shellstone.withValues(alpha: 0.82),
+                      ),
+                    ),
+                    Text(
+                      detail,
+                      style: AppTextStyles.mono(
+                        fontSize: 9,
+                        color: AppColors.shellstone.withValues(alpha: 0.48),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Icon(
