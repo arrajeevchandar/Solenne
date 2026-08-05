@@ -47,6 +47,32 @@ class JournalDashboard {
   JournalEntry? get latestAnalyzed =>
       analyzedEntries.isEmpty ? null : analyzedEntries.first;
 
+  List<JournalEntry> get weeklyAnalyzedEntries {
+    final start = now.subtract(Duration(days: now.weekday - DateTime.monday));
+    return analyzedEntries
+        .where((entry) => !_dateOnly(entry.recordedAt).isBefore(start))
+        .toList(growable: false);
+  }
+
+  List<JournalEntry> get insightAnalyzedEntries {
+    if (weeklyAnalyzedEntries.isNotEmpty) {
+      return weeklyAnalyzedEntries;
+    }
+    return analyzedEntries.take(5).toList(growable: false);
+  }
+
+  int get analyzedThisWeek => weeklyAnalyzedEntries.length;
+
+  int get insightAnalyzedCount => _distinctDates(insightAnalyzedEntries).length;
+
+  String get insightWindowLabel {
+    if (weeklyAnalyzedEntries.isNotEmpty) {
+      return '$analyzedThisWeek analyzed this week';
+    }
+    if (insightAnalyzedEntries.isEmpty) return 'Not enough data';
+    return 'Latest $insightAnalyzedCount entries';
+  }
+
   String get reflectionText {
     final latest = latestEntry;
     if (latest == null) {
@@ -85,7 +111,7 @@ class JournalDashboard {
   }
 
   List<double> get valencePoints {
-    final values = analyzedEntries
+    final values = insightAnalyzedEntries
         .map((entry) => metric(entry.fused, 'overallValence'))
         .whereType<double>()
         .take(7)
@@ -97,11 +123,11 @@ class JournalDashboard {
   }
 
   List<double> get voiceEnergyPoints => _normalizedMetricPoints(
-    analyzedEntries,
+    insightAnalyzedEntries,
     (entry) => metric(entry.voice, 'energyMean'),
   );
 
-  List<double> get outlookPoints => analyzedEntries
+  List<double> get outlookPoints => insightAnalyzedEntries
       .map((entry) => metric(entry.nlp, 'sentimentValence'))
       .whereType<double>()
       .take(5)
@@ -110,7 +136,7 @@ class JournalDashboard {
       .reversed
       .toList(growable: false);
 
-  List<double> get stressPoints => analyzedEntries
+  List<double> get stressPoints => insightAnalyzedEntries
       .map((entry) => metric(entry.nlp, 'stressScore'))
       .whereType<double>()
       .take(5)
@@ -142,12 +168,12 @@ class JournalDashboard {
 
   List<String> get languageTerms {
     final counts = <String, int>{};
-    for (final entry in analyzedEntries.take(14)) {
+    for (final entry in insightAnalyzedEntries.take(14)) {
       final topics = _strings(entry.nlp['topics']);
       final phrases = _strings(entry.nlp['keyPhrases']);
       for (final value in [...topics, ...phrases]) {
         final normalized = value.replaceAll('_', ' ').trim().toLowerCase();
-        if (normalized.isNotEmpty) {
+        if (_isMeaningfulTerm(normalized)) {
           counts[normalized] = (counts[normalized] ?? 0) + 1;
         }
       }
@@ -207,6 +233,103 @@ class JournalDashboard {
   static List<String> _strings(Object? value) {
     if (value is! Iterable) return const [];
     return value.map((item) => item.toString()).toList(growable: false);
+  }
+
+  static bool _isMeaningfulTerm(String value) {
+    const stopWords = {
+      'about',
+      'actually',
+      'after',
+      'again',
+      'almost',
+      'also',
+      'always',
+      'anything',
+      'around',
+      'before',
+      'been',
+      'being',
+      'because',
+      'between',
+      'came',
+      'come',
+      'could',
+      'does',
+      'doing',
+      'done',
+      'else',
+      'even',
+      'ever',
+      'every',
+      'feel',
+      'feeling',
+      'felt',
+      'from',
+      'gets',
+      'give',
+      'going',
+      'gone',
+      'happen',
+      'happened',
+      'have',
+      'having',
+      'here',
+      'into',
+      'just',
+      'kind',
+      'know',
+      'like',
+      'maybe',
+      'more',
+      'much',
+      'need',
+      'only',
+      'other',
+      'over',
+      'really',
+      'said',
+      'same',
+      'seem',
+      'seemed',
+      'should',
+      'some',
+      'something',
+      'still',
+      'that',
+      'them',
+      'then',
+      'their',
+      'there',
+      'these',
+      'they',
+      'thing',
+      'things',
+      'think',
+      'this',
+      'today',
+      'told',
+      'took',
+      'trying',
+      'very',
+      'want',
+      'wanted',
+      'well',
+      'were',
+      'what',
+      'when',
+      'where',
+      'which',
+      'while',
+      'will',
+      'with',
+      'would',
+      'your',
+      'you',
+    };
+    final normalized = value.trim().toLowerCase();
+    if (normalized.length <= 3) return false;
+    final parts = normalized.split(RegExp(r'\s+'));
+    return parts.any((part) => part.length > 3 && !stopWords.contains(part));
   }
 
   static List<double> _normalizedMetricPoints(
