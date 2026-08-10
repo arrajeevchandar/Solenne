@@ -79,6 +79,21 @@ class AnalysisSupervisor:
             return True
         if time.monotonic() >= self._next_heartbeat:
             if not self.gateway.renew_analysis_lease(job):
+                status = self.gateway.analysis_job_status(job)
+                if status in {"complete", "failed", "cancelled"}:
+                    # The child can commit its terminal state immediately before a
+                    # scheduled heartbeat. Give it a moment to exit and clean it up
+                    # without misclassifying successful completion as cancellation.
+                    process.join(timeout=2)
+                    if process.is_alive():
+                        self._terminate()
+                    LOGGER.info(
+                        "Analysis job %s reached terminal state %s.",
+                        job.id,
+                        status,
+                    )
+                    self._clear()
+                    return True
                 LOGGER.info(
                     "Stopping analysis job %s after lease loss or cancellation.",
                     job.id,

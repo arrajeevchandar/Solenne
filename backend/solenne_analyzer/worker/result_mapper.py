@@ -6,7 +6,7 @@ from typing import Any
 from ..schemas import AnalysisResult
 
 
-ANALYSIS_VERSION = "2026-07-v4-adaptive-detailed-thumbnail"
+ANALYSIS_VERSION = "2026-08-v7-long-speech-analysis"
 
 
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
@@ -20,6 +20,7 @@ def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
             "wordCount": result.transcript.wordCount,
             "language": result.transcript.language,
             "confidence": result.transcript.confidence,
+            "languageConfidence": result.transcript.languageConfidence,
         },
         "facial": asdict(result.facial),
         "voice": asdict(result.voice),

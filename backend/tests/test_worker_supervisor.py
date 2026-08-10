@@ -59,6 +59,25 @@ class AnalysisSupervisorTests(unittest.TestCase):
         self.assertTrue(process.terminated)
         self.assertEqual(gateway.acknowledged, ["journal-1"])
 
+    def test_terminal_job_does_not_get_acknowledged_as_cancellation(self) -> None:
+        gateway = _Gateway(renewed=False, status="complete")
+        process = _Process(alive_after_start=True)
+        supervisor = AnalysisSupervisor(_config(), gateway)
+
+        with patch(
+            "solenne_analyzer.worker.supervisor.multiprocessing.get_context",
+            return_value=_Context(process),
+        ), patch(
+            "solenne_analyzer.worker.supervisor.time.monotonic",
+            side_effect=[0.0, 6.0],
+        ):
+            self.assertTrue(supervisor.start_next())
+            self.assertTrue(supervisor.poll())
+
+        self.assertTrue(process.terminated)
+        self.assertEqual(gateway.acknowledged, [])
+        self.assertIsNone(supervisor.job_id)
+
     def test_deletion_cancels_matching_child(self) -> None:
         gateway = _Gateway()
         process = _Process(alive_after_start=True)
@@ -80,7 +99,7 @@ class AnalysisSupervisorTests(unittest.TestCase):
 
 
 class _Gateway:
-    def __init__(self, *, renewed: bool = True) -> None:
+    def __init__(self, *, renewed: bool = True, status: str = "processing") -> None:
         self.job = ClaimedJob(
             "job-1",
             "user-1",
@@ -91,6 +110,7 @@ class _Gateway:
             0,
         )
         self.renewed = renewed
+        self.status = status
         self.interrupted: list[str] = []
         self.acknowledged: list[str] = []
 
@@ -105,6 +125,9 @@ class _Gateway:
 
     def renew_analysis_lease(self, _job):
         return self.renewed
+
+    def analysis_job_status(self, _job):
+        return self.status
 
     def acknowledge_analysis_cancellation(self, journal_id):
         self.acknowledged.append(journal_id)

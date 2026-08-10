@@ -44,6 +44,7 @@ class WorkerResultTests(unittest.TestCase):
             wordCount=3,
             language="en",
             confidence=0.91,
+            languageConfidence=0.83,
         )
         result.aiInsights = [
             AiInsight(
@@ -57,9 +58,10 @@ class WorkerResultTests(unittest.TestCase):
         self.assertEqual(payload["analysisStatus"], "complete")
         self.assertEqual(
             payload["analysisVersion"],
-            "2026-07-v4-adaptive-detailed-thumbnail",
+            "2026-08-v7-long-speech-analysis",
         )
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
+        self.assertEqual(payload["transcript"]["languageConfidence"], 0.83)
         self.assertNotIn("segments", payload["transcript"])
         self.assertEqual(payload["aiInsights"][0]["moodLabel"], "grounded")
 

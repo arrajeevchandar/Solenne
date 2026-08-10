@@ -78,6 +78,8 @@ def build_user_prompt(
     context: dict,
     *,
     revision_feedback: str | None = None,
+    accepted_cards: list[dict[str, str]] | None = None,
+    replacement_count: int | None = None,
 ) -> str:
     card_limit = adaptive_insight_limit(context)
     theme_count = expected_day_theme_count(context)
@@ -96,8 +98,9 @@ def build_user_prompt(
         "concrete details from the supplied journal context. Include "
         f"{theme_requirement}2 to 4 gentle, practical suggestions that are distinct, "
         "and 2 to 4 open-ended reflection questions that are distinct. "
-        "The evidence.reason must be a meaningful sentence of at least 8 words that "
-        "names the supplied observations behind that card without quoting metric values. "
+        "Evidence is optional. When a concrete reason is supported, include a meaningful "
+        "evidence.reason naming the supplied observations without quoting metric values. "
+        "When no reliable reason is available, return evidence as an empty object. "
         "Do not pad, repeat, or restate the same idea across cards. "
         if is_substantive_insight_context(context)
         else (
@@ -108,20 +111,34 @@ def build_user_prompt(
     )
     revision = ""
     if revision_feedback:
+        accepted = accepted_cards or []
+        accepted_context = (
+            " The following cards were already accepted and must not be repeated: "
+            f"{json.dumps(accepted, ensure_ascii=False)}."
+            if accepted
+            else ""
+        )
+        replacement_instruction = (
+            f" Return at most {replacement_count} corrected replacement card"
+            f"{'s' if replacement_count != 1 else ''} only."
+            if replacement_count
+            else " Revise the invalid cards only."
+        )
         revision = (
             "\n\nThe previous response was structurally valid but too sparse or repetitive. "
-            "Revise it to satisfy every quality requirement above. Address these issues: "
-            f"{revision_feedback[:600]}"
+            "Revise only the rejected material to satisfy every quality requirement above. "
+            f"Address these issues: {revision_feedback[:900]}."
+            f"{accepted_context}{replacement_instruction}"
         )
     return (
         "Generate Solenne app-ready wellness insights from this analysis context. "
         "The top-level JSON key must be exactly aiInsights, not insights. "
         "Every insight must include title, summary, moodLabel, dayThemes, "
         "suggestions, reflectionQuestions, evidence, confidence, and safetyNote. "
-        "For evidence, return a short reason explaining which supplied observations "
-        "prompted that specific insight and a metrics object containing only relevant "
-        "supplied metrics. Keep the reason descriptive and do not quote numeric metric "
-        "values in it. Tie the reason to journal details or cautious recording observations; "
+        "For evidence, return either an empty object or a short reason explaining which "
+        "supplied observations prompted that specific insight, plus a metrics object "
+        "containing only relevant supplied metrics. Keep any reason descriptive and do not "
+        "quote numeric metric values in it. Tie the reason to journal details or cautious recording observations; "
         "do not infer a personality, mindset, hidden intention, or cause. Do not copy the "
         "transcript or include runId, journalId, sourceVideo, URLs, or other internal "
         "identifiers in evidence. "

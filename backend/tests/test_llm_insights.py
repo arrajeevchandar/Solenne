@@ -39,6 +39,40 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(provider, "fallback")
         self.assertTrue(ai_insights)
 
+    def test_failed_model_uses_detailed_contextual_recovery_without_generic_titles(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        result.transcript.text = (
+            "I worked through a difficult project review and explained why the "
+            "feedback mattered. I also described a conversation with my teammate "
+            "and the changes we want to make before the next presentation. I felt "
+            "more settled after writing down the priorities and choosing where to begin."
+        )
+        result.transcript.wordCount = len(result.transcript.text.split())
+        result.transcript.confidence = 0.9
+        result.nlp.paraphrase = (
+            "I worked through a difficult project review. I described feedback "
+            "and a conversation with my teammate."
+        )
+        result.nlp.topics = ["study"]
+        result.nlp.keyPhrases = ["feedback", "teammate", "priorities"]
+
+        insights, diagnostics, provider = generate_llm_insights(
+            result,
+            AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
+        )
+
+        self.assertEqual(provider, "fallback")
+        self.assertEqual(diagnostics.status, "skipped")
+        self.assertEqual(len(insights), 2)
+        self.assertTrue(all(35 <= len(item.summary.split()) <= 75 for item in insights))
+        self.assertTrue(all(len(item.suggestions) == 2 for item in insights))
+        self.assertTrue(all(len(item.reflectionQuestions) == 2 for item in insights))
+        self.assertTrue(all(item.evidence == {} for item in insights))
+        self.assertFalse(
+            {item.title for item in insights}
+            & {"Reflection signal", "Reflection captured", "A note from this reflection"}
+        )
+
     def test_enforce_mode_uses_grounded_output(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         grounded = AiInsight(
@@ -295,6 +329,120 @@ class LlmInsightsTest(unittest.TestCase):
                     [narrative],
                     LlmDiagnostics(status="complete"),
                     "groq",
+                ),
+            ),
+        ):
+            insights, _, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(insights, [narrative])
+        self.assertEqual(provider, "groq")
+
+    def test_combined_mode_generates_narrative_before_optional_grounding(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="A specific narrative theme",
+            summary="Your journal connected a specific experience with what mattered next.",
+            moodLabel="reflective",
+        )
+        user_data_only = AiInsight(
+            title="Grounding unavailable",
+            summary="Your journal was available without a matching catalog claim.",
+            moodLabel="reflective",
+            evidence={
+                "schemaVersion": 2,
+                "externalReferences": [],
+                "verification": {"status": "user_data_only"},
+            },
+        )
+        call_order: list[str] = []
+
+        def narrative_first(*_args, **_kwargs):
+            call_order.append("narrative")
+            return [narrative], LlmDiagnostics(status="complete"), "groq"
+
+        def grounding_second(*_args, **_kwargs):
+            call_order.append("grounding")
+            return (
+                [user_data_only],
+                LlmDiagnostics(
+                    status="not_requested",
+                    grounding={"status": "user_data_only", "reason": "no_catalog_match"},
+                ),
+                "grounded_template",
+            )
+
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                side_effect=narrative_first,
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                side_effect=grounding_second,
+            ),
+        ):
+            insights, diagnostics, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(call_order, ["narrative", "grounding"])
+        self.assertEqual(insights, [narrative])
+        self.assertEqual(provider, "groq")
+        self.assertEqual(diagnostics.grounding["reason"], "no_catalog_match")
+
+    def test_combined_mode_ignores_deterministic_grounded_recovery(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="Event nerves and a successful presentation",
+            summary=(
+                "You described feeling nervous before your event presentation, then "
+                "explaining everything successfully and enjoying time with friends "
+                "afterward. Your words connected preparation, relief, humor, and the "
+                "support you shared with people who mattered during the day."
+            ),
+            moodLabel="relieved",
+        )
+        deterministic_grounded = AiInsight(
+            title="Friend alongside relationships",
+            summary=(
+                "You named friend alongside relationships while returning to several "
+                "general themes from this reflection."
+            ),
+            moodLabel="reflective",
+            evidence={
+                "schemaVersion": 2,
+                "externalReferences": [{"claimCardId": "claim-social"}],
+                "verification": {"status": "source_supported"},
+            },
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    [deterministic_grounded],
+                    LlmDiagnostics(
+                        status="failed",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "grounded_template",
                 ),
             ),
         ):
