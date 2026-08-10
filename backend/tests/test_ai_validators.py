@@ -157,6 +157,16 @@ class AiValidatorTest(unittest.TestCase):
         self.assertIn("repeats another card title", str(raised.exception))
         self.assertIn("repeats another card summary", str(raised.exception))
 
+    def test_quality_validator_rejects_generic_recovery_title(self):
+        payload = _rich_payload()
+        payload["aiInsights"][0]["title"] = "Reflection signal"
+        insights = validate_ai_insight_payload(payload)
+
+        with self.assertRaises(InsightQualityError) as raised:
+            validate_ai_insight_quality(insights, _substantive_context())
+
+        self.assertIn("title must name a specific theme", str(raised.exception))
+
     def test_quality_validator_strips_inferred_mindset_reasoning_from_evidence(self):
         payload = _rich_payload()
         payload["aiInsights"][1]["evidence"]["reason"] = (

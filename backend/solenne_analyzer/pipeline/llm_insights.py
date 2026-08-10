@@ -42,22 +42,23 @@ def _generate_combined_insights(
     result: AnalysisResult,
     config: AnalyzerConfig,
 ) -> tuple[list[AiInsight], LlmDiagnostics, str]:
-    """Serve legacy narrative insights alongside grounded, source-supported ones.
+    """Generate narrative insights first, then add verified grounding when available.
 
-    Each grounded insight carries schema-v2 ``evidence`` with research references,
-    so the frontend renders it as its own grounded card next to the narrative cards.
+    Combined mode is deliberately AI-first. The curated catalog can enrich or add a
+    source-supported card, but a missing match or a grounding failure must never
+    suppress an otherwise valid narrative response.
     """
-    grounded, grounded_diagnostics, grounded_provider = generate_grounded_insights(
-        result, config
-    )
-    # The grounded pipeline owns the crisis path; when it engages, surface only the
-    # deterministic safety insight and skip the narrative cards entirely.
-    if grounded_provider == "safety":
-        return grounded, grounded_diagnostics, grounded_provider
-
     legacy_insights, legacy_diagnostics, legacy_provider = _generate_legacy_insights(
         result, config
     )
+    grounded, grounded_diagnostics, grounded_provider = generate_grounded_insights(
+        result, config
+    )
+    # Crisis language is already handled before combined mode is entered. Keep this
+    # defensive branch in case the grounding boundary is called independently later.
+    if grounded_provider == "safety":
+        return grounded, grounded_diagnostics, grounded_provider
+
     legacy_diagnostics.grounding = grounded_diagnostics.grounding
     source_supported = [
         insight for insight in grounded if _is_source_supported(insight)

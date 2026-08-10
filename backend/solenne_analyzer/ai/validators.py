@@ -45,6 +45,13 @@ THIRD_PERSON_SUBJECT_PHRASES = {
     "the person",
     "the journal owner",
 }
+GENERIC_INSIGHT_TITLES = {
+    "reflection signal",
+    "reflection captured",
+    "a note from this reflection",
+    "journal reflection",
+    "your reflection",
+}
 
 _ANCHOR_STOP_WORDS = {
     "about",
@@ -371,6 +378,10 @@ def _card_quality_failures(
     label: str,
 ) -> list[str]:
     failures: list[str] = []
+    if _normalized_comparison_text(insight.title) in GENERIC_INSIGHT_TITLES:
+        failures.append(
+            f"{label} title must name a specific theme from this journal"
+        )
     if not _uses_direct_address(insight.summary):
         failures.append(
             f"{label} summary must address the journal owner directly with you or your"

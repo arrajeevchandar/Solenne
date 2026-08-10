@@ -343,6 +343,63 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(insights, [narrative])
         self.assertEqual(provider, "groq")
 
+    def test_combined_mode_generates_narrative_before_optional_grounding(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="A specific narrative theme",
+            summary="Your journal connected a specific experience with what mattered next.",
+            moodLabel="reflective",
+        )
+        user_data_only = AiInsight(
+            title="Grounding unavailable",
+            summary="Your journal was available without a matching catalog claim.",
+            moodLabel="reflective",
+            evidence={
+                "schemaVersion": 2,
+                "externalReferences": [],
+                "verification": {"status": "user_data_only"},
+            },
+        )
+        call_order: list[str] = []
+
+        def narrative_first(*_args, **_kwargs):
+            call_order.append("narrative")
+            return [narrative], LlmDiagnostics(status="complete"), "groq"
+
+        def grounding_second(*_args, **_kwargs):
+            call_order.append("grounding")
+            return (
+                [user_data_only],
+                LlmDiagnostics(
+                    status="not_requested",
+                    grounding={"status": "user_data_only", "reason": "no_catalog_match"},
+                ),
+                "grounded_template",
+            )
+
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                side_effect=narrative_first,
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                side_effect=grounding_second,
+            ),
+        ):
+            insights, diagnostics, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(call_order, ["narrative", "grounding"])
+        self.assertEqual(insights, [narrative])
+        self.assertEqual(provider, "groq")
+        self.assertEqual(diagnostics.grounding["reason"], "no_catalog_match")
+
     def test_combined_merge_does_not_label_unsafe_legacy_wording_as_supported(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         narrative = AiInsight(

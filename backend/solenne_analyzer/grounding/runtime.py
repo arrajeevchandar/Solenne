@@ -87,6 +87,25 @@ def generate_grounded_insights(
     card_limit = adaptive_insight_limit_for_word_count(result.transcript.wordCount)
     retrieved = retrieve_claims(facts, catalog, limit=5)
     grounding.retrievedClaimIds = [item.claimCardId for item in retrieved]
+    if not retrieved:
+        # There is nothing for the grounded LLM to validate or attach. In combined
+        # mode the independent narrative path remains the visible result; avoiding a
+        # pointless request here also prevents grounding retries from consuming the
+        # rate limit needed by narrative generation.
+        grounding.status = "user_data_only"
+        grounding.reason = "no_catalog_match"
+        grounding.latencyMs = _elapsed_ms(started)
+        return (
+            [_user_data_only_insight(result, facts, grounding.reason, catalog)],
+            LlmDiagnostics(
+                status="not_requested",
+                provider="deterministic",
+                model=None,
+                failureReason=None,
+                grounding=grounding.to_dict(),
+            ),
+            "grounded_template",
+        )
     journal_narrative = build_journal_narrative(result)
     last_llm = LlmDiagnostics(
         status="not_requested",

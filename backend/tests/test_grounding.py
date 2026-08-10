@@ -378,6 +378,39 @@ class GroundingRuntimeTests(unittest.TestCase):
         self.assertIn("rationale", insights[0].evidence)
         self.assertEqual(calls, [None])
 
+    def test_no_catalog_match_skips_grounded_llm_generation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = _write_catalog(Path(temp), _catalog_payload())
+            config = AnalyzerConfig(
+                enable_llm_insights=True,
+                groq_api_key="test-key",
+                grounding_mode="combined",
+                grounding_catalog_path=path,
+            )
+            with (
+                patch(
+                    "solenne_analyzer.grounding.runtime.retrieve_claims",
+                    return_value=[],
+                ),
+                patch(
+                    "solenne_analyzer.grounding.runtime.generate_grounded_drafts"
+                ) as generate,
+            ):
+                insights, diagnostics, provider = generate_grounded_insights(
+                    _analysis_result(topics=["work"], phrases=["deadline"]),
+                    config,
+                )
+
+        generate.assert_not_called()
+        self.assertEqual(provider, "grounded_template")
+        self.assertEqual(diagnostics.status, "not_requested")
+        self.assertEqual(diagnostics.grounding["status"], "user_data_only")
+        self.assertEqual(diagnostics.grounding["reason"], "no_catalog_match")
+        self.assertEqual(
+            insights[0].evidence["verification"]["status"],
+            "user_data_only",
+        )
+
     def test_grounded_runtime_preserves_valid_draft_and_repairs_only_invalid_one(self):
         with tempfile.TemporaryDirectory() as temp:
             path = _write_catalog(Path(temp), _catalog_payload())

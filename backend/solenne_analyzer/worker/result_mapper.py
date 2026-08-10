@@ -6,7 +6,7 @@ from typing import Any
 from ..schemas import AnalysisResult
 
 
-ANALYSIS_VERSION = "2026-08-v5-resilient-detailed-insights"
+ANALYSIS_VERSION = "2026-08-v6-ai-first-optional-grounding"
 
 
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
