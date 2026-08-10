@@ -914,6 +914,12 @@ class FirebaseGateway:
 
         return bool(renew(transaction))
 
+    def analysis_job_status(self, job: ClaimedJob) -> str | None:
+        snapshot = self._job_ref(job).get()
+        if not snapshot.exists:
+            return None
+        return str((snapshot.to_dict() or {}).get("status") or "") or None
+
     def interrupt_analysis(self, job: ClaimedJob) -> None:
         job_ref = self._job_ref(job)
         transaction = self.db.transaction()

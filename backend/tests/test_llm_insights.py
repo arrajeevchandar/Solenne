@@ -400,6 +400,63 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(provider, "groq")
         self.assertEqual(diagnostics.grounding["reason"], "no_catalog_match")
 
+    def test_combined_mode_ignores_deterministic_grounded_recovery(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        narrative = AiInsight(
+            title="Event nerves and a successful presentation",
+            summary=(
+                "You described feeling nervous before your event presentation, then "
+                "explaining everything successfully and enjoying time with friends "
+                "afterward. Your words connected preparation, relief, humor, and the "
+                "support you shared with people who mattered during the day."
+            ),
+            moodLabel="relieved",
+        )
+        deterministic_grounded = AiInsight(
+            title="Friend alongside relationships",
+            summary=(
+                "You named friend alongside relationships while returning to several "
+                "general themes from this reflection."
+            ),
+            moodLabel="reflective",
+            evidence={
+                "schemaVersion": 2,
+                "externalReferences": [{"claimCardId": "claim-social"}],
+                "verification": {"status": "source_supported"},
+            },
+        )
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights._generate_legacy_insights",
+                return_value=(
+                    [narrative],
+                    LlmDiagnostics(status="complete"),
+                    "groq",
+                ),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=(
+                    [deterministic_grounded],
+                    LlmDiagnostics(
+                        status="failed",
+                        grounding={"status": "source_supported"},
+                    ),
+                    "grounded_template",
+                ),
+            ),
+        ):
+            insights, _, provider = generate_llm_insights(
+                result,
+                AnalyzerConfig(
+                    enable_llm_insights=True,
+                    grounding_mode="combined",
+                ),
+            )
+
+        self.assertEqual(insights, [narrative])
+        self.assertEqual(provider, "groq")
+
     def test_combined_merge_does_not_label_unsafe_legacy_wording_as_supported(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         narrative = AiInsight(

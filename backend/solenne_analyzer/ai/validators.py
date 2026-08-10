@@ -52,6 +52,21 @@ GENERIC_INSIGHT_TITLES = {
     "journal reflection",
     "your reflection",
 }
+GENERIC_TITLE_WORDS = {
+    "a",
+    "captured",
+    "daily",
+    "day",
+    "journal",
+    "negative",
+    "note",
+    "positive",
+    "reflection",
+    "signal",
+    "the",
+    "this",
+    "your",
+}
 
 _ANCHOR_STOP_WORDS = {
     "about",
@@ -378,7 +393,7 @@ def _card_quality_failures(
     label: str,
 ) -> list[str]:
     failures: list[str] = []
-    if _normalized_comparison_text(insight.title) in GENERIC_INSIGHT_TITLES:
+    if _is_generic_insight_title(insight.title):
         failures.append(
             f"{label} title must name a specific theme from this journal"
         )
@@ -502,12 +517,13 @@ def crisis_language_present(text: str) -> bool:
 
 
 def _usable_narrative_word_count(transcript: dict[str, Any]) -> int:
+    full_text_count = len(_word_tokens(str(transcript.get("text") or "")))
     paraphrase_count = len(_word_tokens(str(transcript.get("paraphrase") or "")))
     excerpts = transcript.get("keyExcerpts")
     excerpt_text = " ".join(
         str(item) for item in excerpts if isinstance(item, str)
     ) if isinstance(excerpts, list) else ""
-    return max(paraphrase_count, len(_word_tokens(excerpt_text)))
+    return max(full_text_count, paraphrase_count, len(_word_tokens(excerpt_text)))
 
 
 def _context_confidence_is_low(context: dict[str, Any]) -> bool:
@@ -570,6 +586,14 @@ def _word_tokens(value: str) -> list[str]:
 
 def _normalized_comparison_text(value: str) -> str:
     return " ".join(_word_tokens(value))
+
+
+def _is_generic_insight_title(value: str) -> bool:
+    normalized = _normalized_comparison_text(value)
+    if normalized in GENERIC_INSIGHT_TITLES:
+        return True
+    tokens = set(normalized.split())
+    return bool(tokens) and tokens <= GENERIC_TITLE_WORDS
 
 
 def _distinct_text_count(values: list[str]) -> int:

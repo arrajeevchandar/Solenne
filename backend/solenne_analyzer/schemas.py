@@ -27,6 +27,7 @@ class TranscriptResult:
     segments: list[TranscriptSegment] = field(default_factory=list)
     language: str | None = None
     confidence: float = 0.0
+    languageConfidence: float = 0.0
 
 
 @dataclass

@@ -75,6 +75,7 @@ def build_insight_context(result: AnalysisResult) -> dict:
             "wordCount": result.transcript.wordCount,
             "language": result.transcript.language,
             "confidence": result.transcript.confidence,
+            "languageDetectionConfidence": result.transcript.languageConfidence,
             "keyExcerpts": _key_excerpts(transcript_text),
         },
         "metrics": {

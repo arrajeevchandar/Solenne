@@ -60,9 +60,14 @@ def _generate_combined_insights(
         return grounded, grounded_diagnostics, grounded_provider
 
     legacy_diagnostics.grounding = grounded_diagnostics.grounding
-    source_supported = [
-        insight for insight in grounded if _is_source_supported(insight)
-    ]
+    # Combined mode only presents grounded wording that survived the grounded LLM
+    # path. Deterministic grounded recovery remains useful in enforce mode, but it
+    # must not add a generic card beside already-successful narrative AI output.
+    source_supported = (
+        [insight for insight in grounded if _is_source_supported(insight)]
+        if grounded_provider == "groq_grounded"
+        else []
+    )
     grounded_to_show = source_supported or ([] if legacy_insights else grounded)
     combined = _combine_distinct_insights(
         legacy_insights,

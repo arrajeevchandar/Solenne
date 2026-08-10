@@ -167,6 +167,32 @@ class AiValidatorTest(unittest.TestCase):
 
         self.assertIn("title must name a specific theme", str(raised.exception))
 
+    def test_quality_validator_rejects_generic_positive_day_title(self):
+        payload = _rich_payload()
+        payload["aiInsights"][0]["title"] = "Positive Day Reflection"
+        insights = validate_ai_insight_payload(payload)
+
+        with self.assertRaises(InsightQualityError) as raised:
+            validate_ai_insight_quality(insights, _substantive_context())
+
+        self.assertIn("title must name a specific theme", str(raised.exception))
+
+    def test_full_transcript_makes_long_spoken_entry_substantive(self):
+        payload = _rich_payload()
+        insights = validate_ai_insight_payload(payload)
+        context = _substantive_context()
+        context["transcript"].update(
+            {
+                "text": " ".join(f"spoken{index}" for index in range(90)),
+                "wordCount": 90,
+                "paraphrase": "A short paraphrase.",
+                "keyExcerpts": ["A short excerpt."],
+                "confidence": 0.9,
+            }
+        )
+
+        validate_ai_insight_quality(insights, context)
+
     def test_quality_validator_strips_inferred_mindset_reasoning_from_evidence(self):
         payload = _rich_payload()
         payload["aiInsights"][1]["evidence"]["reason"] = (

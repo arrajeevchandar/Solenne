@@ -78,18 +78,20 @@ class CloudinaryUploadService {
       'api.cloudinary.com',
       '/v1_1/${AppConfig.cloudinaryCloudName}/$resourceType/upload',
     );
+    final fileLength = await file.length();
     final request = http.MultipartRequest('POST', uri)
       ..fields['upload_preset'] = AppConfig.cloudinaryUploadPreset
       ..fields['folder'] = folder
       ..files.add(
-        http.MultipartFile.fromBytes(
+        http.MultipartFile(
           'file',
-          await file.readAsBytes(),
+          file.openRead(),
+          fileLength,
           filename: file.name.isEmpty ? fallbackFilename : file.name,
         ),
       );
 
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(const Duration(minutes: 5));
     final response = await http.Response.fromStream(streamed);
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode < 200 || response.statusCode >= 300) {
