@@ -19,6 +19,10 @@ class WorkerConfig:
     max_download_bytes: int
     download_timeout_seconds: float
     transient_retries: int
+    whisper_device: str = "auto"
+    whisper_compute_type: str = "default"
+    whisper_language: str | None = None
+    whisper_initial_prompt: str | None = None
     cloudinary_api_key: str = ""
     cloudinary_api_secret: str = ""
     export_zip_max_bytes: int = 100 * 1024 * 1024
@@ -57,7 +61,17 @@ class WorkerConfig:
             cloudinary_folder=os.environ.get(
                 "CLOUDINARY_UPLOAD_FOLDER", "solenne/journals"
             ).strip("/"),
-            whisper_model=os.environ.get("WHISPER_MODEL", "base"),
+            whisper_model=os.environ.get("WHISPER_MODEL", "large-v3").strip(),
+            whisper_device=os.environ.get("WHISPER_DEVICE", "auto").strip(),
+            whisper_compute_type=os.environ.get(
+                "WHISPER_COMPUTE_TYPE", "default"
+            ).strip(),
+            whisper_language=(
+                os.environ.get("WHISPER_LANGUAGE", "").strip() or None
+            ),
+            whisper_initial_prompt=(
+                os.environ.get("WHISPER_INITIAL_PROMPT", "").strip() or None
+            ),
             max_video_seconds=int(os.environ.get("MAX_VIDEO_SECONDS", "180")),
             max_download_bytes=int(
                 os.environ.get("MAX_VIDEO_BYTES", str(500 * 1024 * 1024))

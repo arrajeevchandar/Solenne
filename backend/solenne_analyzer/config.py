@@ -16,7 +16,14 @@ DEFAULT_GROUNDING_CATALOG_PATH = (
 @dataclass(frozen=True)
 class AnalyzerConfig:
     output_dir: Path = DEFAULT_OUTPUT_DIR
-    whisper_model: str = "small"
+    whisper_model: str = "large-v3"
+    whisper_device: str = "auto"
+    whisper_compute_type: str = "default"
+    whisper_language: str | None = None
+    whisper_initial_prompt: str | None = None
+    whisper_beam_size: int = 5
+    whisper_vad_min_silence_ms: int = 500
+    whisper_vad_speech_pad_ms: int = 300
     sample_fps: float = 1.0
     audio_sample_rate: int = 16000
     max_video_seconds: int = 180
@@ -36,7 +43,11 @@ class AnalyzerConfig:
         cls,
         *,
         output_dir: Path = DEFAULT_OUTPUT_DIR,
-        whisper_model: str = "small",
+        whisper_model: str | None = None,
+        whisper_device: str | None = None,
+        whisper_compute_type: str | None = None,
+        whisper_language: str | None = None,
+        whisper_initial_prompt: str | None = None,
         max_video_seconds: int = 180,
         enable_llm_insights: bool | None = None,
         groq_model: str | None = None,
@@ -60,7 +71,38 @@ class AnalyzerConfig:
             catalog_path = BACKEND_ROOT / catalog_path
         return cls(
             output_dir=output_dir,
-            whisper_model=whisper_model,
+            whisper_model=(
+                whisper_model
+                or os.environ.get("WHISPER_MODEL", "large-v3")
+            ).strip(),
+            whisper_device=(
+                whisper_device
+                or os.environ.get("WHISPER_DEVICE", "auto")
+            ).strip(),
+            whisper_compute_type=(
+                whisper_compute_type
+                or os.environ.get("WHISPER_COMPUTE_TYPE", "default")
+            ).strip(),
+            whisper_language=_optional_text(
+                whisper_language
+                if whisper_language is not None
+                else os.environ.get("WHISPER_LANGUAGE")
+            ),
+            whisper_initial_prompt=_optional_text(
+                whisper_initial_prompt
+                if whisper_initial_prompt is not None
+                else os.environ.get("WHISPER_INITIAL_PROMPT")
+            ),
+            whisper_beam_size=max(
+                1, int(os.environ.get("WHISPER_BEAM_SIZE", "5"))
+            ),
+            whisper_vad_min_silence_ms=max(
+                0,
+                int(os.environ.get("WHISPER_VAD_MIN_SILENCE_MS", "500")),
+            ),
+            whisper_vad_speech_pad_ms=max(
+                0, int(os.environ.get("WHISPER_VAD_SPEECH_PAD_MS", "300"))
+            ),
             max_video_seconds=max_video_seconds,
             enable_llm_insights=enabled,
             groq_api_key=os.environ.get("GROQ_API_KEY"),
@@ -101,3 +143,8 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _optional_text(value: str | None) -> str | None:
+    cleaned = str(value or "").strip()
+    return cleaned or None

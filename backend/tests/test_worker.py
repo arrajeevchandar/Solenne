@@ -58,7 +58,7 @@ class WorkerResultTests(unittest.TestCase):
         self.assertEqual(payload["analysisStatus"], "complete")
         self.assertEqual(
             payload["analysisVersion"],
-            "2026-08-v7-long-speech-analysis",
+            "2026-08-v8-whisper-large-v3",
         )
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertEqual(payload["transcript"]["languageConfidence"], 0.83)

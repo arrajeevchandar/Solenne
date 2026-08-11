@@ -112,7 +112,14 @@ CLOUDINARY_API_SECRET=<secret-manager-value>
 MAX_EXPORT_ZIP_BYTES=104857600
 EXPORT_EXPIRY_HOURS=24
 EXPORT_ALLOWED_ORIGINS=*
-WHISPER_MODEL=base
+WHISPER_MODEL=large-v3
+WHISPER_DEVICE=auto
+WHISPER_COMPUTE_TYPE=default
+WHISPER_LANGUAGE=
+WHISPER_INITIAL_PROMPT=
+WHISPER_BEAM_SIZE=5
+WHISPER_VAD_MIN_SILENCE_MS=500
+WHISPER_VAD_SPEECH_PAD_MS=300
 MAX_VIDEO_SECONDS=180
 ```
 
@@ -134,6 +141,12 @@ Cloudinary API credentials are required only for deletion and export queues and
 must remain server-side. In Cloud Run, omit
 `FIREBASE_SERVICE_ACCOUNT` and use the runtime service account through
 Application Default Credentials.
+
+The transcription stage uses Whisper large-v3 for new and manually requeued
+analyses. Its weights are downloaded and cached on the first run, so the first
+analysis takes longer and requires substantially more disk space than the old
+base model. Production images should pre-cache the model weights rather than
+downloading them for each new instance.
 
 Run the authenticated one-time export download service from the same image:
 
@@ -173,7 +186,8 @@ Each run writes:
 
 1. Validate local video and duration.
 2. Extract mono 16kHz WAV audio with ffmpeg.
-3. Transcribe speech with faster-whisper.
+3. Transcribe speech with modular faster-whisper large-v3 decoding and
+   transcript-quality scoring.
 4. Sample video frames and detect face presence with MediaPipe.
 5. Extract voice/prosody features with librosa.
 6. Analyze transcript sentiment, stress terms, topics, and paraphrase.

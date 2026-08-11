@@ -32,8 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument(
         "--whisper-model",
-        default="small",
-        help="faster-whisper model name. Use base for faster local smoke tests.",
+        default=None,
+        help="faster-whisper model name. Defaults to WHISPER_MODEL or large-v3.",
     )
     analyze.add_argument(
         "--max-video-seconds",

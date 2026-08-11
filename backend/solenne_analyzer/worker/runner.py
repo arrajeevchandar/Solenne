@@ -83,6 +83,10 @@ class AnalysisWorker:
                 analyzer_config = AnalyzerConfig.from_env(
                     output_dir=temp_dir / "outputs",
                     whisper_model=self.config.whisper_model,
+                    whisper_device=self.config.whisper_device,
+                    whisper_compute_type=self.config.whisper_compute_type,
+                    whisper_language=self.config.whisper_language,
+                    whisper_initial_prompt=self.config.whisper_initial_prompt,
                     max_video_seconds=self.config.max_video_seconds,
                     enable_llm_insights=True,
                 )
