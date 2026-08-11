@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-08-v7-long-speech-analysis';
+  static const analysisVersion = '2026-08-v8-whisper-large-v3';
 
   JournalRepository({required this.firestore, required this.auth});
 
