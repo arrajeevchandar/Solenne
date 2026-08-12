@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:solenne_frontend/core/widgets/solenne_audio_player.dart';
 import 'package:solenne_frontend/features/journals/journal_entry.dart';
 import 'package:solenne_frontend/features/journals/journal_repository.dart';
 import 'package:solenne_frontend/screens/insights/daily_insight_screen.dart';
@@ -40,6 +41,46 @@ void main() {
 
     expect(find.text('INSIGHTS ARE STILL SETTLING'), findsOneWidget);
     expect(find.text('Old insight'), findsNothing);
+  });
+
+  testWidgets(
+    'written entries show original text without transcript controls',
+    (tester) async {
+      final entry = _entry(
+        analysisStatus: 'complete',
+        entryType: 'written',
+        writtenText: 'I protected a quiet hour for myself today.',
+      );
+
+      await tester.pumpWidget(_app(entry));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('I protected a quiet hour for myself today.'),
+        findsOneWidget,
+      );
+      expect(find.text('Show transcript'), findsNothing);
+      expect(find.byType(SolenneAudioPlayer), findsNothing);
+      expect(find.byType(JournalVideoPlayer), findsNothing);
+    },
+  );
+
+  testWidgets('audio entries show the audio player and transcript action', (
+    tester,
+  ) async {
+    final entry = _entry(
+      analysisStatus: 'complete',
+      entryType: 'audio',
+      audioUrl: 'https://example.com/reflection.m4a',
+      transcript: const JournalTranscript(text: 'A spoken reflection.'),
+    );
+
+    await tester.pumpWidget(_app(entry));
+    await tester.pump();
+
+    expect(find.byType(SolenneAudioPlayer), findsOneWidget);
+    expect(find.byType(JournalVideoPlayer), findsNothing);
+    expect(find.text('Show transcript'), findsOneWidget);
   });
 
   testWidgets('opens the completed transcript in a styled sheet', (
@@ -325,6 +366,9 @@ JournalEntry _entry({
   required String analysisStatus,
   List<AiInsight> insights = const [],
   JournalTranscript transcript = const JournalTranscript(),
+  String entryType = 'video',
+  String audioUrl = '',
+  String writtenText = '',
 }) {
   return JournalEntry(
     id: 'entry-1',
@@ -338,6 +382,9 @@ JournalEntry _entry({
     thumbnailUrl: '',
     uploadStatus: 'saved',
     analysisStatus: analysisStatus,
+    entryType: entryType,
+    audioUrl: audioUrl,
+    writtenText: writtenText,
     transcript: transcript,
     moodLabel: 'grounded',
     aiInsights: insights,

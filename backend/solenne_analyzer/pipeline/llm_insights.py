@@ -21,7 +21,7 @@ def generate_llm_insights(
 ) -> tuple[list[AiInsight], LlmDiagnostics, str]:
     # Safety detection must always inspect the full transcript. Long-entry context
     # selection is intentionally bounded and may omit a crisis phrase near the end.
-    if crisis_language_present(result.transcript.text):
+    if crisis_language_present(result.narrativeText):
         return generate_safety_insights(config)
 
     if config.grounding_mode == "enforce":
@@ -72,7 +72,7 @@ def _generate_combined_insights(
     combined = _combine_distinct_insights(
         legacy_insights,
         grounded_to_show,
-        limit=adaptive_insight_limit_for_word_count(result.transcript.wordCount),
+        limit=adaptive_insight_limit_for_word_count(result.narrativeWordCount),
     )
     legacy_diagnostics.acceptedCardCount = len(combined)
     legacy_diagnostics.rejectedCardCount += grounded_diagnostics.rejectedCardCount
@@ -369,7 +369,7 @@ def _generate_legacy_insights(
 def _contextual_fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:
     """Build journal-specific recovery cards without fabricated evidence."""
     themes = _fallback_themes(result)
-    card_count = 2 if result.transcript.wordCount >= 30 and len(themes) >= 3 else 1
+    card_count = 2 if result.narrativeWordCount >= 30 and len(themes) >= 3 else 1
     cards: list[AiInsight] = []
     for index in range(card_count):
         pair_start = index * 2
@@ -418,7 +418,7 @@ def _fallback_themes(result: AnalysisResult) -> list[str]:
         for item in [*result.nlp.topics, *result.nlp.keyPhrases]
         if (clean := _clean_fallback_theme(item))
     ]
-    transcript = result.transcript.text.lower()
+    transcript = result.narrativeText.lower()
     for source, display in (
         ("proud", "pride"),
         ("guilty", "guilt"),
@@ -439,7 +439,7 @@ def _fallback_themes(result: AnalysisResult) -> list[str]:
     }
     counts = Counter(
         token
-        for token in re.findall(r"[a-z0-9]+", result.transcript.text.lower())
+        for token in re.findall(r"[a-z0-9]+", result.narrativeText.lower())
         if len(token) >= 4 and token not in stop
     )
     supplied.extend(

@@ -60,6 +60,20 @@ class CloudinaryUploadService {
     );
   }
 
+  Future<CloudinaryUploadResult> uploadAudio(XFile file) async {
+    final result = await _uploadMedia(
+      file: file,
+      resourceType: 'video',
+      folder: AppConfig.cloudinaryUploadFolder,
+      fallbackFilename: 'voice-reflection.m4a',
+    );
+    return CloudinaryUploadResult(
+      publicId: result.publicId,
+      secureUrl: result.secureUrl,
+      thumbnailUrl: '',
+    );
+  }
+
   Future<CloudinaryUploadResult> _uploadMedia({
     required XFile file,
     required String resourceType,

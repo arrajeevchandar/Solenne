@@ -59,6 +59,7 @@ ALLOWED_EVIDENCE_PATHS = {
     "transcript.wordCount",
     "transcript.confidence",
     "transcript.text",
+    "writtenText",
     "durationSeconds",
 }
 MIN_SUBSTANTIVE_NARRATIVE_WORDS = 30

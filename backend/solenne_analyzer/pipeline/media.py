@@ -7,6 +7,7 @@ from ..config import AnalyzerConfig, DependencyMissingError, MediaValidationErro
 
 
 SUPPORTED_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
+SUPPORTED_AUDIO_EXTENSIONS = {".m4a", ".aac", ".mp3", ".wav", ".ogg", ".opus", ".webm"}
 
 
 def validate_video(video_path: Path, config: AnalyzerConfig) -> float:
@@ -60,7 +61,49 @@ def extract_audio(video_path: Path, output_wav: Path, config: AnalyzerConfig) ->
         ) from error
     if completed.stderr:
         output_wav.with_suffix(".ffmpeg.log").write_text(completed.stderr, encoding="utf-8")
-        return output_wav
+    return output_wav
+
+
+def normalize_audio(audio_path: Path, output_wav: Path, config: AnalyzerConfig) -> Path:
+    if not audio_path.exists() or not audio_path.is_file():
+        raise MediaValidationError(f"Input audio does not exist: {audio_path}")
+    if audio_path.suffix.lower() not in SUPPORTED_AUDIO_EXTENSIONS:
+        raise MediaValidationError(
+            f"Unsupported audio extension {audio_path.suffix}. "
+            f"Use one of: {', '.join(sorted(SUPPORTED_AUDIO_EXTENSIONS))}"
+        )
+    output_wav.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        _ffmpeg_executable(),
+        "-y",
+        "-i",
+        str(audio_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        str(config.audio_sample_rate),
+        str(output_wav),
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        raise MediaValidationError(
+            f"ffmpeg failed while normalizing audio: {error.stderr[-1000:]}"
+        ) from error
+    return output_wav
+
+
+def probe_media_duration(path: Path) -> float:
+    command = [_ffmpeg_executable(), "-i", str(path)]
+    completed = subprocess.run(command, capture_output=True, text=True)
+    import re
+
+    match = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", completed.stderr)
+    if not match:
+        return 0.0
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 def probe_duration(video_path: Path) -> float:

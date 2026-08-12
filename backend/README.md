@@ -1,8 +1,8 @@
 # Solenne Backend ML Analyzer
 
-Local-first Python backend for analyzing Solenne video journals. It supports
-direct local files and a Firestore worker that consumes Cloudinary-backed
-analysis jobs created by the Flutter app.
+Local-first Python backend for analyzing Solenne video, voice, and written
+journals. It supports direct local video files and a Firestore worker that
+dispatches all three entry types created by the Flutter app.
 
 ## Setup
 
@@ -135,6 +135,19 @@ must remain server-side. In Cloud Run, omit
 `FIREBASE_SERVICE_ACCOUNT` and use the runtime service account through
 Application Default Credentials.
 
+The worker chooses the pipeline from each journal's `entryType`:
+
+- `video`: transcription, face, voice, text, fusion, grounding, and Groq.
+- `audio`: transcription, voice, text, fusion, grounding, and Groq. Face
+  analysis is marked `not_applicable`.
+- `written`: text analysis, text-only fusion, grounding, and Groq. Media
+  download, transcription, face, and voice analysis are not invoked.
+
+Raw video and audio never go to Groq. Only recognized speech or the original
+written narrative plus compact analysis context is submitted. Configure Groq
+Zero Data Retention when the account supports it; otherwise disclose the
+provider's current temporary troubleshooting/abuse retention behavior to users.
+
 Run the authenticated one-time export download service from the same image:
 
 ```bash
@@ -155,6 +168,12 @@ Deploy the queue rules and indexes before releasing the updated client:
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
+Run Firestore security tests from the repository root:
+
+```powershell
+firebase emulators:exec --only firestore --project solenne-rules-test "node --test firestore-tests/firestore.rules.test.mjs"
+```
+
 ## Test
 
 ```powershell
@@ -169,7 +188,7 @@ Each run writes:
 - `outputs/{run_id}/run.log`
 - `outputs/{run_id}/audio.wav`
 
-## Current Pipeline
+## Current Video Pipeline
 
 1. Validate local video and duration.
 2. Extract mono 16kHz WAV audio with ffmpeg.
@@ -187,6 +206,8 @@ Each run writes:
 - Face analysis is intentionally lightweight and quality-aware for the MVP.
 - The Flutter app creates `analysis_jobs/{journalId}` atomically with each new
   journal. Existing unqueued journals are not backfilled automatically.
+- Results use analysis version `2026-08-v8-multimodal-journals`; legacy journal
+  documents without `entryType` continue to be treated as video.
 - The current unsigned Cloudinary upload preset is suitable only for this
   prototype. Production should use signed, private uploads.
 - Do not commit videos, outputs, `.env`, or Firebase service account files.

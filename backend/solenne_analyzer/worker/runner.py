@@ -19,7 +19,7 @@ from .media_source import (
     MediaSourceError,
     cloudinary_thumbnail_url,
     download_cloudinary_video,
-    validate_cloudinary_video_url,
+    validate_cloudinary_media_url,
 )
 from .result_mapper import analysis_result_to_firestore
 
@@ -65,21 +65,9 @@ class AnalysisWorker:
         LOGGER.info("Processing analysis job %s", job.id)
         try:
             journal = self.gateway.get_journal(job)
-            video_url = str(journal.get("videoUrl", "")).strip()
-            validate_cloudinary_video_url(
-                video_url,
-                cloud_name=self.config.cloudinary_cloud_name,
-                folder=self.config.cloudinary_folder,
-            )
+            entry_type = str(journal.get("entryType", "video")).strip() or "video"
             with tempfile.TemporaryDirectory(prefix="solenne-analysis-") as temp_value:
                 temp_dir = Path(temp_value)
-                suffix = Path(urlparse(video_url).path).suffix.lower()
-                if suffix not in {".mp4", ".mov", ".webm", ".mkv", ".avi"}:
-                    suffix = ".mp4"
-                video_path = temp_dir / f"journal-video{suffix}"
-                self.gateway.update_progress(job, "downloading")
-                self._download_with_retry(video_url, video_path)
-
                 analyzer_config = AnalyzerConfig.from_env(
                     output_dir=temp_dir / "outputs",
                     whisper_model=self.config.whisper_model,
@@ -90,15 +78,38 @@ class AnalysisWorker:
                     analyzer_config,
                     on_progress=lambda step: self._report_progress(job, step),
                 )
-                result = runner.analyze(video_path, run_id=job.id)
+                if entry_type == "written":
+                    written_text = str(journal.get("writtenText", ""))
+                    result = runner.analyze_written(written_text, run_id=job.id)
+                    media_url = ""
+                else:
+                    media_url = str(
+                        journal.get("audioUrl" if entry_type == "audio" else "videoUrl", "")
+                    ).strip()
+                    validate_cloudinary_media_url(
+                        media_url,
+                        cloud_name=self.config.cloudinary_cloud_name,
+                        folder=self.config.cloudinary_folder,
+                    )
+                    suffix = Path(urlparse(media_url).path).suffix.lower()
+                    if not suffix:
+                        suffix = ".webm" if entry_type == "audio" else ".mp4"
+                    media_path = temp_dir / f"journal-{entry_type}{suffix}"
+                    self.gateway.update_progress(job, "downloading")
+                    self._download_with_retry(media_url, media_path)
+                    result = (
+                        runner.analyze_audio(media_path, run_id=job.id)
+                        if entry_type == "audio"
+                        else runner.analyze(media_path, run_id=job.id)
+                    )
                 if result.status != "complete":
                     raise RuntimeError(result.errorMessage or "Analysis pipeline failed.")
                 payload = analysis_result_to_firestore(result)
                 timestamp = result.facial.bestFrameTimestampSeconds
-                if timestamp is not None:
+                if entry_type == "video" and timestamp is not None:
                     try:
                         payload["thumbnailUrl"] = cloudinary_thumbnail_url(
-                            video_url,
+                            media_url,
                             timestamp,
                         )
                     except (MediaSourceError, ValueError) as error:

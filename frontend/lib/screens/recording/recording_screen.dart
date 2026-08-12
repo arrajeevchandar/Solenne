@@ -15,8 +15,7 @@ enum _RecordingState { idle, recording, paused, stopped, received }
 bool recordingCompletionActionsVisible({
   required bool isPaused,
   required bool isReceived,
-}) =>
-    isPaused || isReceived;
+}) => isPaused || isReceived;
 
 class RecordingScreen extends StatefulWidget {
   const RecordingScreen({super.key});

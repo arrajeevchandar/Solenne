@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +20,13 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _usernameController;
   bool _photoUploading = false;
   bool _saving = false;
+  bool _usernameTouched = false;
+  Timer? _usernameDebounce;
+  bool _checkingUsername = false;
+  bool? _usernameAvailable;
   String? _photoError;
   String? _error;
 
@@ -27,13 +34,42 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     final user = ref.read(firebaseAuthProvider).currentUser;
+    final profile = ref.read(userProfileProvider).value;
     _nameController = TextEditingController(text: user?.displayName ?? '');
+    _usernameController = TextEditingController(text: profile?.username ?? '');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
+    _usernameDebounce?.cancel();
     super.dispose();
+  }
+
+  void _checkUsername(String value) {
+    _usernameDebounce?.cancel();
+    final normalized = AuthRepository.normalizeUsername(value);
+    setState(() {
+      _usernameTouched = true;
+      _usernameAvailable = null;
+      _checkingUsername = AuthRepository.isUsernameValid(normalized);
+    });
+    if (!_checkingUsername) return;
+    _usernameDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final available = await ref
+          .read(authRepositoryProvider)
+          .isUsernameAvailable(normalized);
+      if (!mounted ||
+          AuthRepository.normalizeUsername(_usernameController.text) !=
+              normalized) {
+        return;
+      }
+      setState(() {
+        _checkingUsername = false;
+        _usernameAvailable = available;
+      });
+    });
   }
 
   /// Only JPEG/JPG/PNG images are allowed for profile photos.
@@ -97,22 +133,30 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) return;
     final name = _nameController.text.trim();
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
+    if (!AuthRepository.isUsernameValid(username)) {
+      setState(() {
+        _usernameTouched = true;
+        _error = 'Use 3-20 lowercase letters, numbers, or underscores.';
+      });
+      return;
+    }
 
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      if (name != (user.displayName ?? '')) {
-        await user.updateDisplayName(name.isEmpty ? null : name);
-        await ref.read(firestoreProvider).collection('users').doc(user.uid).set(
-          {'displayName': name, 'updatedAt': FieldValue.serverTimestamp()},
-          SetOptions(merge: true),
-        );
-        await user.reload();
-        ref.invalidate(authStateProvider);
-        ref.invalidate(userProfileProvider);
-      }
+      await ref
+          .read(authRepositoryProvider)
+          .updateProfileIdentity(
+            displayName: name,
+            username: username,
+            photoUrl: ref.read(userProfileProvider).value?.photoUrl,
+          );
+      await user.reload();
+      ref.invalidate(authStateProvider);
+      ref.invalidate(userProfileProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -284,6 +328,50 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 SolenneGlass(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
+                    vertical: 6,
+                  ),
+                  borderRadius: 20,
+                  child: TextField(
+                    controller: _usernameController,
+                    enabled: !_saving,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.none,
+                    onChanged: _checkUsername,
+                    style: AppTextStyles.body(
+                      fontSize: 16,
+                      color: AppColors.swanWing.withValues(alpha: 0.92),
+                    ),
+                    decoration: InputDecoration(
+                      prefixText: '@',
+                      prefixStyle: AppTextStyles.body(
+                        fontSize: 16,
+                        color: AppColors.quicksand.withValues(alpha: 0.82),
+                      ),
+                      labelText: 'Username',
+                      hintText: 'your_unique_name',
+                      helperText: _usernameHelperText,
+                      helperStyle: AppTextStyles.mono(
+                        fontSize: 8,
+                        color: _usernameHasFormatError
+                            ? AppColors.electricGold.withValues(alpha: 0.9)
+                            : AppColors.shellstone.withValues(alpha: 0.46),
+                      ),
+                      labelStyle: AppTextStyles.mono(
+                        fontSize: 10,
+                        color: AppColors.quicksand.withValues(alpha: 0.72),
+                      ),
+                      hintStyle: AppTextStyles.body(
+                        fontSize: 14,
+                        color: AppColors.shellstone.withValues(alpha: 0.42),
+                      ),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SolenneGlass(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
                     vertical: 14,
                   ),
                   borderRadius: 20,
@@ -366,5 +454,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
       ),
     );
+  }
+
+  String get _usernameHelperText {
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
+    if (!_usernameTouched || username.isEmpty) {
+      return 'Choose a name friends can search for.';
+    }
+    if (!AuthRepository.isUsernameValid(username)) {
+      return '3-20 lowercase letters, numbers, or underscores.';
+    }
+    if (_checkingUsername) return 'Checking availability...';
+    if (_usernameAvailable == true) return 'Username is available.';
+    if (_usernameAvailable == false) return 'Username is already taken.';
+    return 'Availability is verified when you save.';
+  }
+
+  bool get _usernameHasFormatError {
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
+    return _usernameTouched &&
+        username.isNotEmpty &&
+        (!AuthRepository.isUsernameValid(username) ||
+            _usernameAvailable == false);
   }
 }

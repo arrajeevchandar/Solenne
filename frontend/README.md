@@ -1,8 +1,8 @@
 # Solenne Flutter Frontend
 
-Flutter mobile frontend for the Solenne video journal flow: splash, onboarding,
-Firebase Auth, home dashboard, journals, video recording, Cloudinary upload, and
-Firestore journal metadata.
+Flutter mobile frontend for Solenne's video, voice, and written journal flows,
+including Firebase Auth, unique usernames, explicit legal consent, friends,
+sanitized journal sharing, Cloudinary media, and Firestore analysis jobs.
 
 The app runs as the same Firebase-backed product on Android and Chrome.
 
@@ -72,6 +72,19 @@ flutter build apk --debug
 
 - `users/{uid}`
 - `users/{uid}/journals/{journalId}`
+- `usernames/{normalizedUsername}`
+- `friendships/{sortedUidPair}`
+- `journal_shares/{ownerId_journalId_recipientId}`
+- `analysis_jobs/{journalId}`
+
+Deploy `../firestore.rules` and `../firestore.indexes.json` before testing
+friends or sharing. Release builds also require real legal operator values:
+
+```powershell
+flutter build apk --release `
+  --dart-define=SOLENNE_LEGAL_OPERATOR="Your legal entity" `
+  --dart-define=SOLENNE_LEGAL_CONTACT="privacy@example.com"
+```
 
 ## Cloudinary note
 

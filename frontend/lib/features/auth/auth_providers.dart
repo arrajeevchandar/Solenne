@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'legal_documents.dart';
+
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
   return FirebaseAuth.instance;
 });
@@ -21,13 +23,19 @@ class UserProfileData {
     required this.uid,
     required this.email,
     required this.displayName,
+    required this.username,
     required this.photoUrl,
+    required this.aiConsentGranted,
+    required this.consentSource,
   });
 
   final String uid;
   final String email;
   final String displayName;
+  final String username;
   final String photoUrl;
+  final bool aiConsentGranted;
+  final String consentSource;
 
   factory UserProfileData.resolve({
     required String uid,
@@ -44,7 +52,10 @@ class UserProfileData {
         authDisplayName,
         fallback: 'Friend',
       ),
+      username: _firstNonEmpty(document['username'], null),
       photoUrl: _firstNonEmpty(document['photoUrl'], authPhotoUrl),
+      aiConsentGranted: document['aiConsentGranted'] as bool? ?? true,
+      consentSource: document['consentSource'] as String? ?? '',
     );
   }
 }
@@ -102,21 +113,54 @@ class AuthRepository {
   }
 
   Future<UserCredential> signUp({
-    required String name,
+    required String displayName,
+    required String username,
     required String email,
     required String password,
+    required bool acceptedTerms,
+    required bool acceptedPrivacy,
+    required bool acceptedAiConsent,
   }) async {
+    if (!acceptedTerms || !acceptedPrivacy || !acceptedAiConsent) {
+      throw StateError('All required agreements must be accepted.');
+    }
+    final normalizedUsername = normalizeUsername(username);
+    if (!isUsernameValid(normalizedUsername)) {
+      throw UsernameException(
+        'Use 3-20 lowercase letters, numbers, or underscores.',
+      );
+    }
     final credential = await auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
-    await credential.user?.updateDisplayName(name);
-    await ensureUserDocument(nameOverride: name);
-    return credential;
+    try {
+      await credential.user?.updateDisplayName(displayName);
+      await _createUserWithUsername(
+        user: credential.user!,
+        displayName: displayName,
+        username: normalizedUsername,
+        consentSource: 'registration',
+      );
+      return credential;
+    } catch (_) {
+      await credential.user?.delete();
+      rethrow;
+    }
   }
 
   Future<void> sendPasswordReset(String email) {
     return auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<bool> isUsernameAvailable(String username) async {
+    final normalized = normalizeUsername(username);
+    if (!isUsernameValid(normalized)) return false;
+    final snapshot = await firestore
+        .collection('usernames')
+        .doc(normalized)
+        .get();
+    return !snapshot.exists || snapshot.data()?['uid'] == currentUser?.uid;
   }
 
   Future<void> signOut() => auth.signOut();
@@ -126,16 +170,213 @@ class AuthRepository {
     if (user == null) return;
     final ref = firestore.collection('users').doc(user.uid);
     final snapshot = await ref.get();
-    if (snapshot.exists) return;
-    await ref.set({
-      'email': user.email,
-      'displayName': nameOverride ?? user.displayName ?? 'Friend',
-      'onboardingComplete': false,
-      'streakCount': 0,
-      'createdAt': FieldValue.serverTimestamp(),
+    final existing = snapshot.data() ?? const <String, dynamic>{};
+    final currentUsername = normalizeUsername(
+      existing['usernameNormalized'] as String? ??
+          existing['username'] as String? ??
+          '',
+    );
+    if (snapshot.exists && currentUsername.isNotEmpty) return;
+
+    final displayName = nameOverride ?? user.displayName ?? 'Friend';
+    final generated = await _availableGeneratedUsername(displayName, user.uid);
+    await _createUserWithUsername(
+      user: user,
+      displayName: displayName,
+      username: generated,
+      consentSource: 'legacy_assumed',
+      merge: snapshot.exists,
+    );
+  }
+
+  Future<void> updateProfileIdentity({
+    required String displayName,
+    required String username,
+    String? photoUrl,
+  }) async {
+    final user = auth.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    final normalized = normalizeUsername(username);
+    if (!isUsernameValid(normalized)) {
+      throw UsernameException(
+        'Use 3-20 lowercase letters, numbers, or underscores.',
+      );
+    }
+
+    final userRef = firestore.collection('users').doc(user.uid);
+    final newUsernameRef = firestore.collection('usernames').doc(normalized);
+    var resolvedPhotoUrl = photoUrl ?? '';
+    await firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      resolvedPhotoUrl =
+          photoUrl ??
+          userSnapshot.data()?['photoUrl'] as String? ??
+          user.photoURL ??
+          '';
+      final oldUsername = normalizeUsername(
+        userSnapshot.data()?['usernameNormalized'] as String? ?? '',
+      );
+      final usernameSnapshot = await transaction.get(newUsernameRef);
+      if (usernameSnapshot.exists &&
+          usernameSnapshot.data()?['uid'] != user.uid) {
+        throw UsernameException('That username is already taken.');
+      }
+
+      transaction.set(newUsernameRef, {
+        'uid': user.uid,
+        'username': normalized,
+        'usernameNormalized': normalized,
+        'displayName': displayName,
+        'photoUrl': resolvedPhotoUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(userRef, {
+        'displayName': displayName,
+        'username': normalized,
+        'usernameNormalized': normalized,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (oldUsername.isNotEmpty && oldUsername != normalized) {
+        transaction.delete(firestore.collection('usernames').doc(oldUsername));
+      }
+    });
+    await user.updateDisplayName(displayName);
+    await _syncSocialIdentity(
+      userId: user.uid,
+      displayName: displayName,
+      username: normalized,
+      photoUrl: resolvedPhotoUrl,
+    );
+  }
+
+  Future<void> _syncSocialIdentity({
+    required String userId,
+    required String displayName,
+    required String username,
+    required String photoUrl,
+  }) async {
+    final profile = {
+      'uid': userId,
+      'displayName': displayName,
+      'username': username,
+      'photoUrl': photoUrl,
+    };
+    final friendshipSnapshot = await firestore
+        .collection('friendships')
+        .where('memberIds', arrayContains: userId)
+        .get();
+    final shareSnapshot = await firestore
+        .collection('journal_shares')
+        .where('memberIds', arrayContains: userId)
+        .get();
+    final batch = firestore.batch();
+    for (final document in friendshipSnapshot.docs) {
+      batch.update(document.reference, {
+        'profiles.$userId': profile,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    for (final document in shareSnapshot.docs) {
+      final data = document.data();
+      final profileField = data['ownerId'] == userId
+          ? 'ownerProfile'
+          : 'recipientProfile';
+      batch.update(document.reference, {
+        profileField: profile,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  Future<void> setAiConsent(bool granted) async {
+    final user = auth.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await firestore.collection('users').doc(user.uid).set({
+      'aiConsentGranted': granted,
+      'aiConsentVersion': LegalConfig.aiConsentVersion,
+      granted ? 'aiConsentRestoredAt' : 'aiConsentWithdrawnAt':
+          FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _createUserWithUsername({
+    required User user,
+    required String displayName,
+    required String username,
+    required String consentSource,
+    bool merge = false,
+  }) async {
+    final userRef = firestore.collection('users').doc(user.uid);
+    final usernameRef = firestore.collection('usernames').doc(username);
+    await firestore.runTransaction((transaction) async {
+      final reserved = await transaction.get(usernameRef);
+      if (reserved.exists && reserved.data()?['uid'] != user.uid) {
+        throw UsernameException('That username is already taken.');
+      }
+      final now = FieldValue.serverTimestamp();
+      transaction.set(usernameRef, {
+        'uid': user.uid,
+        'username': username,
+        'usernameNormalized': username,
+        'displayName': displayName,
+        'photoUrl': user.photoURL ?? '',
+        'updatedAt': now,
+      });
+      transaction.set(userRef, {
+        'email': user.email,
+        'displayName': displayName,
+        'username': username,
+        'usernameNormalized': username,
+        'aiConsentGranted': true,
+        'consentSource': consentSource,
+        'termsVersion': LegalConfig.termsVersion,
+        'privacyVersion': LegalConfig.privacyVersion,
+        'aiConsentVersion': LegalConfig.aiConsentVersion,
+        if (!merge) ...{
+          'onboardingComplete': false,
+          'streakCount': 0,
+          'createdAt': now,
+        },
+        if (consentSource == 'registration') ...{
+          'termsAcceptedAt': now,
+          'privacyAcceptedAt': now,
+          'aiConsentAcceptedAt': now,
+        } else
+          'assumedAt': now,
+        'updatedAt': now,
+      }, SetOptions(merge: merge));
     });
   }
+
+  Future<String> _availableGeneratedUsername(
+    String displayName,
+    String uid,
+  ) async {
+    var base = normalizeUsername(displayName.replaceAll(' ', '_'));
+    base = base.replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    if (base.length < 3) base = 'solenne';
+    if (base.length > 12) base = base.substring(0, 12);
+    for (var attempt = 0; attempt < 10; attempt++) {
+      final suffix = '${uid.substring(0, 6)}${attempt == 0 ? '' : attempt}';
+      final maxBase = 20 - suffix.length - 1;
+      final baseLength = base.length.clamp(0, maxBase);
+      final candidate = '${base.substring(0, baseLength)}_$suffix';
+      final snapshot = await firestore
+          .collection('usernames')
+          .doc(candidate)
+          .get();
+      if (!snapshot.exists || snapshot.data()?['uid'] == uid) return candidate;
+    }
+    throw UsernameException('Could not generate a unique username.');
+  }
+
+  static String normalizeUsername(String value) =>
+      value.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+
+  static bool isUsernameValid(String value) =>
+      RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(value);
 
   Future<void> completeOnboarding({required String wellnessGoal}) async {
     final user = auth.currentUser;
@@ -146,4 +387,11 @@ class AuthRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+}
+
+class UsernameException implements Exception {
+  const UsernameException(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

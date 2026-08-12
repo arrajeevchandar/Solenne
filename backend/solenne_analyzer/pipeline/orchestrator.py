@@ -8,12 +8,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from ..config import AnalyzerConfig
-from ..schemas import AnalysisResult, FacialResult, utc_now_iso
+from ..schemas import AnalysisResult, FacialResult, TranscriptResult, utc_now_iso
 from .face import analyze_face
 from .fusion import fuse_modalities
 from .insights import generate_insights
 from .llm_insights import generate_llm_insights
-from .media import extract_audio, validate_video
+from .media import extract_audio, normalize_audio, probe_media_duration, validate_video
 from .nlp import analyze_text
 from .transcribe import transcribe_audio
 from .voice import analyze_voice
@@ -29,6 +29,9 @@ class PipelineRunner:
         self.on_progress = on_progress
 
     def analyze(self, video_path: Path, run_id: str | None = None) -> AnalysisResult:
+        return self._analyze_video(video_path, run_id)
+
+    def _analyze_video(self, video_path: Path, run_id: str | None = None) -> AnalysisResult:
         video_path = video_path.resolve()
         run_id = run_id or _build_run_id(video_path)
         run_dir = self.config.output_dir / run_id
@@ -37,7 +40,12 @@ class PipelineRunner:
         if error_path.exists():
             error_path.unlink()
         log_lines: list[str] = []
-        result = AnalysisResult(runId=run_id, sourceVideo=str(video_path))
+        result = AnalysisResult(
+            runId=run_id,
+            sourceVideo=str(video_path),
+            entryType="video",
+            analysisModalities=["face", "transcript", "voice", "text"],
+        )
 
         try:
             self._log(log_lines, "validate", "starting")
@@ -97,6 +105,90 @@ class PipelineRunner:
 
         return result
 
+    def analyze_audio(self, audio_path: Path, run_id: str | None = None) -> AnalysisResult:
+        audio_path = audio_path.resolve()
+        run_id = run_id or _build_run_id(audio_path)
+        run_dir = self.config.output_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        log_lines: list[str] = []
+        result = AnalysisResult(
+            runId=run_id,
+            sourceVideo=str(audio_path),
+            entryType="audio",
+            analysisModalities=["transcript", "voice", "text"],
+        )
+        try:
+            self._log(log_lines, "validate", "checking audio")
+            result.durationSeconds = probe_media_duration(audio_path)
+            if result.durationSeconds > self.config.max_video_seconds + 5:
+                raise ValueError("Audio exceeds the configured journal duration limit.")
+            normalized = run_dir / "audio.wav"
+            self._log(log_lines, "media", "normalizing audio")
+            normalize_audio(audio_path, normalized, self.config)
+            self._log(log_lines, "transcribe", "running faster-whisper")
+            result.transcript = transcribe_audio(normalized, self.config)
+            self._log(log_lines, "voice", "extracting prosody")
+            result.voice = analyze_voice(normalized, result.transcript)
+            self._log(log_lines, "nlp", "analyzing transcript")
+            result.nlp = analyze_text(result.transcript.text)
+            self._log(log_lines, "fusion", "combining audio modalities")
+            result.fused = fuse_modalities(result.facial, result.voice, result.nlp, self.config)
+            self._generate_insights(result, log_lines)
+            result.status = "complete"
+            self._log(log_lines, "complete", "analysis complete")
+        except Exception as error:
+            result.status = "failed"
+            result.errorMessage = str(error)
+            self._log(log_lines, "failed", str(error))
+            (run_dir / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        finally:
+            self._write_outputs(run_dir, result, log_lines)
+        return result
+
+    def analyze_written(self, text: str, run_id: str | None = None) -> AnalysisResult:
+        normalized = text.strip()
+        run_id = run_id or f"written-{uuid4().hex[:8]}"
+        run_dir = self.config.output_dir / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        log_lines: list[str] = []
+        result = AnalysisResult(
+            runId=run_id,
+            sourceVideo="written-journal.txt",
+            entryType="written",
+            analysisModalities=["text"],
+            writtenText=normalized,
+            transcript=TranscriptResult(),
+        )
+        try:
+            self._log(log_lines, "validate", "checking written journal")
+            if not normalized:
+                raise ValueError("Written journal is empty.")
+            if len(normalized) > 10_000:
+                raise ValueError("Written journal exceeds 10,000 characters.")
+            self._log(log_lines, "nlp", "analyzing written journal")
+            result.nlp = analyze_text(normalized)
+            self._log(log_lines, "fusion", "combining text modality")
+            result.fused = fuse_modalities(result.facial, result.voice, result.nlp, self.config)
+            self._generate_insights(result, log_lines)
+            result.status = "complete"
+            self._log(log_lines, "complete", "analysis complete")
+        except Exception as error:
+            result.status = "failed"
+            result.errorMessage = str(error)
+            self._log(log_lines, "failed", str(error))
+            (run_dir / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        finally:
+            self._write_outputs(run_dir, result, log_lines)
+        return result
+
+    def _generate_insights(self, result: AnalysisResult, log_lines: list[str]) -> None:
+        self._log(log_lines, "insights", "generating templates")
+        result.insights = generate_insights(result, self.config)
+        self._log(log_lines, "ai_insights", "checking LLM insight generation")
+        result.aiInsights, result.llmDiagnostics, result.insightProvider = (
+            generate_llm_insights(result, self.config)
+        )
+
     def _write_outputs(
         self,
         run_dir: Path,
@@ -144,7 +236,7 @@ Created: `{result.createdAt}`
 
 ## Transcript
 
-{result.transcript.text or "_No transcript available._"}
+{result.narrativeText or "_No transcript or written journal available._"}
 
 ## Signals
 

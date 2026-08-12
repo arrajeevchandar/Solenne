@@ -6,8 +6,11 @@ import '../../features/auth/auth_providers.dart';
 import '../../features/auth/profile_avatar.dart';
 import '../../features/archive/archive_repository.dart';
 import '../auth/auth_screen.dart';
+import '../friends/friends_screen.dart';
+import '../friends/sharing_settings_screen.dart';
 import 'archive_export_sheet.dart';
 import 'edit_profile_screen.dart';
+import 'legal_privacy_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -110,6 +113,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 12),
                     _SettingsRow(
+                      icon: Icons.people_alt_outlined,
+                      label: 'Friends',
+                      detail: 'Find people and manage requests',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const FriendsScreen())),
+                    ),
+                    const SizedBox(height: 12),
+                    _SettingsRow(
                       icon: Icons.logout_rounded,
                       label: 'Log out',
                       detail: 'Return to sign in',
@@ -151,6 +163,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         fontSize: 14,
                         color: AppColors.shellstone.withValues(alpha: 0.8),
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    _SettingsRow(
+                      icon: Icons.lock_open_rounded,
+                      label: 'Friends & sharing',
+                      detail: 'Choose what trusted friends can see',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const SharingSettingsScreen())),
+                    ),
+                    const SizedBox(height: 12),
+                    _SettingsRow(
+                      icon: Icons.policy_outlined,
+                      label: 'Legal, privacy & AI consent',
+                      detail: 'Review documents and future analysis consent',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const LegalPrivacyScreen())),
                     ),
                   ],
                 ),
@@ -210,6 +240,16 @@ class _ProfileSummary extends ConsumerWidget {
                     color: AppColors.swanWing.withValues(alpha: 0.92),
                   ),
                 ),
+                if (profile?.username.isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '@${profile!.username}',
+                    style: AppTextStyles.mono(
+                      fontSize: 9,
+                      color: AppColors.quicksand.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ],
                 Text(
                   profile?.email ?? user?.email ?? 'username@email.com',
                   style: AppTextStyles.mono(

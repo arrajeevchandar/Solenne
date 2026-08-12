@@ -60,10 +60,9 @@ class _RecordingPreviewScreenState
   /// Discards this recording without saving and returns to the home screen.
   void _discard() {
     if (_saving) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      fadeThroughRoute(const AppShell()),
-      (_) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushAndRemoveUntil(fadeThroughRoute(const AppShell()), (_) => false);
   }
 
   @override
@@ -112,6 +111,9 @@ class _RecordingPreviewScreenState
         analysisStatus: 'queued',
         analysisStep: 'queued',
         analysisVersion: JournalRepository.analysisVersion,
+        entryType: 'video',
+        mediaMimeType: widget.draft.file.mimeType ?? 'video/mp4',
+        analysisModalities: const ['face', 'transcript', 'voice', 'text'],
         title: _titleController.text.trim(),
       );
       debugPrint(
