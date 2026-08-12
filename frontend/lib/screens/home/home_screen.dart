@@ -677,6 +677,11 @@ class _JournalRow extends StatelessWidget {
       final days => '$days days ago',
     };
     final minutes = math.max(1, (entry.durationSeconds / 60).ceil());
+    final sourceLabel = entry.isWritten
+        ? '${RegExp(r'\S+').allMatches(entry.writtenText).length} words'
+        : entry.isAudio
+        ? 'Voice journal'
+        : 'Video journal';
     final insightMood = entry.aiInsights.isEmpty
         ? null
         : entry.aiInsights.first.moodLabel.trim();
@@ -685,7 +690,8 @@ class _JournalRow extends StatelessWidget {
         : insightMood;
     final detail = [
       dayLabel,
-      '$minutes min',
+      sourceLabel,
+      if (!entry.isWritten) '$minutes min',
       if (day.entryCount > 1) '${day.entryCount} entries',
       if (mood?.isNotEmpty == true) mood!,
     ].join('  ·  ');
@@ -702,7 +708,11 @@ class _JournalRow extends StatelessWidget {
               color: AppColors.sapphire.withValues(alpha: 0.22),
               child: thumbnail.isEmpty
                   ? Icon(
-                      Icons.videocam_outlined,
+                      entry.isWritten
+                          ? Icons.edit_note_rounded
+                          : entry.isAudio
+                          ? Icons.graphic_eq_rounded
+                          : Icons.videocam_outlined,
                       size: 18,
                       color: AppColors.quicksand.withValues(alpha: 0.82),
                     )
@@ -710,7 +720,11 @@ class _JournalRow extends StatelessWidget {
                       thumbnail,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Icon(
-                        Icons.videocam_outlined,
+                        entry.isWritten
+                            ? Icons.edit_note_rounded
+                            : entry.isAudio
+                            ? Icons.graphic_eq_rounded
+                            : Icons.videocam_outlined,
                         size: 18,
                         color: AppColors.quicksand.withValues(alpha: 0.82),
                       ),

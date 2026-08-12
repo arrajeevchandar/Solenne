@@ -113,6 +113,9 @@ class LlmDiagnostics:
 class AnalysisResult:
     runId: str
     sourceVideo: str
+    entryType: Literal["video", "audio", "written"] = "video"
+    analysisModalities: list[str] = field(default_factory=list)
+    writtenText: str = ""
     createdAt: str = field(default_factory=utc_now_iso)
     durationSeconds: float = 0.0
     transcript: TranscriptResult = field(default_factory=TranscriptResult)
@@ -135,6 +138,18 @@ class AnalysisResult:
     status: Literal["complete", "failed"] = "complete"
     warnings: list[str] = field(default_factory=list)
     errorMessage: str | None = None
+
+    @property
+    def narrativeText(self) -> str:
+        return self.writtenText if self.entryType == "written" else self.transcript.text
+
+    @property
+    def narrativeWordCount(self) -> int:
+        return (
+            len(self.writtenText.split())
+            if self.entryType == "written"
+            else self.transcript.wordCount
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

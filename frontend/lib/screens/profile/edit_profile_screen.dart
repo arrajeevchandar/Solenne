@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +24,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   bool _photoUploading = false;
   bool _saving = false;
   bool _usernameTouched = false;
+  Timer? _usernameDebounce;
+  bool _checkingUsername = false;
+  bool? _usernameAvailable;
   String? _photoError;
   String? _error;
 
@@ -38,7 +43,33 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _usernameController.dispose();
+    _usernameDebounce?.cancel();
     super.dispose();
+  }
+
+  void _checkUsername(String value) {
+    _usernameDebounce?.cancel();
+    final normalized = AuthRepository.normalizeUsername(value);
+    setState(() {
+      _usernameTouched = true;
+      _usernameAvailable = null;
+      _checkingUsername = AuthRepository.isUsernameValid(normalized);
+    });
+    if (!_checkingUsername) return;
+    _usernameDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final available = await ref
+          .read(authRepositoryProvider)
+          .isUsernameAvailable(normalized);
+      if (!mounted ||
+          AuthRepository.normalizeUsername(_usernameController.text) !=
+              normalized) {
+        return;
+      }
+      setState(() {
+        _checkingUsername = false;
+        _usernameAvailable = available;
+      });
+    });
   }
 
   /// Only JPEG/JPG/PNG images are allowed for profile photos.
@@ -102,8 +133,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) return;
     final name = _nameController.text.trim();
-    final username = _normalizedUsername(_usernameController.text);
-    if (username.isNotEmpty && !_isUsernameValid(username)) {
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
+    if (!AuthRepository.isUsernameValid(username)) {
       setState(() {
         _usernameTouched = true;
         _error = 'Use 3-20 lowercase letters, numbers, or underscores.';
@@ -116,20 +147,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _error = null;
     });
     try {
-      if (name != (user.displayName ?? '')) {
-        await user.updateDisplayName(name.isEmpty ? null : name);
-        await ref.read(firestoreProvider).collection('users').doc(user.uid).set(
-          {'displayName': name, 'updatedAt': FieldValue.serverTimestamp()},
-          SetOptions(merge: true),
-        );
-        await user.reload();
-        ref.invalidate(authStateProvider);
-        ref.invalidate(userProfileProvider);
-      }
-      await ref.read(firestoreProvider).collection('users').doc(user.uid).set({
-        'username': username,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await ref
+          .read(authRepositoryProvider)
+          .updateProfileIdentity(
+            displayName: name,
+            username: username,
+            photoUrl: ref.read(userProfileProvider).value?.photoUrl,
+          );
+      await user.reload();
+      ref.invalidate(authStateProvider);
       ref.invalidate(userProfileProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -310,7 +336,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     enabled: !_saving,
                     autocorrect: false,
                     textCapitalization: TextCapitalization.none,
-                    onChanged: (_) => setState(() => _usernameTouched = true),
+                    onChanged: _checkUsername,
                     style: AppTextStyles.body(
                       fontSize: 16,
                       color: AppColors.swanWing.withValues(alpha: 0.92),
@@ -431,26 +457,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   String get _usernameHelperText {
-    final username = _normalizedUsername(_usernameController.text);
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
     if (!_usernameTouched || username.isEmpty) {
       return 'Choose a name friends can search for.';
     }
-    if (!_isUsernameValid(username)) {
+    if (!AuthRepository.isUsernameValid(username)) {
       return '3-20 lowercase letters, numbers, or underscores.';
     }
-    return 'Availability is verified when Friends sync is connected.';
+    if (_checkingUsername) return 'Checking availability...';
+    if (_usernameAvailable == true) return 'Username is available.';
+    if (_usernameAvailable == false) return 'Username is already taken.';
+    return 'Availability is verified when you save.';
   }
 
   bool get _usernameHasFormatError {
-    final username = _normalizedUsername(_usernameController.text);
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
     return _usernameTouched &&
         username.isNotEmpty &&
-        !_isUsernameValid(username);
+        (!AuthRepository.isUsernameValid(username) ||
+            _usernameAvailable == false);
   }
-
-  static String _normalizedUsername(String value) =>
-      value.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
-
-  static bool _isUsernameValid(String value) =>
-      RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(value);
 }

@@ -10,6 +10,7 @@ import '../friends/friends_screen.dart';
 import '../friends/sharing_settings_screen.dart';
 import 'archive_export_sheet.dart';
 import 'edit_profile_screen.dart';
+import 'legal_privacy_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -171,6 +172,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: () => Navigator.of(
                         context,
                       ).push(fadeThroughRoute(const SharingSettingsScreen())),
+                    ),
+                    const SizedBox(height: 12),
+                    _SettingsRow(
+                      icon: Icons.policy_outlined,
+                      label: 'Legal, privacy & AI consent',
+                      detail: 'Review documents and future analysis consent',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).push(fadeThroughRoute(const LegalPrivacyScreen())),
                     ),
                   ],
                 ),

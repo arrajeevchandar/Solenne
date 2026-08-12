@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/widgets/solenne_audio_player.dart';
 import '../../features/journals/insight_evidence.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
@@ -205,7 +206,9 @@ class _DailyEntryView extends StatelessWidget {
                 const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Share this journal',
-                  onPressed: () => showShareJournalSheet(context, entry: entry),
+                  onPressed: entry.analysisStatus == 'complete'
+                      ? () => showShareJournalSheet(context, entry: entry)
+                      : null,
                   icon: const Icon(Icons.ios_share_rounded),
                   color: AppColors.quicksand.withValues(alpha: 0.78),
                 ),
@@ -245,11 +248,18 @@ class _DailyEntryView extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
-            JournalVideoPlayer(entry: entry),
+            if (entry.isVideo)
+              JournalVideoPlayer(entry: entry)
+            else if (entry.isAudio)
+              SolenneAudioPlayer(source: entry.audioUrl)
+            else
+              _WrittenJournalCard(text: entry.writtenText),
             const SizedBox(height: 12),
             _EntryMetadata(entry: entry),
-            const SizedBox(height: 12),
-            _TranscriptAction(entry: entry),
+            if (!entry.isWritten) ...[
+              const SizedBox(height: 12),
+              _TranscriptAction(entry: entry),
+            ],
             const SizedBox(height: 26),
             _AnalysisBody(entry: entry),
           ],
@@ -257,6 +267,24 @@ class _DailyEntryView extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WrittenJournalCard extends StatelessWidget {
+  const _WrittenJournalCard({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => SolenneGlass(
+    padding: const EdgeInsets.all(18),
+    borderRadius: 20,
+    tint: AppColors.sapphire,
+    child: SelectableText(
+      text,
+      style: AppTextStyles.body(
+        fontSize: 16,
+        color: AppColors.swanWing.withValues(alpha: 0.92),
+      ),
+    ),
+  );
 }
 
 class _StatusPill extends StatelessWidget {
@@ -311,6 +339,11 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
 
   Future<void> _confirmAndDelete() async {
     if (_deleting) return;
+    final sourceLabel = widget.entry.isWritten
+        ? 'written entry'
+        : widget.entry.isAudio
+        ? 'saved audio'
+        : 'saved video';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -321,7 +354,7 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
         ),
         content: Text(
           'This permanently removes the reflection, transcript, insights, and '
-          'saved video. This cannot be undone.',
+          '$sourceLabel. This cannot be undone.',
           style: AppTextStyles.body(
             fontSize: 13,
             color: AppColors.shellstone.withValues(alpha: 0.76),
@@ -405,8 +438,12 @@ class _EntryMetadata extends StatelessWidget {
     return Row(
       children: [
         _MetadataItem(
-          icon: Icons.schedule_rounded,
-          label: _formatClock(Duration(seconds: entry.durationSeconds)),
+          icon: entry.isWritten
+              ? Icons.edit_note_rounded
+              : Icons.schedule_rounded,
+          label: entry.isWritten
+              ? '${RegExp(r'\S+').allMatches(entry.writtenText).length} WORDS'
+              : _formatClock(Duration(seconds: entry.durationSeconds)),
         ),
         const SizedBox(width: 16),
         _MetadataItem(
@@ -1012,7 +1049,7 @@ String _analysisStepLabel(String step) {
   final normalized = step.trim().toLowerCase();
   return switch (normalized) {
     'downloading' => 'DOWNLOADING',
-    'validate' => 'CHECKING VIDEO',
+    'validate' => 'CHECKING ENTRY',
     'media' => 'PREPARING AUDIO',
     'transcribe' || 'transcribing' => 'TRANSCRIBING',
     'face' => 'READING EXPRESSION',
@@ -1027,7 +1064,7 @@ String _analysisStepLabel(String step) {
 String _analysisStepTitle(String step) {
   return switch (_analysisStepLabel(step)) {
     'DOWNLOADING' => 'Bringing your reflection into the room.',
-    'CHECKING VIDEO' => 'Making sure the recording arrived clearly.',
+    'CHECKING ENTRY' => 'Making sure this journal arrived clearly.',
     'PREPARING AUDIO' => 'Preparing the sound of your reflection.',
     'TRANSCRIBING' => 'Turning your voice into words.',
     'READING EXPRESSION' => 'Noticing expression with care.',

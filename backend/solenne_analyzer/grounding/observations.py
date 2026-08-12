@@ -122,18 +122,26 @@ def build_observation_facts(
     journal_ids = (result.runId,)
     transcript_confidence = max(0.0, min(1.0, result.transcript.confidence))
     nlp_confidence = max(0.0, min(1.0, result.nlp.confidence))
-    signal_confidence = min(transcript_confidence, nlp_confidence)
+    narrative_confidence = (
+        nlp_confidence if result.entryType == "written" else transcript_confidence
+    )
+    signal_confidence = min(narrative_confidence, nlp_confidence)
     facts: list[ObservationFact] = [
         ObservationFact(
             evidenceId="fact_word_count",
             kind="word_count",
             label="Words in this reflection",
-            value=result.transcript.wordCount,
-            sourcePath="transcript.wordCount",
+            value=result.narrativeWordCount,
+            sourcePath=(
+                "writtenText" if result.entryType == "written" else "transcript.wordCount"
+            ),
             journalIds=journal_ids,
-            confidence=transcript_confidence,
+            confidence=narrative_confidence,
         ),
-        ObservationFact(
+    ]
+    if result.entryType != "written":
+        facts.extend([
+            ObservationFact(
             evidenceId="fact_transcript_confidence",
             kind="transcript_confidence",
             label="Transcript confidence",
@@ -141,8 +149,8 @@ def build_observation_facts(
             sourcePath="transcript.confidence",
             journalIds=journal_ids,
             confidence=transcript_confidence,
-        ),
-        ObservationFact(
+            ),
+            ObservationFact(
             evidenceId="fact_duration",
             kind="duration",
             label="Recording duration in seconds",
@@ -150,9 +158,9 @@ def build_observation_facts(
             sourcePath="durationSeconds",
             journalIds=journal_ids,
             confidence=1.0,
-        ),
-    ]
-    if not result.transcript.text.strip() or signal_confidence < min_confidence:
+            ),
+        ])
+    if not result.narrativeText.strip() or signal_confidence < min_confidence:
         return facts
 
     for topic in result.nlp.topics:
@@ -192,7 +200,7 @@ def build_observation_facts(
         )
     # Catch claim terms spoken in the transcript/paraphrase even if NLP topics were vague.
     # Skip reflective_journaling here — words like "reflection"/"feel" are too common in journals.
-    spoken = f"{result.nlp.paraphrase} {result.transcript.text}".lower()
+    spoken = f"{result.nlp.paraphrase} {result.narrativeText}".lower()
     spoken_tokens = set(re.findall(r"[a-z0-9]+", spoken))
     for claim_type, terms in CLAIM_TERMS.items():
         if claim_type == "reflective_journaling":
@@ -205,7 +213,7 @@ def build_observation_facts(
                     kind="key_phrase",
                     label="Word present in this reflection",
                     value=term,
-                    sourcePath="transcript.text",
+                    sourcePath="writtenText" if result.entryType == "written" else "transcript.text",
                     journalIds=journal_ids,
                     confidence=signal_confidence,
                     claimTypes=(claim_type,),
@@ -224,7 +232,7 @@ def build_observation_facts(
                     kind="key_phrase",
                     label="Word present in this reflection",
                     value=term,
-                    sourcePath="transcript.text",
+                    sourcePath="writtenText" if result.entryType == "written" else "transcript.text",
                     journalIds=journal_ids,
                     confidence=signal_confidence,
                     claimTypes=("reflective_journaling",),
@@ -247,7 +255,7 @@ def build_journal_narrative(result: AnalysisResult) -> dict[str, Any]:
     ][:12]
     return {
         "paraphrase": paraphrase,
-        "keyExcerpts": key_excerpts(result.transcript.text),
+        "keyExcerpts": key_excerpts(result.narrativeText),
         "topics": topics,
         "keyPhrases": phrases,
     }

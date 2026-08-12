@@ -7,6 +7,7 @@ from solenne_analyzer.ai.context_builder import (
     estimate_tokens,
     key_excerpts,
 )
+from solenne_analyzer.ai.validators import is_substantive_insight_context
 from solenne_analyzer.schemas import AnalysisResult
 
 
@@ -108,6 +109,28 @@ class AiContextTest(unittest.TestCase):
 
         self.assertEqual(context["transcript"]["text"], "")
         self.assertTrue(context["transcript"]["keyExcerpts"])
+
+    def test_written_context_is_not_mislabeled_as_a_transcript(self):
+        result = AnalysisResult(
+            runId="written",
+            sourceVideo="written-entry",
+            entryType="written",
+            analysisModalities=["text"],
+            writtenText=(
+                "Today I noticed how work pressure followed me into the evening, "
+                "so I protected a quiet hour and felt more settled afterward. "
+                "Writing it down helped me see that a smaller boundary can change "
+                "the shape of the rest of my day."
+            ),
+        )
+        result.nlp.paraphrase = "Work pressure eased after a protected quiet hour."
+        result.nlp.confidence = 0.82
+
+        context = build_insight_context(result)
+
+        self.assertEqual(context["transcript"]["text"], "")
+        self.assertIn("work pressure", context["writtenJournal"]["text"])
+        self.assertTrue(is_substantive_insight_context(context))
 
 
 if __name__ == "__main__":

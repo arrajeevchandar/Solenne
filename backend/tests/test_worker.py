@@ -58,7 +58,7 @@ class WorkerResultTests(unittest.TestCase):
         self.assertEqual(payload["analysisStatus"], "complete")
         self.assertEqual(
             payload["analysisVersion"],
-            "2026-08-v7-long-speech-analysis",
+            "2026-08-v8-multimodal-journals",
         )
         self.assertEqual(payload["transcript"]["text"], "A calm day.")
         self.assertEqual(payload["transcript"]["languageConfidence"], 0.83)
@@ -161,6 +161,75 @@ class WorkerRunnerTests(unittest.TestCase):
         self.assertIsNone(gateway.completed)
         self.assertEqual(gateway.failed, "download unavailable")
 
+    def test_audio_job_uses_audio_pipeline_without_thumbnail(self) -> None:
+        gateway = _FakeGateway(entry_type="audio")
+
+        def fake_download(_url, destination, **_kwargs):
+            destination.write_bytes(b"audio")
+
+        class FakePipelineRunner:
+            def __init__(self, _config, on_progress=None):
+                self.on_progress = on_progress
+
+            def analyze_audio(self, _path, run_id=None):
+                return AnalysisResult(
+                    runId=run_id or "job-1",
+                    sourceVideo="local",
+                    entryType="audio",
+                    analysisModalities=["transcript", "voice", "text"],
+                )
+
+            def analyze(self, *_args, **_kwargs):
+                raise AssertionError("Video analysis must not run for audio.")
+
+        worker = AnalysisWorker(self.config, gateway=gateway)
+        with patch(
+            "solenne_analyzer.worker.runner.download_cloudinary_video",
+            fake_download,
+        ), patch(
+            "solenne_analyzer.worker.runner.PipelineRunner", FakePipelineRunner
+        ):
+            self.assertTrue(worker.process_next())
+
+        self.assertEqual(gateway.completed["entryType"], "audio")
+        self.assertNotIn("thumbnailUrl", gateway.completed)
+
+    def test_written_job_never_downloads_or_invokes_media_pipeline(self) -> None:
+        gateway = _FakeGateway(entry_type="written")
+
+        class FakePipelineRunner:
+            def __init__(self, _config, on_progress=None):
+                self.on_progress = on_progress
+
+            def analyze_written(self, text, run_id=None):
+                return AnalysisResult(
+                    runId=run_id or "job-1",
+                    sourceVideo="written-entry",
+                    entryType="written",
+                    analysisModalities=["text"],
+                    writtenText=text,
+                )
+
+            def analyze(self, *_args, **_kwargs):
+                raise AssertionError("Video analysis must not run for written entries.")
+
+            def analyze_audio(self, *_args, **_kwargs):
+                raise AssertionError("Audio analysis must not run for written entries.")
+
+        worker = AnalysisWorker(self.config, gateway=gateway)
+        with patch(
+            "solenne_analyzer.worker.runner.download_cloudinary_video",
+            side_effect=AssertionError("Written entries must not download media."),
+        ), patch(
+            "solenne_analyzer.worker.runner.PipelineRunner", FakePipelineRunner
+        ):
+            self.assertTrue(worker.process_next())
+
+        self.assertEqual(gateway.completed["entryType"], "written")
+        self.assertEqual(
+            gateway.completed["modalityStatus"]["face"], "not_applicable"
+        )
+
     def test_cloudinary_thumbnail_uses_selected_timestamp_and_jpg(self) -> None:
         url = cloudinary_thumbnail_url(
             "https://res.cloudinary.com/demo/video/upload/v1/"
@@ -176,8 +245,9 @@ class WorkerRunnerTests(unittest.TestCase):
 
 
 class _FakeGateway:
-    def __init__(self) -> None:
+    def __init__(self, entry_type: str = "video") -> None:
         self.job = ClaimedJob("job-1", "user-1", "journal-1", 0)
+        self.entry_type = entry_type
         self.completed = None
         self.failed = None
         self.progress: list[str] = []
@@ -191,10 +261,16 @@ class _FakeGateway:
     def get_journal(self, _job):
         return {
             "userId": "user-1",
+            "entryType": self.entry_type,
             "videoUrl": (
                 "https://res.cloudinary.com/dqjd3lszl/video/upload/"
                 "v1/solenne/journals/journal-1.webm"
             ),
+            "audioUrl": (
+                "https://res.cloudinary.com/dqjd3lszl/video/upload/"
+                "v1/solenne/journals/journal-1.m4a"
+            ),
+            "writtenText": "Today I made room for a difficult thought.",
         }
 
     def update_progress(self, _job, step):

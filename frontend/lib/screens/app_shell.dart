@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/auth_providers.dart';
 import '../features/auth/profile_avatar.dart';
+import '../features/social/social_repository.dart';
 import '../routing/fade_through_route.dart';
 import '../theme/app_theme.dart';
 import 'home/home_screen.dart';
@@ -21,6 +22,14 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(
+      () => ref.read(authRepositoryProvider).ensureUserDocument(),
+    ).catchError((_) {});
+  }
+
   void _openRecording() {
     Navigator.of(
       context,
@@ -31,6 +40,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final photoUrl = ref.watch(userProfileProvider).value?.photoUrl;
+    final requestCount = ref.watch(incomingFriendRequestCountProvider);
 
     return Scaffold(
       extendBody: true,
@@ -74,6 +84,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
               _NavItem(
                 icon: Icons.people_alt_rounded,
+                badgeCount: requestCount,
                 selected: _index == 3,
                 onTap: () => setState(() => _index = 3),
               ),
@@ -96,12 +107,14 @@ class _NavItem extends StatelessWidget {
   final String? photoUrl;
   final bool selected;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _NavItem({
     required this.icon,
     required this.selected,
     required this.onTap,
     this.photoUrl,
+    this.badgeCount = 0,
   });
 
   @override
@@ -112,20 +125,45 @@ class _NavItem extends StatelessWidget {
       child: SizedBox(
         width: 46,
         height: 46,
-        child: photoUrl?.trim().isNotEmpty == true
-            ? Center(
-                child: ProfileAvatar(
-                  photoUrl: photoUrl,
-                  radius: selected ? 13 : 12,
-                ),
-              )
-            : Icon(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (photoUrl?.trim().isNotEmpty == true)
+              ProfileAvatar(photoUrl: photoUrl, radius: selected ? 13 : 12)
+            else
+              Icon(
                 icon,
                 size: selected ? 23 : 21,
                 color: selected
                     ? AppColors.quicksand.withValues(alpha: 0.9)
                     : AppColors.shellstone.withValues(alpha: 0.52),
               ),
+            if (badgeCount > 0)
+              Positioned(
+                right: 5,
+                top: 5,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 15,
+                    minHeight: 15,
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.electricGold,
+                  ),
+                  child: Text(
+                    badgeCount > 9 ? '9+' : '$badgeCount',
+                    style: AppTextStyles.mono(
+                      fontSize: 7,
+                      color: AppColors.royalBlue,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

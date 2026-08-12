@@ -66,4 +66,30 @@ void main() {
     expect(entry.effectiveThumbnailUrl, endsWith('/journal-2.jpg'));
     expect(entry.hasImageThumbnail, isTrue);
   });
+
+  test('serializes modality-specific journal content', () {
+    final entry = JournalEntry(
+      id: 'written-1',
+      userId: 'user-1',
+      prompt: 'Daily reflection',
+      recordedAt: DateTime(2026, 8, 12),
+      durationSeconds: 0,
+      cloudinaryPublicId: '',
+      videoUrl: '',
+      thumbnailUrl: '',
+      uploadStatus: 'saved',
+      analysisStatus: 'queued',
+      entryType: 'written',
+      writtenText: 'I made space for a difficult conversation.',
+      mediaMimeType: 'text/plain',
+      analysisModalities: const ['text'],
+    );
+
+    final data = entry.toFirestore();
+    expect(entry.isWritten, isTrue);
+    expect(data['entryType'], 'written');
+    expect(data['writtenText'], contains('difficult conversation'));
+    expect(data['analysisModalities'], ['text']);
+    expect(data['audioUrl'], isEmpty);
+  });
 }

@@ -166,20 +166,20 @@ def _insight_from_item(item: dict[str, Any]) -> AiInsight:
 
 
 def is_substantive_insight_context(context: dict[str, Any]) -> bool:
-    transcript = context.get("transcript")
-    if not isinstance(transcript, dict):
+    narrative_section = _narrative_section(context)
+    if not narrative_section:
         return False
     narrative = _context_narrative(context)
     if crisis_language_present(narrative):
         return False
     if _context_confidence_is_low(context):
         return False
-    raw_word_count = transcript.get("wordCount", 0)
+    raw_word_count = narrative_section.get("wordCount", 0)
     try:
         word_count = int(raw_word_count)
     except (TypeError, ValueError):
         word_count = 0
-    usable_word_count = _usable_narrative_word_count(transcript)
+    usable_word_count = _usable_narrative_word_count(narrative_section)
     if word_count <= 0:
         word_count = usable_word_count
     return (
@@ -189,18 +189,17 @@ def is_substantive_insight_context(context: dict[str, Any]) -> bool:
 
 
 def adaptive_insight_limit(context: dict[str, Any]) -> int:
-    transcript = context.get("transcript")
-    transcript = transcript if isinstance(transcript, dict) else {}
+    narrative_section = _narrative_section(context)
     narrative = _context_narrative(context)
     if crisis_language_present(narrative):
         return 1
-    raw_word_count = transcript.get("wordCount", 0)
+    raw_word_count = narrative_section.get("wordCount", 0)
     try:
         word_count = int(raw_word_count)
     except (TypeError, ValueError):
         word_count = 0
     if word_count <= 0:
-        word_count = _usable_narrative_word_count(transcript)
+        word_count = _usable_narrative_word_count(narrative_section)
     return adaptive_insight_limit_for_word_count(word_count)
 
 
@@ -527,8 +526,7 @@ def _usable_narrative_word_count(transcript: dict[str, Any]) -> int:
 
 
 def _context_confidence_is_low(context: dict[str, Any]) -> bool:
-    transcript = context.get("transcript")
-    transcript = transcript if isinstance(transcript, dict) else {}
+    narrative_section = _narrative_section(context)
     metrics = context.get("metrics")
     metrics = metrics if isinstance(metrics, dict) else {}
     text_metrics = metrics.get("text")
@@ -536,7 +534,7 @@ def _context_confidence_is_low(context: dict[str, Any]) -> bool:
     supplied = [
         value
         for value in (
-            transcript.get("confidence"),
+            narrative_section.get("confidence"),
             text_metrics.get("confidence"),
         )
         if isinstance(value, (int, float))
@@ -547,13 +545,12 @@ def _context_confidence_is_low(context: dict[str, Any]) -> bool:
 
 
 def _context_narrative(context: dict[str, Any]) -> str:
-    transcript = context.get("transcript")
-    transcript = transcript if isinstance(transcript, dict) else {}
+    narrative_section = _narrative_section(context)
     values: list[str] = [
-        str(transcript.get("paraphrase") or ""),
-        str(transcript.get("text") or ""),
+        str(narrative_section.get("paraphrase") or ""),
+        str(narrative_section.get("text") or ""),
     ]
-    excerpts = transcript.get("keyExcerpts")
+    excerpts = narrative_section.get("keyExcerpts")
     if isinstance(excerpts, list):
         values.extend(str(item) for item in excerpts if isinstance(item, str))
     metrics = context.get("metrics")
@@ -570,6 +567,12 @@ def _context_narrative(context: dict[str, Any]) -> str:
             if isinstance(item, dict):
                 values.append(str(item.get("text") or ""))
     return " ".join(value for value in values if value).strip()
+
+
+def _narrative_section(context: dict[str, Any]) -> dict[str, Any]:
+    key = "writtenJournal" if context.get("entryType") == "written" else "transcript"
+    value = context.get(key)
+    return value if isinstance(value, dict) else {}
 
 
 def _context_anchor_tokens(context: dict[str, Any]) -> set[str]:

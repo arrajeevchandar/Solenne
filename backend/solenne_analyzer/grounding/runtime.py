@@ -38,7 +38,7 @@ def generate_grounded_insights(
     config: AnalyzerConfig,
 ) -> tuple[list[AiInsight], LlmDiagnostics, str]:
     started = time.perf_counter()
-    if crisis_language_present(result.transcript.text):
+    if crisis_language_present(result.narrativeText):
         return generate_safety_insights(config, started=started)
 
     grounding = GroundingDiagnostics(mode=config.grounding_mode, status="starting")
@@ -84,7 +84,7 @@ def generate_grounded_insights(
         )
 
     grounding.catalogVersion = catalog.catalogVersion
-    card_limit = adaptive_insight_limit_for_word_count(result.transcript.wordCount)
+    card_limit = adaptive_insight_limit_for_word_count(result.narrativeWordCount)
     retrieved = retrieve_claims(facts, catalog, limit=5)
     grounding.retrievedClaimIds = [item.claimCardId for item in retrieved]
     if not retrieved:

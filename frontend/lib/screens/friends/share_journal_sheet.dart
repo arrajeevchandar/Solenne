@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/auth_providers.dart';
 import '../../features/journals/journal_entry.dart';
+import '../../features/social/social_models.dart';
+import '../../features/social/social_repository.dart';
 import '../../theme/app_theme.dart';
 
 Future<void> showShareJournalSheet(
@@ -17,27 +21,26 @@ Future<void> showShareJournalSheet(
   );
 }
 
-class _ShareJournalSheet extends StatefulWidget {
+class _ShareJournalSheet extends ConsumerStatefulWidget {
   const _ShareJournalSheet({required this.entry});
 
   final JournalEntry entry;
 
   @override
-  State<_ShareJournalSheet> createState() => _ShareJournalSheetState();
+  ConsumerState<_ShareJournalSheet> createState() => _ShareJournalSheetState();
 }
 
-class _ShareJournalSheetState extends State<_ShareJournalSheet> {
+class _ShareJournalSheetState extends ConsumerState<_ShareJournalSheet> {
   final _selectedFriends = <String>{};
-  bool _includeReflection = true;
-
-  static const _friends = [
-    _ShareFriend('Meera Shah', 'meerashah', Icons.wb_twilight_rounded),
-    _ShareFriend('Aarav Sen', 'aarav_sen', Icons.auto_awesome_rounded),
-  ];
+  bool _includeTranscript = false;
+  bool _saving = false;
+  String? _error;
 
   @override
   Widget build(BuildContext context) {
     final entry = widget.entry;
+    final friendships = ref.watch(friendshipsProvider);
+    final uid = ref.watch(firebaseAuthProvider).currentUser?.uid ?? '';
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
       child: SolenneGlass(
@@ -83,25 +86,32 @@ class _ShareJournalSheetState extends State<_ShareJournalSheet> {
               ),
             ),
             const SizedBox(height: 8),
-            for (final friend in _friends) ...[
+            if (friendships.isEmpty)
+              Text(
+                'Add a friend to your circle before sharing.',
+                style: AppTextStyles.body(fontSize: 12),
+              ),
+            for (final friendship in friendships) ...[
               _FriendSelector(
-                friend: friend,
-                selected: _selectedFriends.contains(friend.username),
+                friend: friendship.other(uid),
+                selected: _selectedFriends.contains(friendship.id),
                 onTap: () => setState(() {
-                  if (_selectedFriends.contains(friend.username)) {
-                    _selectedFriends.remove(friend.username);
+                  if (_selectedFriends.contains(friendship.id)) {
+                    _selectedFriends.remove(friendship.id);
                   } else {
-                    _selectedFriends.add(friend.username);
+                    _selectedFriends.add(friendship.id);
                   }
                 }),
               ),
               const SizedBox(height: 8),
             ],
             const SizedBox(height: 5),
-            _IncludeReflectionRow(
-              value: _includeReflection,
-              onChanged: (value) => setState(() => _includeReflection = value),
-            ),
+            if (!entry.isWritten)
+              _IncludeReflectionRow(
+                value: _includeTranscript,
+                onChanged: (value) =>
+                    setState(() => _includeTranscript = value),
+              ),
             const SizedBox(height: 14),
             Text(
               'Friends can see this entry only. Your private timeline, raw analytics, and other journals remain private.',
@@ -112,23 +122,60 @@ class _ShareJournalSheetState extends State<_ShareJournalSheet> {
               ),
             ),
             const SizedBox(height: 16),
+            if (_error != null) ...[
+              Text(
+                _error!,
+                style: AppTextStyles.body(
+                  fontSize: 11,
+                  color: AppColors.quicksand,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _selectedFriends.isEmpty
+                onPressed:
+                    _selectedFriends.isEmpty ||
+                        _saving ||
+                        entry.analysisStatus != 'complete'
                     ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Sharing with ${_selectedFriends.length} friend${_selectedFriends.length == 1 ? '' : 's'} will be connected securely next.',
-                            ),
-                          ),
-                        );
+                    : () async {
+                        setState(() {
+                          _saving = true;
+                          _error = null;
+                        });
+                        try {
+                          await ref
+                              .read(socialRepositoryProvider)
+                              .shareJournal(
+                                entry: entry,
+                                friendships: friendships.where(
+                                  (item) => _selectedFriends.contains(item.id),
+                                ),
+                                includeTranscript: _includeTranscript,
+                              );
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Journal shared.')),
+                          );
+                        } catch (error) {
+                          if (mounted) {
+                            setState(() => _error = error.toString());
+                          }
+                        } finally {
+                          if (mounted) setState(() => _saving = false);
+                        }
                       },
                 icon: const Icon(Icons.lock_open_rounded, size: 17),
-                label: const Text('Share selected entry'),
+                label: Text(
+                  entry.analysisStatus == 'complete'
+                      ? _saving
+                            ? 'Sharing...'
+                            : 'Share selected entry'
+                      : 'Insights must finish first',
+                ),
                 style: FilledButton.styleFrom(
                   foregroundColor: AppColors.royalBlue,
                   backgroundColor: AppColors.quicksand,
@@ -159,7 +206,7 @@ class _FriendSelector extends StatelessWidget {
     required this.onTap,
   });
 
-  final _ShareFriend friend;
+  final PublicProfile friend;
   final bool selected;
   final VoidCallback onTap;
 
@@ -190,14 +237,21 @@ class _FriendSelector extends StatelessWidget {
               shape: BoxShape.circle,
               color: AppColors.sapphire.withValues(alpha: 0.32),
             ),
-            child: Icon(friend.icon, size: 16, color: AppColors.quicksand),
+            child: const Icon(
+              Icons.person_rounded,
+              size: 16,
+              color: AppColors.quicksand,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(friend.name, style: AppTextStyles.body(fontSize: 13)),
+                Text(
+                  friend.displayName,
+                  style: AppTextStyles.body(fontSize: 13),
+                ),
                 Text(
                   '@${friend.username}',
                   style: AppTextStyles.mono(
@@ -238,7 +292,7 @@ class _IncludeReflectionRow extends StatelessWidget {
       const SizedBox(width: 10),
       Expanded(
         child: Text(
-          'Include the gentle reflection summary',
+          'Include the generated transcript',
           style: AppTextStyles.body(
             fontSize: 12,
             color: AppColors.shellstone.withValues(alpha: 0.76),
@@ -253,12 +307,4 @@ class _IncludeReflectionRow extends StatelessWidget {
       ),
     ],
   );
-}
-
-class _ShareFriend {
-  const _ShareFriend(this.name, this.username, this.icon);
-
-  final String name;
-  final String username;
-  final IconData icon;
 }

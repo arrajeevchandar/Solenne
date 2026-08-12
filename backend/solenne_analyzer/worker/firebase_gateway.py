@@ -16,6 +16,34 @@ from .config import WorkerConfig
 from .result_mapper import ANALYSIS_VERSION
 
 
+def _share_safe_journal(journal: dict[str, Any], include_transcript: bool) -> dict[str, Any]:
+    allowed = {
+        "id",
+        "userId",
+        "entryType",
+        "title",
+        "prompt",
+        "recordedAt",
+        "durationSeconds",
+        "videoUrl",
+        "audioUrl",
+        "writtenText",
+        "mediaMimeType",
+        "thumbnailUrl",
+        "uploadStatus",
+        "analysisStatus",
+        "analysisStep",
+        "analysisVersion",
+        "moodLabel",
+        "aiInsights",
+        "insightProvider",
+    }
+    result = {key: value for key, value in journal.items() if key in allowed}
+    if include_transcript:
+        result["transcript"] = journal.get("transcript", {})
+    return result
+
+
 @dataclass(frozen=True)
 class ClaimedJob:
     id: str
@@ -348,6 +376,20 @@ class FirebaseGateway:
 
     def complete_deletion(self, job: ClaimedDeletionJob) -> None:
         deletion_ref = self.db.collection("deletion_jobs").document(job.id)
+        shares = (
+            self.db.collection("journal_shares")
+            .where(filter=FieldFilter("journalId", "==", job.journal_id))
+            .where(filter=FieldFilter("ownerId", "==", job.user_id))
+            .stream()
+        )
+        batch = self.db.batch()
+        changed = False
+        for share in shares:
+            batch.delete(share.reference)
+            changed = True
+        if changed:
+            batch.commit()
+
         transaction = self.db.transaction()
 
         @firestore.transactional
@@ -794,7 +836,7 @@ class FirebaseGateway:
                 "analysisStatus": "processing",
                 "analysisStep": step,
             }
-            if step == "downloading":
+            if step in {"downloading", "validate"}:
                 journal_update["analysisStartedAt"] = firestore.SERVER_TIMESTAMP
             transaction.update(self._journal_ref(job), journal_update)
 
@@ -835,6 +877,44 @@ class FirebaseGateway:
             )
 
         complete(transaction)
+        self.refresh_active_shares(job)
+
+    def refresh_active_shares(self, job: ClaimedJob) -> None:
+        journal_snapshot = self._journal_ref(job).get()
+        if not journal_snapshot.exists:
+            return
+        journal = journal_snapshot.to_dict() or {}
+        owner_snapshot = self.db.collection("users").document(job.user_id).get()
+        owner = owner_snapshot.to_dict() or {}
+        shares = (
+            self.db.collection("journal_shares")
+            .where(filter=FieldFilter("ownerId", "==", job.user_id))
+            .where(filter=FieldFilter("journalId", "==", job.journal_id))
+            .where(filter=FieldFilter("status", "==", "active"))
+            .stream()
+        )
+        batch = self.db.batch()
+        changed = False
+        for share in shares:
+            share_data = share.to_dict() or {}
+            include_transcript = bool(share_data.get("includeTranscript"))
+            batch.update(
+                share.reference,
+                {
+                    "journal": _share_safe_journal(journal, include_transcript),
+                    "ownerProfile": {
+                        "uid": job.user_id,
+                        "displayName": owner.get("displayName", "Friend"),
+                        "username": owner.get("username", ""),
+                        "photoUrl": owner.get("photoUrl", ""),
+                    },
+                    "analysisVersion": journal.get("analysisVersion", ""),
+                    "updatedAt": firestore.SERVER_TIMESTAMP,
+                },
+            )
+            changed = True
+        if changed:
+            batch.commit()
 
     def fail(self, job: ClaimedJob, message: str) -> None:
         safe_message = " ".join(message.split())[:500]

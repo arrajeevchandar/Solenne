@@ -65,6 +65,7 @@ frontend/coverage/
 
 # ── Misc Build Artifacts ─────────────────────────────
 *.swp
+node_modules/
 
 # ── Android Studio ────────────────────────────────────
 frontend/android/app/debug

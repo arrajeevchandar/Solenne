@@ -14,6 +14,11 @@ class JournalEntry {
     required this.thumbnailUrl,
     required this.uploadStatus,
     required this.analysisStatus,
+    this.entryType = 'video',
+    this.audioUrl = '',
+    this.writtenText = '',
+    this.mediaMimeType = '',
+    this.analysisModalities = const [],
     this.analysisStep = '',
     this.analysisVersion = '',
     this.analysisError,
@@ -42,6 +47,11 @@ class JournalEntry {
   final String thumbnailUrl;
   final String uploadStatus;
   final String analysisStatus;
+  final String entryType;
+  final String audioUrl;
+  final String writtenText;
+  final String mediaMimeType;
+  final List<String> analysisModalities;
   final String analysisStep;
   final String analysisVersion;
   final String? analysisError;
@@ -58,6 +68,12 @@ class JournalEntry {
   final String title;
   final String? moodLabel;
   final List<AiInsight> aiInsights;
+
+  bool get isVideo => entryType == 'video';
+  bool get isAudio => entryType == 'audio';
+  bool get isWritten => entryType == 'written';
+
+  String get mediaUrl => isAudio ? audioUrl : videoUrl;
 
   bool get hasImageThumbnail {
     final path = Uri.tryParse(effectiveThumbnailUrl)?.path.toLowerCase() ?? '';
@@ -92,8 +108,12 @@ class JournalEntry {
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? {};
+    return JournalEntry.fromMap(doc.id, data);
+  }
+
+  factory JournalEntry.fromMap(String id, Map<String, dynamic> data) {
     return JournalEntry(
-      id: doc.id,
+      id: id,
       userId: data['userId'] as String? ?? '',
       prompt: data['prompt'] as String? ?? 'Daily reflection',
       recordedAt: _date(data['recordedAt']),
@@ -103,6 +123,11 @@ class JournalEntry {
       thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
       uploadStatus: data['uploadStatus'] as String? ?? 'saved',
       analysisStatus: data['analysisStatus'] as String? ?? 'not_started',
+      entryType: data['entryType'] as String? ?? 'video',
+      audioUrl: data['audioUrl'] as String? ?? '',
+      writtenText: data['writtenText'] as String? ?? '',
+      mediaMimeType: data['mediaMimeType'] as String? ?? '',
+      analysisModalities: _stringList(data['analysisModalities']),
       analysisStep: data['analysisStep'] as String? ?? '',
       analysisVersion: data['analysisVersion'] as String? ?? '',
       analysisError: data['analysisError'] as String?,
@@ -143,6 +168,11 @@ class JournalEntry {
       'thumbnailUrl': thumbnailUrl,
       'uploadStatus': uploadStatus,
       'analysisStatus': analysisStatus,
+      'entryType': entryType,
+      'audioUrl': audioUrl,
+      'writtenText': writtenText,
+      'mediaMimeType': mediaMimeType,
+      'analysisModalities': analysisModalities,
       'analysisStep': analysisStep,
       'analysisVersion': analysisVersion,
       'analysisError': analysisError,
@@ -194,6 +224,14 @@ class JournalEntry {
             (key, nestedValue) => MapEntry(key.toString(), nestedValue),
           ),
         )
+        .toList(growable: false);
+  }
+
+  static List<String> _stringList(Object? value) {
+    if (value is! Iterable) return const [];
+    return value
+        .whereType<Object>()
+        .map((item) => item.toString())
         .toList(growable: false);
   }
 }

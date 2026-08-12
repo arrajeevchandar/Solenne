@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/legal_documents.dart';
 import '../app_shell.dart';
 
 enum _AuthMode { signUp, login }
@@ -20,6 +22,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _skyController;
   final _usernameController = TextEditingController();
+  final _displayNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -31,6 +34,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   bool _passwordError = false;
   bool _usernameError = false;
   bool _confirmPasswordError = false;
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
+  bool _acceptedAiConsent = false;
+  Timer? _usernameDebounce;
+  bool _checkingUsername = false;
+  bool? _usernameAvailable;
 
   @override
   void initState() {
@@ -45,16 +54,43 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   void dispose() {
     _skyController.dispose();
     _usernameController.dispose();
+    _displayNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _usernameDebounce?.cancel();
     super.dispose();
+  }
+
+  void _checkUsername(String value) {
+    _usernameDebounce?.cancel();
+    final normalized = AuthRepository.normalizeUsername(value);
+    setState(() {
+      _usernameAvailable = null;
+      _checkingUsername = AuthRepository.isUsernameValid(normalized);
+    });
+    if (!_checkingUsername) return;
+    _usernameDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final available = await ref
+          .read(authRepositoryProvider)
+          .isUsernameAvailable(normalized);
+      if (!mounted ||
+          AuthRepository.normalizeUsername(_usernameController.text) !=
+              normalized) {
+        return;
+      }
+      setState(() {
+        _checkingUsername = false;
+        _usernameAvailable = available;
+      });
+    });
   }
 
   Future<void> _continue() async {
     if (_loading) return;
     final isSignUp = _mode == _AuthMode.signUp;
-    final name = _usernameController.text.trim();
+    final name = _displayNameController.text.trim();
+    final username = AuthRepository.normalizeUsername(_usernameController.text);
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -83,7 +119,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     }
     if (isSignUp && name.length < 2) {
       setState(() {
-        _error = 'Enter a username.';
+        _error = 'Enter your display name.';
+        _usernameError = true;
+      });
+      return;
+    }
+    if (isSignUp && !AuthRepository.isUsernameValid(username)) {
+      setState(() {
+        _error = 'Use 3-20 lowercase letters, numbers, or underscores.';
         _usernameError = true;
       });
       return;
@@ -95,6 +138,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       });
       return;
     }
+    if (isSignUp &&
+        (!_acceptedTerms || !_acceptedPrivacy || !_acceptedAiConsent)) {
+      setState(() {
+        _error = 'Accept the Terms, Privacy Policy, and Data & AI Consent.';
+      });
+      return;
+    }
 
     setState(() {
       _loading = true;
@@ -103,7 +153,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     try {
       final repository = ref.read(authRepositoryProvider);
       if (isSignUp) {
-        await repository.signUp(name: name, email: email, password: password);
+        await repository.signUp(
+          displayName: name,
+          username: username,
+          email: email,
+          password: password,
+          acceptedTerms: _acceptedTerms,
+          acceptedPrivacy: _acceptedPrivacy,
+          acceptedAiConsent: _acceptedAiConsent,
+        );
       } else {
         await repository.signIn(email: email, password: password);
         await repository.ensureUserDocument();
@@ -112,6 +170,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       Navigator.of(
         context,
       ).pushAndRemoveUntil(fadeThroughRoute(const AppShell()), (_) => false);
+    } on UsernameException catch (error) {
+      setState(() {
+        _error = error.message;
+        _usernameError = true;
+      });
     } on FirebaseAuthException catch (error) {
       setState(() {
         if (error.code == 'wrong-password') {
@@ -275,11 +338,39 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
                         if (isSignUp) ...[
                           _LiquidTextField(
-                            controller: _usernameController,
-                            label: 'username',
+                            controller: _displayNameController,
+                            label: 'display name',
                             textInputAction: TextInputAction.next,
                             hasError: _usernameError,
                           ),
+                          const SizedBox(height: 10),
+                          _LiquidTextField(
+                            controller: _usernameController,
+                            label: 'unique username',
+                            textInputAction: TextInputAction.next,
+                            hasError:
+                                _usernameError || _usernameAvailable == false,
+                            onChanged: _checkUsername,
+                          ),
+                          if (_checkingUsername || _usernameAvailable != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 5, left: 4),
+                              child: Text(
+                                _checkingUsername
+                                    ? 'Checking availability...'
+                                    : _usernameAvailable == true
+                                    ? 'Username is available'
+                                    : 'Username is already taken',
+                                style: AppTextStyles.mono(
+                                  fontSize: 8,
+                                  color: _usernameAvailable == false
+                                      ? AppColors.nudgeWarm
+                                      : AppColors.quicksand.withValues(
+                                          alpha: 0.72,
+                                        ),
+                                ),
+                              ),
+                            ),
                           const SizedBox(height: 10),
                         ],
 
@@ -314,13 +405,47 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'No one else sees what you write or record here.',
+                            'Your username is searchable. Journals stay private until you share one.',
                             style: AppTextStyles.body(
                               fontSize: 12,
                               color: AppColors.shellstone.withValues(
                                 alpha: 0.58,
                               ),
                               fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _LegalAcceptanceRow(
+                            value: _acceptedTerms,
+                            prefix: 'I am 18+ and accept the ',
+                            link: 'Terms and Conditions',
+                            onChanged: (value) =>
+                                setState(() => _acceptedTerms = value),
+                            onOpen: () => _showLegalDocument(
+                              context,
+                              LegalDocumentKind.terms,
+                            ),
+                          ),
+                          _LegalAcceptanceRow(
+                            value: _acceptedPrivacy,
+                            prefix: 'I acknowledge the ',
+                            link: 'Privacy Policy',
+                            onChanged: (value) =>
+                                setState(() => _acceptedPrivacy = value),
+                            onOpen: () => _showLegalDocument(
+                              context,
+                              LegalDocumentKind.privacy,
+                            ),
+                          ),
+                          _LegalAcceptanceRow(
+                            value: _acceptedAiConsent,
+                            prefix: 'I explicitly give ',
+                            link: 'Data & AI Consent',
+                            onChanged: (value) =>
+                                setState(() => _acceptedAiConsent = value),
+                            onOpen: () => _showLegalDocument(
+                              context,
+                              LegalDocumentKind.aiConsent,
                             ),
                           ),
                         ],
@@ -481,6 +606,7 @@ class _LiquidTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final bool hasError;
+  final ValueChanged<String>? onChanged;
 
   const _LiquidTextField({
     required this.controller,
@@ -489,6 +615,7 @@ class _LiquidTextField extends StatelessWidget {
     this.keyboardType,
     this.textInputAction,
     this.hasError = false,
+    this.onChanged,
   });
 
   @override
@@ -498,6 +625,7 @@ class _LiquidTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
+      onChanged: onChanged,
       cursorColor: AppColors.quicksand,
       style: AppTextStyles.body(
         fontSize: 15,
@@ -616,6 +744,120 @@ class _AuthFooterSwitch extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LegalAcceptanceRow extends StatelessWidget {
+  const _LegalAcceptanceRow({
+    required this.value,
+    required this.prefix,
+    required this.link,
+    required this.onChanged,
+    required this.onOpen,
+  });
+
+  final bool value;
+  final String prefix;
+  final String link;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Checkbox(
+        value: value,
+        onChanged: (next) => onChanged(next ?? false),
+        activeColor: AppColors.quicksand,
+        checkColor: AppColors.royalBlue,
+        side: BorderSide(color: AppColors.shellstone.withValues(alpha: 0.45)),
+      ),
+      Expanded(
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              prefix,
+              style: AppTextStyles.body(
+                fontSize: 11,
+                color: AppColors.shellstone.withValues(alpha: 0.68),
+              ),
+            ),
+            GestureDetector(
+              onTap: onOpen,
+              child: Text(
+                link,
+                style: AppTextStyles.body(
+                  fontSize: 11,
+                  color: AppColors.quicksand,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+Future<void> _showLegalDocument(BuildContext context, LegalDocumentKind kind) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.75),
+    builder: (context) => FractionallySizedBox(
+      heightFactor: 0.9,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: SolenneGlass(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          borderRadius: 26,
+          tint: AppColors.sapphire,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      kind.title,
+                      style: AppTextStyles.display(fontSize: 27),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              Text(
+                'VERSION ${kind.version}',
+                style: AppTextStyles.mono(
+                  fontSize: 8,
+                  color: AppColors.quicksand.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    kind.body.trim(),
+                    style: AppTextStyles.body(
+                      fontSize: 13,
+                      color: AppColors.shellstone.withValues(alpha: 0.82),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _CosmicAuthPainter extends CustomPainter {

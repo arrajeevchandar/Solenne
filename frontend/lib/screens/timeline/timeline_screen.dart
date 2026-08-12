@@ -876,6 +876,10 @@ class _TimelineDay {
       AppColors.sapphire,
     ];
     final details = <String>[
+      if (entry?.isWritten == true)
+        'Written journal'
+      else if (entry?.isAudio == true)
+        'Voice journal',
       if (journalDay != null && journalDay.entryCount > 1)
         '${journalDay.entryCount} entries',
       if (entry?.moodLabel?.trim().isNotEmpty == true)

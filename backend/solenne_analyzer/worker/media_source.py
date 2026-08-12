@@ -44,6 +44,15 @@ def validate_cloudinary_video_url(
         raise MediaSourceError("Journal video is outside the Solenne journals folder.")
 
 
+def validate_cloudinary_media_url(
+    url: str,
+    *,
+    cloud_name: str,
+    folder: str,
+) -> None:
+    validate_cloudinary_video_url(url, cloud_name=cloud_name, folder=folder)
+
+
 def download_cloudinary_video(
     url: str,
     destination: Path,
@@ -63,9 +72,10 @@ def download_cloudinary_video(
                 content_type = response.headers.get("content-type", "")
                 if content_type and not (
                     content_type.lower().startswith("video/")
+                    or content_type.lower().startswith("audio/")
                     or content_type.lower().startswith("application/octet-stream")
                 ):
-                    raise MediaSourceError("Cloudinary returned a non-video response.")
+                    raise MediaSourceError("Cloudinary returned an unsupported media response.")
                 with destination.open("wb") as output:
                     for chunk in response.iter_bytes():
                         total += len(chunk)

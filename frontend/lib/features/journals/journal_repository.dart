@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-08-v7-long-speech-analysis';
+  static const analysisVersion = '2026-08-v8-multimodal-journals';
 
   JournalRepository({required this.firestore, required this.auth});
 
@@ -113,6 +113,12 @@ class JournalRepository {
     final jobRef = firestore.collection('analysis_jobs').doc(entry.id);
     final userRef = firestore.collection('users').doc(entry.userId);
     await firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.data()?['aiConsentGranted'] == false) {
+        throw StateError(
+          'Future AI analysis is disabled. Restore consent in Profile first.',
+        );
+      }
       final existingJournal = await transaction.get(journalRef);
       if (existingJournal.exists) {
         return;

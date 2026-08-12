@@ -31,9 +31,10 @@ class _EntrySavedScreenState extends State<EntrySavedScreen>
       CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeIn),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeIn));
 
     _animController.forward();
 
