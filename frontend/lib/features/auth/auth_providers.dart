@@ -21,12 +21,14 @@ class UserProfileData {
     required this.uid,
     required this.email,
     required this.displayName,
+    required this.username,
     required this.photoUrl,
   });
 
   final String uid;
   final String email;
   final String displayName;
+  final String username;
   final String photoUrl;
 
   factory UserProfileData.resolve({
@@ -44,6 +46,7 @@ class UserProfileData {
         authDisplayName,
         fallback: 'Friend',
       ),
+      username: _firstNonEmpty(document['username'], null),
       photoUrl: _firstNonEmpty(document['photoUrl'], authPhotoUrl),
     );
   }

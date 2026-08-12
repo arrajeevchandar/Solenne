@@ -11,9 +11,10 @@ import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_screen.dart';
+import '../friends/share_journal_sheet.dart';
 import '../journals/journal_day_navigation.dart';
 import '../profile/profile_screen.dart';
-import '../recording/recording_screen.dart';
+import '../recording/journal_entry_picker_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final VoidCallback? onOpenRecording;
@@ -49,7 +50,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       widget.onOpenRecording!();
       return;
     }
-    Navigator.of(context).push(fadeThroughRoute(const RecordingScreen()));
+    Navigator.of(
+      context,
+    ).push(fadeThroughRoute(const JournalEntryPickerScreen()));
   }
 
   void _openProfile() {
@@ -738,6 +741,13 @@ class _JournalRow extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Share this journal',
+            onPressed: () => showShareJournalSheet(context, entry: entry),
+            icon: const Icon(Icons.ios_share_rounded),
+            iconSize: 18,
+            color: AppColors.quicksand.withValues(alpha: 0.72),
           ),
           Icon(
             Icons.chevron_right_rounded,

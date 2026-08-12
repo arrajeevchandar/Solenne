@@ -11,6 +11,7 @@ import '../../features/journals/journal_repository.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../app_shell.dart';
+import '../friends/share_journal_sheet.dart';
 
 class DailyInsightScreen extends ConsumerWidget {
   const DailyInsightScreen({super.key, required this.entryId});
@@ -202,6 +203,12 @@ class _DailyEntryView extends StatelessWidget {
                 const Spacer(),
                 _StatusPill(entry: entry),
                 const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Share this journal',
+                  onPressed: () => showShareJournalSheet(context, entry: entry),
+                  icon: const Icon(Icons.ios_share_rounded),
+                  color: AppColors.quicksand.withValues(alpha: 0.78),
+                ),
                 _DeleteJournalButton(entry: entry, onDeleted: onClose),
               ],
             ),

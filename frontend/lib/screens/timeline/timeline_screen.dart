@@ -7,6 +7,7 @@ import '../../features/journals/journal_day.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../theme/app_theme.dart';
 import '../journals/journal_day_navigation.dart';
+import '../friends/share_journal_sheet.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
@@ -299,6 +300,22 @@ class _TimelineRow extends StatelessWidget {
                 ),
                 if (day.hasEntry) ...[
                   const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Share this journal',
+                    onPressed: () => showShareJournalSheet(
+                      context,
+                      entry: day.journalDay!.latestEntry,
+                    ),
+                    icon: const Icon(Icons.ios_share_rounded),
+                    iconSize: 16,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 24,
+                      height: 24,
+                    ),
+                    color: AppColors.quicksand.withValues(alpha: 0.72),
+                  ),
+                  const SizedBox(width: 6),
                   Icon(
                     Icons.arrow_forward_rounded,
                     size: 15,
@@ -732,10 +749,7 @@ class _CalendarDateTile extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               color: tileColor,
-              border: Border.all(
-                color: borderColor,
-                width: today ? 2 : 1,
-              ),
+              border: Border.all(color: borderColor, width: today ? 2 : 1),
             ),
             child: Text(
               '${date.day}',

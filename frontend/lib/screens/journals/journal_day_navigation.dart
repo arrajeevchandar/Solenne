@@ -6,6 +6,7 @@ import '../../features/journals/journal_entry.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../insights/daily_insight_screen.dart';
+import '../friends/share_journal_sheet.dart';
 
 Future<void> openJournalDay(BuildContext context, JournalDay day) async {
   if (day.entries.length == 1) {
@@ -157,6 +158,13 @@ class _EntryChoice extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Share this journal',
+                onPressed: () => showShareJournalSheet(context, entry: entry),
+                icon: const Icon(Icons.ios_share_rounded),
+                iconSize: 17,
+                color: AppColors.quicksand.withValues(alpha: 0.76),
+              ),
               Icon(
                 Icons.arrow_forward_rounded,
                 size: 17,

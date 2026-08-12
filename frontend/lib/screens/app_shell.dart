@@ -5,9 +5,10 @@ import '../features/auth/profile_avatar.dart';
 import '../routing/fade_through_route.dart';
 import '../theme/app_theme.dart';
 import 'home/home_screen.dart';
+import 'friends/friends_screen.dart';
 import 'insights/insights_screen.dart';
 import 'profile/profile_screen.dart';
-import 'recording/recording_screen.dart';
+import 'recording/journal_entry_picker_screen.dart';
 import 'timeline/timeline_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -21,7 +22,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
 
   void _openRecording() {
-    Navigator.of(context).push(fadeThroughRoute(const RecordingScreen()));
+    Navigator.of(
+      context,
+    ).push(fadeThroughRoute(const JournalEntryPickerScreen()));
   }
 
   @override
@@ -36,10 +39,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         children: [
           HomeScreen(
             onOpenRecording: _openRecording,
-            onOpenProfile: () => setState(() => _index = 3),
+            onOpenProfile: () => setState(() => _index = 4),
           ),
           const TimelineScreen(),
           InsightsScreen(onTalkAboutIt: _openRecording),
+          const FriendsScreen(embedded: true),
           const ProfileScreen(),
         ],
       ),
@@ -69,10 +73,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                 onTap: () => setState(() => _index = 2),
               ),
               _NavItem(
-                icon: Icons.person_rounded,
-                photoUrl: photoUrl,
+                icon: Icons.people_alt_rounded,
                 selected: _index == 3,
                 onTap: () => setState(() => _index = 3),
+              ),
+              _NavItem(
+                icon: Icons.person_rounded,
+                photoUrl: photoUrl,
+                selected: _index == 4,
+                onTap: () => setState(() => _index = 4),
               ),
             ],
           ),

@@ -18,8 +18,10 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _usernameController;
   bool _photoUploading = false;
   bool _saving = false;
+  bool _usernameTouched = false;
   String? _photoError;
   String? _error;
 
@@ -27,12 +29,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     final user = ref.read(firebaseAuthProvider).currentUser;
+    final profile = ref.read(userProfileProvider).value;
     _nameController = TextEditingController(text: user?.displayName ?? '');
+    _usernameController = TextEditingController(text: profile?.username ?? '');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -97,6 +102,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) return;
     final name = _nameController.text.trim();
+    final username = _normalizedUsername(_usernameController.text);
+    if (username.isNotEmpty && !_isUsernameValid(username)) {
+      setState(() {
+        _usernameTouched = true;
+        _error = 'Use 3-20 lowercase letters, numbers, or underscores.';
+      });
+      return;
+    }
 
     setState(() {
       _saving = true;
@@ -113,6 +126,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ref.invalidate(authStateProvider);
         ref.invalidate(userProfileProvider);
       }
+      await ref.read(firestoreProvider).collection('users').doc(user.uid).set({
+        'username': username,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      ref.invalidate(userProfileProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -284,6 +302,50 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 SolenneGlass(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
+                    vertical: 6,
+                  ),
+                  borderRadius: 20,
+                  child: TextField(
+                    controller: _usernameController,
+                    enabled: !_saving,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.none,
+                    onChanged: (_) => setState(() => _usernameTouched = true),
+                    style: AppTextStyles.body(
+                      fontSize: 16,
+                      color: AppColors.swanWing.withValues(alpha: 0.92),
+                    ),
+                    decoration: InputDecoration(
+                      prefixText: '@',
+                      prefixStyle: AppTextStyles.body(
+                        fontSize: 16,
+                        color: AppColors.quicksand.withValues(alpha: 0.82),
+                      ),
+                      labelText: 'Username',
+                      hintText: 'your_unique_name',
+                      helperText: _usernameHelperText,
+                      helperStyle: AppTextStyles.mono(
+                        fontSize: 8,
+                        color: _usernameHasFormatError
+                            ? AppColors.electricGold.withValues(alpha: 0.9)
+                            : AppColors.shellstone.withValues(alpha: 0.46),
+                      ),
+                      labelStyle: AppTextStyles.mono(
+                        fontSize: 10,
+                        color: AppColors.quicksand.withValues(alpha: 0.72),
+                      ),
+                      hintStyle: AppTextStyles.body(
+                        fontSize: 14,
+                        color: AppColors.shellstone.withValues(alpha: 0.42),
+                      ),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SolenneGlass(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
                     vertical: 14,
                   ),
                   borderRadius: 20,
@@ -367,4 +429,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ),
     );
   }
+
+  String get _usernameHelperText {
+    final username = _normalizedUsername(_usernameController.text);
+    if (!_usernameTouched || username.isEmpty) {
+      return 'Choose a name friends can search for.';
+    }
+    if (!_isUsernameValid(username)) {
+      return '3-20 lowercase letters, numbers, or underscores.';
+    }
+    return 'Availability is verified when Friends sync is connected.';
+  }
+
+  bool get _usernameHasFormatError {
+    final username = _normalizedUsername(_usernameController.text);
+    return _usernameTouched &&
+        username.isNotEmpty &&
+        !_isUsernameValid(username);
+  }
+
+  static String _normalizedUsername(String value) =>
+      value.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+
+  static bool _isUsernameValid(String value) =>
+      RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(value);
 }
