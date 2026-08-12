@@ -148,6 +148,40 @@ test('username reservation and profile write are atomic and unique', async () =>
   await assertFails(register('other', 'quiet_moon'));
 });
 
+test('legacy profile can atomically reserve its generated username', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', 'legacy-user'), {
+      displayName: 'Legacy Friend',
+      email: 'legacy@example.com',
+      onboardingComplete: true,
+    });
+  });
+
+  const db = database('legacy-user');
+  const batch = writeBatch(db);
+  batch.set(
+    doc(db, 'users', 'legacy-user'),
+    {
+      username: 'legacy_friend',
+      usernameNormalized: 'legacy_friend',
+      consentSource: 'legacy_assumed',
+      aiConsentGranted: true,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  batch.set(doc(db, 'usernames', 'legacy_friend'), {
+    uid: 'legacy-user',
+    username: 'legacy_friend',
+    usernameNormalized: 'legacy_friend',
+    displayName: 'Legacy Friend',
+    photoUrl: '',
+    updatedAt: serverTimestamp(),
+  });
+
+  await assertSucceeds(batch.commit());
+});
+
 test('friendships reject outsiders and forged membership', async () => {
   await assertSucceeds(register('owner', 'owner_name'));
   const ownerDb = database('owner');
