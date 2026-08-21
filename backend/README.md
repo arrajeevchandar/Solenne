@@ -35,7 +35,7 @@ To generate richer Groq-backed insight cards, create `backend/.env`:
 
 ```powershell
 GROQ_API_KEY=your_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 Then run:
@@ -206,7 +206,7 @@ Each run writes:
 - Face analysis is intentionally lightweight and quality-aware for the MVP.
 - The Flutter app creates `analysis_jobs/{journalId}` atomically with each new
   journal. Existing unqueued journals are not backfilled automatically.
-- Results use analysis version `2026-08-v8-multimodal-journals`; legacy journal
+- Results use analysis version `2026-08-v9-gpt-oss-insights`; legacy journal
   documents without `entryType` continue to be treated as video.
 - The current unsigned Cloudinary upload preset is suitable only for this
   prototype. Production should use signed, private uploads.

@@ -46,6 +46,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen>
       math.max(350.0, cardWidth * 1.02),
     );
     final compact = cardWidth < 350;
+    final compactHeight = screenSize.height < 650;
 
     return Scaffold(
       body: SizedBox.expand(
@@ -65,71 +66,92 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen>
               ),
             ),
             SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SolenneGlass(
-                        width: cardWidth,
-                        height: cardHeight,
-                        borderRadius: 24,
-                        padding: EdgeInsets.fromLTRB(
-                          compact ? 24 : 28,
-                          compact ? 26 : 32,
-                          compact ? 24 : 28,
-                          compact ? 24 : 30,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: Container(
-                                width: 34,
-                                height: 2,
-                                decoration: BoxDecoration(
-                                  color: AppColors.quicksand.withValues(
-                                    alpha: 0.62,
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 12,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: math.max(0, constraints.maxHeight - 24),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SolenneGlass(
+                          width: cardWidth,
+                          height: cardHeight,
+                          borderRadius: 24,
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 24 : 28,
+                            compactHeight ? 18 : (compact ? 26 : 32),
+                            compact ? 24 : 28,
+                            compactHeight ? 18 : (compact ? 24 : 30),
+                          ),
+                          child: SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 34,
+                                    height: 2,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.quicksand.withValues(
+                                        alpha: 0.62,
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
                                   ),
-                                  borderRadius: BorderRadius.circular(2),
                                 ),
-                              ),
-                            ),
-                            SizedBox(height: compact ? 24 : 32),
-                            Text(
-                              'Solenne learns you\nspecifically.',
-                              style: AppTextStyles.display(
-                                fontSize: compact ? 30 : 34,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'This takes about two weeks of entries to build your personal baseline. Until then, it simply listens.',
-                              style: AppTextStyles.body(
-                                fontSize: compact ? 15 : 16,
-                                color: AppColors.textPrimary.withValues(
-                                  alpha: 0.88,
+                                SizedBox(
+                                  height: compactHeight
+                                      ? 14
+                                      : (compact ? 24 : 32),
                                 ),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'Your first entry can be about anything. There is no wrong entry.',
-                              style: AppTextStyles.body(
-                                fontSize: compact ? 13 : 14,
-                                color: AppColors.textSecondary.withValues(
-                                  alpha: 0.78,
+                                Text(
+                                  'Solenne learns you\nspecifically.',
+                                  style: AppTextStyles.display(
+                                    fontSize: compactHeight
+                                        ? 26
+                                        : (compact ? 30 : 34),
+                                  ),
                                 ),
-                                fontStyle: FontStyle.italic,
-                              ),
+                                SizedBox(height: compactHeight ? 14 : 24),
+                                Text(
+                                  'This takes about two weeks of entries to build your personal baseline. Until then, it simply listens.',
+                                  style: AppTextStyles.body(
+                                    fontSize: compactHeight
+                                        ? 13
+                                        : (compact ? 15 : 16),
+                                    color: AppColors.textPrimary.withValues(
+                                      alpha: 0.88,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: compactHeight ? 14 : 22),
+                                Text(
+                                  'Your first entry can be about anything. There is no wrong entry.',
+                                  style: AppTextStyles.body(
+                                    fontSize: compactHeight
+                                        ? 12
+                                        : (compact ? 13 : 14),
+                                    color: AppColors.textSecondary.withValues(
+                                      alpha: 0.78,
+                                    ),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 28),
-                      _GoldenEntryButton(onTap: _continueToAuth),
-                    ],
+                        SizedBox(height: compactHeight ? 14 : 28),
+                        _GoldenEntryButton(onTap: _continueToAuth),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -128,8 +128,10 @@ class AiContextTest(unittest.TestCase):
 
         context = build_insight_context(result)
 
-        self.assertEqual(context["transcript"]["text"], "")
+        self.assertNotIn("transcript", context)
         self.assertIn("work pressure", context["writtenJournal"]["text"])
+        self.assertNotIn("facial", context["metrics"])
+        self.assertNotIn("voice", context["metrics"])
         self.assertTrue(is_substantive_insight_context(context))
 
 

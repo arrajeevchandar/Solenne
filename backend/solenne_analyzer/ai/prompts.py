@@ -51,7 +51,14 @@ INSIGHT_JSON_SCHEMA = {
                             "items": {"type": "string"},
                             "maxItems": 4,
                         },
-                        "evidence": {"type": "object"},
+                        "evidence": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "reason": {"type": "string", "maxLength": 320},
+                            },
+                            "required": ["reason"],
+                        },
                         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                         "safetyNote": {"type": "string"},
                     },
@@ -100,7 +107,7 @@ def build_user_prompt(
         "and 2 to 4 open-ended reflection questions that are distinct. "
         "Evidence is optional. When a concrete reason is supported, include a meaningful "
         "evidence.reason naming the supplied observations without quoting metric values. "
-        "When no reliable reason is available, return evidence as an empty object. "
+        "When no reliable reason is available, return evidence.reason as an empty string. "
         "Do not pad, repeat, or restate the same idea across cards. "
         if is_substantive_insight_context(context)
         else (
@@ -135,9 +142,8 @@ def build_user_prompt(
         "The top-level JSON key must be exactly aiInsights, not insights. "
         "Every insight must include title, summary, moodLabel, dayThemes, "
         "suggestions, reflectionQuestions, evidence, confidence, and safetyNote. "
-        "For evidence, return either an empty object or a short reason explaining which "
-        "supplied observations prompted that specific insight, plus a metrics object "
-        "containing only relevant supplied metrics. Keep any reason descriptive and do not "
+        "For evidence.reason, return either an empty string or a short explanation of which "
+        "supplied observations prompted that specific insight. Keep it descriptive and do not "
         "quote numeric metric values in it. Tie the reason to journal details or cautious recording observations; "
         "do not infer a personality, mindset, hidden intention, or cause. Do not copy the "
         "transcript or include runId, journalId, sourceVideo, URLs, or other internal "

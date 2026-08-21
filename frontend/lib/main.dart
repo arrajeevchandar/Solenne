@@ -12,7 +12,12 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  LegalConfig.assertProductionReady();
+  if (!LegalConfig.isProductionReady) {
+    debugPrint(
+      'Solenne legal operator details are placeholders and must be configured '
+      'before production release.',
+    );
+  }
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

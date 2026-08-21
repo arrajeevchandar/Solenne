@@ -916,7 +916,13 @@ class FirebaseGateway:
         if changed:
             batch.commit()
 
-    def fail(self, job: ClaimedJob, message: str) -> None:
+    def fail(
+        self,
+        job: ClaimedJob,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         safe_message = " ".join(message.split())[:500]
         job_ref = self._job_ref(job)
         deletion_ref = self.db.collection("deletion_jobs").document(job.journal_id)
@@ -933,15 +939,16 @@ class FirebaseGateway:
                 job_snapshot.to_dict() or {},
                 deletion_snapshot.to_dict() if deletion_snapshot.exists else None,
             )
-            transaction.update(
-                self._journal_ref(job),
+            journal_update = dict(details or {})
+            journal_update.update(
                 {
                     "analysisStatus": "failed",
                     "analysisStep": "failed",
                     "analysisError": safe_message,
                     "analysisCompletedAt": firestore.SERVER_TIMESTAMP,
-                },
+                }
             )
+            transaction.update(self._journal_ref(job), journal_update)
             transaction.update(
                 job_ref,
                 {
@@ -1226,15 +1233,22 @@ class FirebaseGateway:
             .document(journal_id)
         )
         job_ref = self.db.collection("analysis_jobs").document(journal_id)
+        deletion_ref = self.db.collection("deletion_jobs").document(journal_id)
         transaction = self.db.transaction()
 
         @firestore.transactional
         def requeue(transaction):
             journal_snapshot = journal_ref.get(transaction=transaction)
             job_snapshot = job_ref.get(transaction=transaction)
+            deletion_snapshot = deletion_ref.get(transaction=transaction)
             journal = journal_snapshot.to_dict() if journal_snapshot.exists else None
             job = job_snapshot.to_dict() if job_snapshot.exists else None
-            validate_requeue_documents(journal, job, user_id, journal_id)
+            deletion = (
+                deletion_snapshot.to_dict() if deletion_snapshot.exists else None
+            )
+            validate_requeue_documents(
+                journal, job, user_id, journal_id, deletion=deletion
+            )
             if job_snapshot.exists:
                 transaction.update(
                     job_ref,
@@ -1284,10 +1298,45 @@ class FirebaseGateway:
                     "analysisVersion": ANALYSIS_VERSION,
                     "analysisError": None,
                     "analysisRequestedAt": firestore.SERVER_TIMESTAMP,
+                    "aiInsights": [],
+                    "templateInsights": [],
+                    "insightProvider": "",
+                    "llmDiagnostics": firestore.DELETE_FIELD,
+                    "groundingShadowInsights": firestore.DELETE_FIELD,
                 },
             )
 
         requeue(transaction)
+
+    def retired_model_404_journals(self) -> list[tuple[str, str]]:
+        retired_models = {
+            "llama-3.1-8b-instant",
+            "llama-3.3-70b-versatile",
+        }
+        matches: list[tuple[str, str]] = []
+        # This is an explicit admin maintenance command, not a hot query path.
+        # Walking owned subcollections avoids requiring a collection-group field
+        # override solely for a one-time retired-model repair.
+        for user in self.db.collection("users").stream():
+            for snapshot in user.reference.collection("journals").stream():
+                data = snapshot.to_dict() or {}
+                diagnostics = data.get("llmDiagnostics") or {}
+                model = str(diagnostics.get("model", ""))
+                failure = str(diagnostics.get("failureReason", ""))
+                if (
+                    data.get("insightProvider") != "fallback"
+                    or model not in retired_models
+                    or "404" not in failure
+                    or data.get("analysisStatus") != "complete"
+                ):
+                    continue
+                deletion = (
+                    self.db.collection("deletion_jobs").document(snapshot.id).get()
+                )
+                if deletion.exists and _is_active_deletion(deletion.to_dict() or {}):
+                    continue
+                matches.append((user.id, snapshot.id))
+        return sorted(matches)
 
     def _job_ref(self, job: ClaimedJob):
         return self.db.collection("analysis_jobs").document(job.id)
@@ -1352,11 +1401,15 @@ def validate_requeue_documents(
     job: dict[str, Any] | None,
     user_id: str,
     journal_id: str,
+    *,
+    deletion: dict[str, Any] | None = None,
 ) -> None:
     if journal is None:
         raise ValueError("The selected journal does not exist.")
     if journal.get("userId") != user_id:
         raise ValueError("The selected journal does not belong to this user.")
+    if deletion and _is_active_deletion(deletion):
+        raise ValueError("A journal being deleted cannot be requeued.")
     if job is None:
         return
     if job.get("userId") != user_id or job.get("journalId") != journal_id:

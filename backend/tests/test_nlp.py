@@ -40,6 +40,15 @@ class NlpTest(unittest.TestCase):
         self.assertNotIn("situation", result.keyPhrases)
         self.assertIn("painting", result.keyPhrases)
 
+    def test_self_introduction_name_is_not_a_topic_phrase(self):
+        result = analyze_text(
+            "Hi, this is Rajeev. I just got an Adobe PPO and I'm so crazy happy right now."
+        )
+
+        self.assertNotIn("rajeev", result.keyPhrases)
+        self.assertIn("adobe", result.keyPhrases)
+        self.assertGreater(result.sentimentValence, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

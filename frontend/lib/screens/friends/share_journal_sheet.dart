@@ -43,156 +43,166 @@ class _ShareJournalSheetState extends ConsumerState<_ShareJournalSheet> {
     final uid = ref.watch(firebaseAuthProvider).currentUser?.uid ?? '';
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
-      child: SolenneGlass(
-        borderRadius: 26,
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
-        tint: AppColors.sapphire,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(99),
-                  color: AppColors.shellstone.withValues(alpha: 0.28),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
+        child: SolenneGlass(
+          borderRadius: 26,
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
+          tint: AppColors.sapphire,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(99),
+                      color: AppColors.shellstone.withValues(alpha: 0.28),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Share this journal',
-              style: AppTextStyles.display(fontSize: 29),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              entry.displayTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.body(
-                fontSize: 13,
-                color: AppColors.shellstone.withValues(alpha: 0.7),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 17),
-            Text(
-              'Choose friends',
-              style: AppTextStyles.mono(
-                fontSize: 9,
-                color: AppColors.quicksand.withValues(alpha: 0.72),
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (friendships.isEmpty)
-              Text(
-                'Add a friend to your circle before sharing.',
-                style: AppTextStyles.body(fontSize: 12),
-              ),
-            for (final friendship in friendships) ...[
-              _FriendSelector(
-                friend: friendship.other(uid),
-                selected: _selectedFriends.contains(friendship.id),
-                onTap: () => setState(() {
-                  if (_selectedFriends.contains(friendship.id)) {
-                    _selectedFriends.remove(friendship.id);
-                  } else {
-                    _selectedFriends.add(friendship.id);
-                  }
-                }),
-              ),
-              const SizedBox(height: 8),
-            ],
-            const SizedBox(height: 5),
-            if (!entry.isWritten)
-              _IncludeReflectionRow(
-                value: _includeTranscript,
-                onChanged: (value) =>
-                    setState(() => _includeTranscript = value),
-              ),
-            const SizedBox(height: 14),
-            Text(
-              'Friends can see this entry only. Your private timeline, raw analytics, and other journals remain private.',
-              style: AppTextStyles.body(
-                fontSize: 10,
-                color: AppColors.shellstone.withValues(alpha: 0.54),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_error != null) ...[
-              Text(
-                _error!,
-                style: AppTextStyles.body(
-                  fontSize: 11,
-                  color: AppColors.quicksand,
+                const SizedBox(height: 18),
+                Text(
+                  'Share this journal',
+                  style: AppTextStyles.display(fontSize: 29),
                 ),
-              ),
-              const SizedBox(height: 10),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed:
-                    _selectedFriends.isEmpty ||
-                        _saving ||
-                        entry.analysisStatus != 'complete'
-                    ? null
-                    : () async {
-                        setState(() {
-                          _saving = true;
-                          _error = null;
-                        });
-                        try {
-                          await ref
-                              .read(socialRepositoryProvider)
-                              .shareJournal(
-                                entry: entry,
-                                friendships: friendships.where(
-                                  (item) => _selectedFriends.contains(item.id),
+                const SizedBox(height: 5),
+                Text(
+                  entry.displayTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.body(
+                    fontSize: 13,
+                    color: AppColors.shellstone.withValues(alpha: 0.7),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 17),
+                Text(
+                  'Choose friends',
+                  style: AppTextStyles.mono(
+                    fontSize: 9,
+                    color: AppColors.quicksand.withValues(alpha: 0.72),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (friendships.isEmpty)
+                  Text(
+                    'Add a friend to your circle before sharing.',
+                    style: AppTextStyles.body(fontSize: 12),
+                  ),
+                for (final friendship in friendships) ...[
+                  _FriendSelector(
+                    friend: friendship.other(uid),
+                    selected: _selectedFriends.contains(friendship.id),
+                    onTap: () => setState(() {
+                      if (_selectedFriends.contains(friendship.id)) {
+                        _selectedFriends.remove(friendship.id);
+                      } else {
+                        _selectedFriends.add(friendship.id);
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                const SizedBox(height: 5),
+                if (!entry.isWritten)
+                  _IncludeReflectionRow(
+                    value: _includeTranscript,
+                    onChanged: (value) =>
+                        setState(() => _includeTranscript = value),
+                  ),
+                const SizedBox(height: 14),
+                Text(
+                  'Friends can see this entry only. Your private timeline, raw analytics, and other journals remain private.',
+                  style: AppTextStyles.body(
+                    fontSize: 10,
+                    color: AppColors.shellstone.withValues(alpha: 0.54),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_error != null) ...[
+                  Text(
+                    _error!,
+                    style: AppTextStyles.body(
+                      fontSize: 11,
+                      color: AppColors.quicksand,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _selectedFriends.isEmpty ||
+                            _saving ||
+                            entry.analysisStatus != 'complete'
+                        ? null
+                        : () async {
+                            setState(() {
+                              _saving = true;
+                              _error = null;
+                            });
+                            try {
+                              await ref
+                                  .read(socialRepositoryProvider)
+                                  .shareJournal(
+                                    entry: entry,
+                                    friendships: friendships.where(
+                                      (item) =>
+                                          _selectedFriends.contains(item.id),
+                                    ),
+                                    includeTranscript: _includeTranscript,
+                                  );
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Journal shared.'),
                                 ),
-                                includeTranscript: _includeTranscript,
                               );
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Journal shared.')),
-                          );
-                        } catch (error) {
-                          if (mounted) {
-                            setState(() => _error = error.toString());
-                          }
-                        } finally {
-                          if (mounted) setState(() => _saving = false);
-                        }
-                      },
-                icon: const Icon(Icons.lock_open_rounded, size: 17),
-                label: Text(
-                  entry.analysisStatus == 'complete'
-                      ? _saving
-                            ? 'Sharing...'
-                            : 'Share selected entry'
-                      : 'Insights must finish first',
-                ),
-                style: FilledButton.styleFrom(
-                  foregroundColor: AppColors.royalBlue,
-                  backgroundColor: AppColors.quicksand,
-                  disabledForegroundColor: AppColors.shellstone.withValues(
-                    alpha: 0.5,
-                  ),
-                  disabledBackgroundColor: AppColors.sapphire.withValues(
-                    alpha: 0.22,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                            } catch (error) {
+                              if (mounted) {
+                                setState(() => _error = error.toString());
+                              }
+                            } finally {
+                              if (mounted) setState(() => _saving = false);
+                            }
+                          },
+                    icon: const Icon(Icons.lock_open_rounded, size: 17),
+                    label: Text(
+                      entry.analysisStatus == 'complete'
+                          ? _saving
+                                ? 'Sharing...'
+                                : 'Share selected entry'
+                          : 'Insights must finish first',
+                    ),
+                    style: FilledButton.styleFrom(
+                      foregroundColor: AppColors.royalBlue,
+                      backgroundColor: AppColors.quicksand,
+                      disabledForegroundColor: AppColors.shellstone.withValues(
+                        alpha: 0.5,
+                      ),
+                      disabledBackgroundColor: AppColors.sapphire.withValues(
+                        alpha: 0.22,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

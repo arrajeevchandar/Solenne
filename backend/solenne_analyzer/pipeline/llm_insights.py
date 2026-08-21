@@ -15,6 +15,14 @@ from ..schemas import AiInsight, AnalysisResult, LlmDiagnostics
 from ..config import AnalyzerConfig
 
 
+class LlmInsightUnavailable(RuntimeError):
+    def __init__(self, diagnostics: LlmDiagnostics) -> None:
+        self.diagnostics = diagnostics
+        super().__init__(
+            "AI insights are temporarily unavailable. Your journal is safe; retry analysis later."
+        )
+
+
 def generate_llm_insights(
     result: AnalysisResult,
     config: AnalyzerConfig,
@@ -25,7 +33,11 @@ def generate_llm_insights(
         return generate_safety_insights(config)
 
     if config.grounding_mode == "enforce":
-        return generate_grounded_insights(result, config)
+        grounded = generate_grounded_insights(result, config)
+        diagnostics = grounded[1]
+        if diagnostics.failureReason and diagnostics.status in {"failed", "skipped"}:
+            raise LlmInsightUnavailable(diagnostics)
+        return grounded
 
     if config.grounding_mode == "combined":
         return _generate_combined_insights(result, config)
@@ -363,7 +375,7 @@ def _generate_legacy_insights(
     insights, diagnostics = generate_groq_insights(context, config, token_estimate)
     if diagnostics.status == "complete" and insights:
         return insights, diagnostics, "groq"
-    return _contextual_fallback_ai_insights(result), diagnostics, "fallback"
+    raise LlmInsightUnavailable(diagnostics)
 
 
 def _contextual_fallback_ai_insights(result: AnalysisResult) -> list[AiInsight]:

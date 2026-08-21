@@ -171,21 +171,34 @@ class AuthRepository {
     final ref = firestore.collection('users').doc(user.uid);
     final snapshot = await ref.get();
     final existing = snapshot.data() ?? const <String, dynamic>{};
-    final currentUsername = normalizeUsername(
-      existing['usernameNormalized'] as String? ??
-          existing['username'] as String? ??
-          '',
-    );
-    if (snapshot.exists && currentUsername.isNotEmpty) return;
+    final rawUsername =
+        (existing['usernameNormalized'] as String? ??
+                existing['username'] as String? ??
+                '')
+            .trim();
+    final currentUsername = normalizeUsername(rawUsername);
+    if (snapshot.exists &&
+        rawUsername == currentUsername &&
+        isUsernameValid(currentUsername)) {
+      final reservation = await firestore
+          .collection('usernames')
+          .doc(currentUsername)
+          .get();
+      if (reservation.exists && reservation.data()?['uid'] == user.uid) return;
+    }
 
     final displayName = nameOverride ?? user.displayName ?? 'Friend';
-    final generated = await _availableGeneratedUsername(displayName, user.uid);
+    var generated = currentUsername;
+    if (!isUsernameValid(generated) || !await isUsernameAvailable(generated)) {
+      generated = await _availableGeneratedUsername(displayName, user.uid);
+    }
     await _createUserWithUsername(
       user: user,
       displayName: displayName,
       username: generated,
       consentSource: 'legacy_assumed',
       merge: snapshot.exists,
+      oldUsernameDocumentId: rawUsername,
     );
   }
 
@@ -213,10 +226,19 @@ class AuthRepository {
           userSnapshot.data()?['photoUrl'] as String? ??
           user.photoURL ??
           '';
-      final oldUsername = normalizeUsername(
-        userSnapshot.data()?['usernameNormalized'] as String? ?? '',
-      );
+      final oldUsernameDocumentId =
+          (userSnapshot.data()?['usernameNormalized'] as String? ??
+                  userSnapshot.data()?['username'] as String? ??
+                  '')
+              .trim();
+      final oldUsernameRef = oldUsernameDocumentId.isNotEmpty
+          ? firestore.collection('usernames').doc(oldUsernameDocumentId)
+          : null;
       final usernameSnapshot = await transaction.get(newUsernameRef);
+      final oldUsernameSnapshot =
+          oldUsernameRef != null && oldUsernameRef.path != newUsernameRef.path
+          ? await transaction.get(oldUsernameRef)
+          : null;
       if (usernameSnapshot.exists &&
           usernameSnapshot.data()?['uid'] != user.uid) {
         throw UsernameException('That username is already taken.');
@@ -236,17 +258,25 @@ class AuthRepository {
         'usernameNormalized': normalized,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      if (oldUsername.isNotEmpty && oldUsername != normalized) {
-        transaction.delete(firestore.collection('usernames').doc(oldUsername));
+      if (oldUsernameSnapshot?.exists == true &&
+          oldUsernameSnapshot?.data()?['uid'] == user.uid) {
+        transaction.delete(oldUsernameRef!);
       }
     });
     await user.updateDisplayName(displayName);
-    await _syncSocialIdentity(
-      userId: user.uid,
-      displayName: displayName,
-      username: normalized,
-      photoUrl: resolvedPhotoUrl,
-    );
+    try {
+      await _syncSocialIdentity(
+        userId: user.uid,
+        displayName: displayName,
+        username: normalized,
+        photoUrl: resolvedPhotoUrl,
+      );
+    } catch (error, stackTrace) {
+      // The canonical profile and username reservation have already committed.
+      // A denormalized social-profile refresh is repairable and must not make
+      // the UI report that the identity update itself failed.
+      debugPrint('Social identity refresh deferred: $error\n$stackTrace');
+    }
   }
 
   Future<void> _syncSocialIdentity({
@@ -268,6 +298,7 @@ class AuthRepository {
     final shareSnapshot = await firestore
         .collection('journal_shares')
         .where('memberIds', arrayContains: userId)
+        .where('status', isEqualTo: 'active')
         .get();
     final batch = firestore.batch();
     for (final document in friendshipSnapshot.docs) {
@@ -307,11 +338,19 @@ class AuthRepository {
     required String username,
     required String consentSource,
     bool merge = false,
+    String oldUsernameDocumentId = '',
   }) async {
     final userRef = firestore.collection('users').doc(user.uid);
     final usernameRef = firestore.collection('usernames').doc(username);
     await firestore.runTransaction((transaction) async {
       final reserved = await transaction.get(usernameRef);
+      final oldUsernameRef =
+          oldUsernameDocumentId.isNotEmpty && oldUsernameDocumentId != username
+          ? firestore.collection('usernames').doc(oldUsernameDocumentId)
+          : null;
+      final oldReservation = oldUsernameRef == null
+          ? null
+          : await transaction.get(oldUsernameRef);
       if (reserved.exists && reserved.data()?['uid'] != user.uid) {
         throw UsernameException('That username is already taken.');
       }
@@ -347,6 +386,10 @@ class AuthRepository {
           'assumedAt': now,
         'updatedAt': now,
       }, SetOptions(merge: merge));
+      if (oldReservation?.exists == true &&
+          oldReservation?.data()?['uid'] == user.uid) {
+        transaction.delete(oldUsernameRef!);
+      }
     });
   }
 
@@ -359,7 +402,8 @@ class AuthRepository {
     if (base.length < 3) base = 'solenne';
     if (base.length > 12) base = base.substring(0, 12);
     for (var attempt = 0; attempt < 10; attempt++) {
-      final suffix = '${uid.substring(0, 6)}${attempt == 0 ? '' : attempt}';
+      final suffix =
+          '${uid.substring(0, 6).toLowerCase()}${attempt == 0 ? '' : attempt}';
       final maxBase = 20 - suffix.length - 1;
       final baseLength = base.length.clamp(0, maxBase);
       final candidate = '${base.substring(0, baseLength)}_$suffix';

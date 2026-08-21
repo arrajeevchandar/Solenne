@@ -12,7 +12,7 @@ from ..schemas import AnalysisResult, FacialResult, TranscriptResult, utc_now_is
 from .face import analyze_face
 from .fusion import fuse_modalities
 from .insights import generate_insights
-from .llm_insights import generate_llm_insights
+from .llm_insights import LlmInsightUnavailable, generate_llm_insights
 from .media import extract_audio, normalize_audio, probe_media_duration, validate_video
 from .nlp import analyze_text
 from .transcribe import transcribe_audio
@@ -79,15 +79,7 @@ class PipelineRunner:
                 self.config,
             )
 
-            self._log(log_lines, "insights", "generating templates")
-            result.insights = generate_insights(result, self.config)
-
-            self._log(log_lines, "ai_insights", "checking LLM insight generation")
-            (
-                result.aiInsights,
-                result.llmDiagnostics,
-                result.insightProvider,
-            ) = generate_llm_insights(result, self.config)
+            self._generate_insights(result, log_lines)
             result.status = "complete"
             result.warnings = list(result.facial.warnings)
             self._log(log_lines, "complete", "analysis complete")
@@ -185,9 +177,15 @@ class PipelineRunner:
         self._log(log_lines, "insights", "generating templates")
         result.insights = generate_insights(result, self.config)
         self._log(log_lines, "ai_insights", "checking LLM insight generation")
-        result.aiInsights, result.llmDiagnostics, result.insightProvider = (
-            generate_llm_insights(result, self.config)
-        )
+        try:
+            result.aiInsights, result.llmDiagnostics, result.insightProvider = (
+                generate_llm_insights(result, self.config)
+            )
+        except LlmInsightUnavailable as error:
+            result.aiInsights = []
+            result.llmDiagnostics = error.diagnostics
+            result.insightProvider = "groq_error"
+            raise
 
     def _write_outputs(
         self,

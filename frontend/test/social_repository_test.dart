@@ -41,6 +41,121 @@ void main() {
     expect(data['requesterId'], 'owner-123');
   });
 
+  test('accepting the same request twice is idempotent', () async {
+    const owner = PublicProfile(
+      uid: 'friend-456',
+      displayName: 'Friend',
+      username: 'friend_name',
+      photoUrl: '',
+    );
+    const recipient = PublicProfile(
+      uid: 'owner-123',
+      displayName: 'Owner',
+      username: 'owner_name',
+      photoUrl: '',
+    );
+    const friendship = Friendship(
+      id: 'friend-456_owner-123',
+      requesterId: 'friend-456',
+      recipientId: 'owner-123',
+      memberIds: ['friend-456', 'owner-123'],
+      status: 'pending',
+      profiles: {'friend-456': owner, 'owner-123': recipient},
+    );
+    await firestore.collection('friendships').doc(friendship.id).set({
+      'requesterId': friendship.requesterId,
+      'recipientId': friendship.recipientId,
+      'memberIds': friendship.memberIds,
+      'status': friendship.status,
+      'profiles': {
+        'friend-456': {
+          'uid': owner.uid,
+          'displayName': owner.displayName,
+          'username': owner.username,
+          'photoUrl': owner.photoUrl,
+        },
+        'owner-123': {
+          'uid': recipient.uid,
+          'displayName': recipient.displayName,
+          'username': recipient.username,
+          'photoUrl': recipient.photoUrl,
+        },
+      },
+    });
+
+    await repository.respond(friendship, accept: true);
+    await repository.respond(friendship, accept: true);
+
+    final data =
+        (await firestore.collection('friendships').doc(friendship.id).get())
+            .data()!;
+    expect(data['status'], 'accepted');
+  });
+
+  test(
+    'removing a friend revokes active shares and marks relationship removed',
+    () async {
+      const owner = PublicProfile(
+        uid: 'owner-123',
+        displayName: 'Owner',
+        username: 'owner_name',
+        photoUrl: '',
+      );
+      const friend = PublicProfile(
+        uid: 'friend-456',
+        displayName: 'Friend',
+        username: 'friend_name',
+        photoUrl: '',
+      );
+      const friendship = Friendship(
+        id: 'friend-456_owner-123',
+        requesterId: 'owner-123',
+        recipientId: 'friend-456',
+        memberIds: ['friend-456', 'owner-123'],
+        status: 'accepted',
+        profiles: {'owner-123': owner, 'friend-456': friend},
+      );
+      await firestore.collection('friendships').doc(friendship.id).set({
+        'requesterId': friendship.requesterId,
+        'recipientId': friendship.recipientId,
+        'memberIds': friendship.memberIds,
+        'status': friendship.status,
+        'profiles': {
+          'owner-123': {
+            'uid': owner.uid,
+            'displayName': owner.displayName,
+            'username': owner.username,
+            'photoUrl': owner.photoUrl,
+          },
+          'friend-456': {
+            'uid': friend.uid,
+            'displayName': friend.displayName,
+            'username': friend.username,
+            'photoUrl': friend.photoUrl,
+          },
+        },
+      });
+      await firestore.collection('journal_shares').doc('share-1').set({
+        'memberIds': friendship.memberIds,
+        'friendshipId': friendship.id,
+        'status': 'active',
+      });
+
+      await repository.removeFriend(friendship);
+
+      final relationship =
+          (await firestore.collection('friendships').doc(friendship.id).get())
+              .data()!;
+      expect(relationship['status'], 'removed');
+      expect(relationship['removedBy'], 'owner-123');
+      expect(
+        (await firestore.collection('journal_shares').doc('share-1').get())
+            .exists,
+        isFalse,
+      );
+    },
+  );
+
   test(
     'share projection excludes raw metrics and transcript by default',
     () async {
@@ -103,4 +218,20 @@ void main() {
       expect(projection.containsKey('fused'), isFalse);
     },
   );
+
+  test('revoking a share removes its projection', () async {
+    await firestore.collection('journal_shares').doc('share-1').set({
+      'ownerId': 'owner-123',
+      'recipientId': 'friend-456',
+      'status': 'active',
+    });
+
+    await repository.revokeShare('share-1');
+
+    expect(
+      (await firestore.collection('journal_shares').doc('share-1').get())
+          .exists,
+      isFalse,
+    );
+  });
 }

@@ -61,7 +61,7 @@ claims, processes, and completes it. See the detailed
 | Transcription | faster-whisper, FFmpeg | Local speech-to-text from journal audio |
 | Visual signals | MediaPipe, OpenCV | Lightweight, quality-aware frame and face analysis |
 | Voice & text | librosa, NumPy, SciPy, VADER Sentiment | Prosody, pause/energy, sentiment, stress-term, and topic features |
-| AI insights | Groq API (`llama-3.1-8b-instant`) | Optional structured reflection cards with fallback templates |
+| AI insights | Groq API (`openai/gpt-oss-120b`) | Structured reflection cards with explicit retry on provider failure |
 | Grounding | Local JSON catalog + deterministic retrieval | Optional research-supported claims without a vector database |
 
 ## Repository layout
@@ -136,7 +136,7 @@ MAX_VIDEO_SECONDS=180
 
 # Optional: richer structured insight cards
 GROQ_API_KEY=your-groq-api-key
-GROQ_MODEL=llama-3.1-8b-instant
+GROQ_MODEL=openai/gpt-oss-120b
 
 # Optional: off, shadow, enforce, or combined
 GROUNDING_MODE=off

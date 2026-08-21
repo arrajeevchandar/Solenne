@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../features/recording/camera_operation_queue.dart';
+import '../../features/recording/camera_visibility_observer.dart';
 import '../../theme/app_theme.dart';
 import '../../features/recording/recording_draft.dart';
 import 'recording_preview_screen.dart';
@@ -17,6 +20,28 @@ bool recordingCompletionActionsVisible({
   required bool isReceived,
 }) => isPaused || isReceived;
 
+@visibleForTesting
+bool recordingUsesFlutterLifecycle({required bool isWeb}) => !isWeb;
+
+@visibleForTesting
+String recordingCameraErrorMessage(String code, String? description) {
+  return switch (code) {
+    'CameraAccessDenied' || 'AudioAccessDenied' =>
+      'Camera and microphone access is needed to record. Allow access in your browser or device settings, then retry.',
+    'cameraNotReadable' =>
+      'The camera or microphone stream could not start. Close other apps or tabs using either device, then retry.',
+    'cameraNotFound' => 'No camera was found on this device.',
+    'cameraOverconstrained' =>
+      'This camera could not use the requested recording settings. Try another camera.',
+    'cameraSecurity' || 'cameraType' =>
+      'Camera recording is unavailable in this browser or connection.',
+    _ =>
+      description?.trim().isNotEmpty == true
+          ? description!.trim()
+          : 'Camera could not be opened. Check the device and retry.',
+  };
+}
+
 class RecordingScreen extends StatefulWidget {
   const RecordingScreen({super.key});
 
@@ -25,13 +50,20 @@ class RecordingScreen extends StatefulWidget {
 }
 
 class _RecordingScreenState extends State<RecordingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _roomController;
   late final AnimationController _listenController;
   CameraController? _cameraController;
   Future<void>? _cameraInit;
+  final CameraOperationQueue _cameraOperations = CameraOperationQueue();
+  late final CameraVisibilityObserver _cameraVisibilityObserver;
   XFile? _recordedVideo;
   String? _cameraError;
+  List<CameraDescription> _cameras = const [];
+  int _selectedCameraIndex = 0;
+  int _cameraGeneration = 0;
+  bool _cameraSuspended = false;
+  bool _hasSelectedPreferredCamera = false;
   Timer? _recordingTimer;
   int _elapsedSeconds = 0;
   _RecordingState _state = _RecordingState.idle;
@@ -43,6 +75,7 @@ class _RecordingScreenState extends State<RecordingScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _roomController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 14000),
@@ -51,7 +84,10 @@ class _RecordingScreenState extends State<RecordingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2600),
     );
-    _cameraInit = _initializeCamera();
+    _cameraVisibilityObserver = CameraVisibilityObserver(
+      onVisibilityChanged: _onWebVisibilityChanged,
+    )..start();
+    _scheduleCameraInitialization();
   }
 
   @override
@@ -60,46 +96,222 @@ class _RecordingScreenState extends State<RecordingScreen>
     _recordingTimer?.cancel();
     _roomController.dispose();
     _listenController.dispose();
-    _cameraController?.dispose();
+    _cameraVisibilityObserver.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraGeneration++;
+    _cameraOperations.cancelInitialization();
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) unawaited(controller.dispose());
     super.dispose();
   }
 
-  Future<void> _initializeCamera() async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!recordingUsesFlutterLifecycle(isWeb: kIsWeb)) return;
+    if (_state == _RecordingState.recording ||
+        _state == _RecordingState.paused) {
+      return;
+    }
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _suspendIdleCamera();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _resumeIdleCamera();
+    }
+  }
+
+  void _onWebVisibilityChanged(bool isVisible) {
+    if (!kIsWeb || !mounted) return;
+    if (_state == _RecordingState.recording ||
+        _state == _RecordingState.paused) {
+      return;
+    }
+    if (isVisible) {
+      _resumeIdleCamera();
+    } else {
+      _suspendIdleCamera();
+    }
+  }
+
+  void _suspendIdleCamera() {
+    if (_cameraSuspended) return;
+    _cameraSuspended = true;
+    _cameraGeneration++;
+    _cameraOperations.cancelInitialization();
+    final release = _cameraOperations.enqueue(_disposeCurrentCamera);
+    if (mounted) {
+      setState(() {
+        _cameraInit = release;
+      });
+    }
+  }
+
+  void _resumeIdleCamera() {
+    if (!_cameraSuspended) return;
+    _cameraSuspended = false;
+    _scheduleCameraInitialization();
+  }
+
+  Future<void> _disposeCurrentCamera() async {
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) await controller.dispose();
+  }
+
+  Future<void> _scheduleCameraInitialization({
+    bool cycleCamera = false,
+    bool refreshDevices = false,
+  }) {
+    if (_cameraSuspended) return Future<void>.value();
+    final generation = ++_cameraGeneration;
+    final initialization = _cameraOperations.initialize(
+      () => _initializeCamera(
+        generation: generation,
+        cycleCamera: cycleCamera,
+        refreshDevices: refreshDevices,
+      ),
+    );
+    if (mounted) {
+      setState(() {
+        _cameraError = null;
+        _cameraInit = initialization;
+      });
+      initialization.whenComplete(() {
+        if (mounted && generation == _cameraGeneration) setState(() {});
+      });
+    } else {
+      _cameraInit = initialization;
+    }
+    return initialization;
+  }
+
+  Future<void> _initializeCamera({
+    required int generation,
+    required bool cycleCamera,
+    required bool refreshDevices,
+  }) async {
     try {
-      final camera = await Permission.camera.request();
-      final microphone = await Permission.microphone.request();
-      if (!camera.isGranted || !microphone.isGranted) {
-        setState(() {
-          _cameraError =
-              'Camera and microphone permissions are needed to record.';
-        });
+      await _disposeCurrentCamera();
+      if (kIsWeb) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+      if (!mounted || generation != _cameraGeneration || _cameraSuspended) {
         return;
       }
-      final cameras = await availableCameras();
+      if (!kIsWeb) {
+        final camera = await Permission.camera.request();
+        final microphone = await Permission.microphone.request();
+        if (!camera.isGranted || !microphone.isGranted) {
+          if (mounted && generation == _cameraGeneration) {
+            setState(() {
+              _cameraError = recordingCameraErrorMessage(
+                'CameraAccessDenied',
+                null,
+              );
+            });
+          }
+          return;
+        }
+      }
+      final discoveredDevices = refreshDevices || _cameras.isEmpty;
+      final cameras = discoveredDevices ? await availableCameras() : _cameras;
       if (cameras.isEmpty) {
-        setState(() => _cameraError = 'No camera available.');
+        if (mounted && generation == _cameraGeneration) {
+          setState(() {
+            _cameraError = recordingCameraErrorMessage('cameraNotFound', null);
+          });
+        }
         return;
+      }
+      _cameras = cameras;
+      // camera_web briefly opens every video input while discovering devices.
+      // Give Chrome time to release those temporary tracks before requesting
+      // the combined camera/microphone stream used for recording.
+      if (kIsWeb && discoveredDevices) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      if (cycleCamera) {
+        _selectedCameraIndex = (_selectedCameraIndex + 1) % cameras.length;
+      } else if (_selectedCameraIndex >= cameras.length) {
+        _selectedCameraIndex = 0;
+        _hasSelectedPreferredCamera = false;
+      }
+      if (!_hasSelectedPreferredCamera) {
+        final frontIndex = cameras.indexWhere(
+          (camera) => camera.lensDirection == CameraLensDirection.front,
+        );
+        if (frontIndex >= 0) _selectedCameraIndex = frontIndex;
+        _hasSelectedPreferredCamera = true;
       }
 
-      final frontCamera = cameras.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-      final controller = CameraController(
-        frontCamera,
-        ResolutionPreset.medium,
-        enableAudio: true,
-      );
-      _cameraController = controller;
-      await controller.initialize();
-      if (mounted) setState(() {});
+      CameraException? finalError;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        if (!mounted || generation != _cameraGeneration || _cameraSuspended) {
+          return;
+        }
+        final controller = CameraController(
+          cameras[_selectedCameraIndex],
+          ResolutionPreset.medium,
+          enableAudio: true,
+        );
+        _cameraController = controller;
+        try {
+          await controller.initialize();
+          if (!mounted || generation != _cameraGeneration || _cameraSuspended) {
+            if (identical(_cameraController, controller)) {
+              _cameraController = null;
+            }
+            await controller.dispose();
+            return;
+          }
+          setState(() => _cameraError = null);
+          return;
+        } on CameraException catch (error) {
+          debugPrint(
+            'Camera initialization failed '
+            '(attempt ${attempt + 1}): ${error.code} ${error.description}',
+          );
+          finalError = error;
+          if (identical(_cameraController, controller)) {
+            _cameraController = null;
+          }
+          await controller.dispose();
+          if (error.code != 'cameraNotReadable' || attempt > 0) rethrow;
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
+      if (finalError != null) throw finalError;
     } on CameraException catch (error) {
-      if (mounted) setState(() => _cameraError = error.description);
+      await _disposeCurrentCamera();
+      if (mounted && generation == _cameraGeneration) {
+        setState(() {
+          _cameraError = recordingCameraErrorMessage(
+            error.code,
+            error.description,
+          );
+        });
+      }
     } catch (_) {
-      if (mounted) {
+      await _disposeCurrentCamera();
+      if (mounted && generation == _cameraGeneration) {
         setState(() => _cameraError = 'Camera could not be opened.');
       }
     }
+  }
+
+  void _retryCamera({bool cycleCamera = false}) {
+    if (!mounted || _cameraOperations.isInitializing) return;
+    final refreshDevices = _cameraError != null && !cycleCamera;
+    _scheduleCameraInitialization(
+      cycleCamera: cycleCamera,
+      refreshDevices: refreshDevices,
+    );
   }
 
   Future<void> _begin() async {
@@ -334,7 +546,16 @@ class _RecordingScreenState extends State<RecordingScreen>
                               isRecording: isRecording,
                               isPaused: isPaused,
                               isReceived: isReceived,
+                              isInitializing: _cameraOperations.isInitializing,
                               height: previewHeight,
+                              onRetry: _cameraOperations.isInitializing
+                                  ? null
+                                  : _retryCamera,
+                              onSwitchCamera:
+                                  _cameras.length > 1 &&
+                                      !_cameraOperations.isInitializing
+                                  ? () => _retryCamera(cycleCamera: true)
+                                  : null,
                             ),
                           );
                         },
@@ -428,7 +649,10 @@ class _CameraPresence extends StatelessWidget {
   final bool isRecording;
   final bool isPaused;
   final bool isReceived;
+  final bool isInitializing;
   final double height;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSwitchCamera;
 
   const _CameraPresence({
     required this.controller,
@@ -438,7 +662,10 @@ class _CameraPresence extends StatelessWidget {
     required this.isRecording,
     required this.isPaused,
     required this.isReceived,
+    required this.isInitializing,
     required this.height,
+    required this.onRetry,
+    required this.onSwitchCamera,
   });
 
   @override
@@ -460,6 +687,9 @@ class _CameraPresence extends StatelessWidget {
                   controller: controller,
                   cameraInit: cameraInit,
                   cameraError: cameraError,
+                  isInitializing: isInitializing,
+                  onRetry: onRetry,
+                  onSwitchCamera: onSwitchCamera,
                 ),
                 CustomPaint(
                   painter: _CameraPresencePainter(
@@ -468,19 +698,20 @@ class _CameraPresence extends StatelessWidget {
                     isReceived: isReceived,
                   ),
                 ),
-                Center(
-                  child: Icon(
-                    isReceived
-                        ? Icons.check_rounded
-                        : isRecording
-                        ? Icons.pause_rounded
-                        : isPaused
-                        ? Icons.play_arrow_rounded
-                        : Icons.videocam_outlined,
-                    size: 38,
-                    color: AppColors.quicksand.withValues(alpha: 0.78),
+                if (cameraError == null)
+                  Center(
+                    child: Icon(
+                      isReceived
+                          ? Icons.check_rounded
+                          : isRecording
+                          ? Icons.pause_rounded
+                          : isPaused
+                          ? Icons.play_arrow_rounded
+                          : Icons.videocam_outlined,
+                      size: 38,
+                      color: AppColors.quicksand.withValues(alpha: 0.78),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -494,11 +725,17 @@ class _CameraPreviewLayer extends StatelessWidget {
   final CameraController? controller;
   final Future<void>? cameraInit;
   final String? cameraError;
+  final bool isInitializing;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSwitchCamera;
 
   const _CameraPreviewLayer({
     required this.controller,
     required this.cameraInit,
     required this.cameraError,
+    required this.isInitializing,
+    required this.onRetry,
+    required this.onSwitchCamera,
   });
 
   @override
@@ -508,14 +745,42 @@ class _CameraPreviewLayer extends StatelessWidget {
         color: AppColors.royalBlue.withValues(alpha: 0.35),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Text(
-          cameraError!,
-          style: AppTextStyles.body(
-            fontSize: 13,
-            color: AppColors.shellstone.withValues(alpha: 0.7),
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              cameraError!,
+              style: AppTextStyles.body(
+                fontSize: 13,
+                color: AppColors.shellstone.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: isInitializing
+                  ? const SizedBox.square(
+                      dimension: 15,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 17),
+              label: Text(
+                'Retry camera',
+                style: AppTextStyles.mono(fontSize: 10),
+              ),
+            ),
+            if (onSwitchCamera != null)
+              TextButton.icon(
+                onPressed: onSwitchCamera,
+                icon: const Icon(Icons.cameraswitch_outlined, size: 17),
+                label: Text(
+                  'Try another camera',
+                  style: AppTextStyles.mono(fontSize: 10),
+                ),
+              ),
+          ],
         ),
       );
     }

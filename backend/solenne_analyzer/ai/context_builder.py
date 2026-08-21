@@ -73,31 +73,11 @@ def build_insight_context(result: AnalysisResult) -> dict:
         if len(written_text.split()) <= FULL_TRANSCRIPT_MAX_WORDS
         else ""
     )
-    return {
+    context = {
         "sourceLabel": Path(result.sourceVideo).name,
         "entryType": result.entryType,
         "analysisModalities": result.analysisModalities,
         "durationSeconds": round(result.durationSeconds, 2),
-        "transcript": {
-            "text": full_transcript,
-            "paraphrase": result.nlp.paraphrase,
-            "wordCount": result.transcript.wordCount,
-            "language": result.transcript.language,
-            "confidence": result.transcript.confidence,
-            "languageDetectionConfidence": result.transcript.languageConfidence,
-            "keyExcerpts": _key_excerpts(transcript_text),
-        },
-        "writtenJournal": {
-            "text": full_written_text if result.entryType == "written" else "",
-            "paraphrase": result.nlp.paraphrase if result.entryType == "written" else "",
-            "wordCount": len(written_text.split()) if result.entryType == "written" else 0,
-            "confidence": result.nlp.confidence if result.entryType == "written" else 0.0,
-            "keyExcerpts": (
-                _key_excerpts(narrative_text)
-                if result.entryType == "written"
-                else []
-            ),
-        },
         "metrics": {
             "fused": result.fused.to_dict() if hasattr(result.fused, "to_dict") else {
                 "overallValence": result.fused.overallValence,
@@ -106,22 +86,6 @@ def build_insight_context(result: AnalysisResult) -> dict:
                 "congruence": result.fused.congruence,
                 "confidence": result.fused.confidence,
                 "modalityWeights": result.fused.modalityWeights,
-            },
-            "facial": {
-                "status": "available" if "face" in result.analysisModalities else "not_applicable",
-                "valence": result.facial.valence,
-                "arousal": result.facial.arousal,
-                "confidence": result.facial.confidence,
-                "faceDetectedRatio": result.facial.faceDetectedRatio,
-                "warnings": result.facial.warnings,
-            },
-            "voice": {
-                "status": "available" if "voice" in result.analysisModalities else "not_applicable",
-                "energyMean": result.voice.energyMean,
-                "pitchMean": result.voice.pitchMean,
-                "speakingRate": result.voice.speakingRate,
-                "pauseRatio": result.voice.pauseRatio,
-                "confidence": result.voice.confidence,
             },
             "text": {
                 "sentimentValence": result.nlp.sentimentValence,
@@ -147,6 +111,43 @@ def build_insight_context(result: AnalysisResult) -> dict:
             "do_not_overclaim_face_or_voice",
         ],
     }
+    if result.entryType == "written":
+        context["writtenJournal"] = {
+            "text": full_written_text,
+            "paraphrase": result.nlp.paraphrase,
+            "wordCount": len(written_text.split()),
+            "confidence": result.nlp.confidence,
+            "keyExcerpts": _key_excerpts(narrative_text),
+        }
+    else:
+        context["transcript"] = {
+            "text": full_transcript,
+            "paraphrase": result.nlp.paraphrase,
+            "wordCount": result.transcript.wordCount,
+            "language": result.transcript.language,
+            "confidence": result.transcript.confidence,
+            "languageDetectionConfidence": result.transcript.languageConfidence,
+            "keyExcerpts": _key_excerpts(transcript_text),
+        }
+    if "face" in result.analysisModalities:
+        context["metrics"]["facial"] = {
+            "status": "available",
+            "valence": result.facial.valence,
+            "arousal": result.facial.arousal,
+            "confidence": result.facial.confidence,
+            "faceDetectedRatio": result.facial.faceDetectedRatio,
+            "warnings": result.facial.warnings,
+        }
+    if "voice" in result.analysisModalities:
+        context["metrics"]["voice"] = {
+            "status": "available",
+            "energyMean": result.voice.energyMean,
+            "pitchMean": result.voice.pitchMean,
+            "speakingRate": result.voice.speakingRate,
+            "pauseRatio": result.voice.pauseRatio,
+            "confidence": result.voice.confidence,
+        }
+    return context
 
 
 def estimate_tokens(payload: dict) -> int:

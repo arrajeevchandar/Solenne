@@ -6,15 +6,37 @@ from typing import Any
 from ..schemas import AnalysisResult
 
 
-ANALYSIS_VERSION = "2026-08-v8-multimodal-journals"
+ANALYSIS_VERSION = "2026-08-v9-gpt-oss-insights"
 
 
 def analysis_result_to_firestore(result: AnalysisResult) -> dict[str, Any]:
-    payload = {
+    payload = _result_payload(result)
+    payload.update({
         "analysisStatus": "complete",
         "analysisStep": "complete",
         "analysisVersion": ANALYSIS_VERSION,
         "analysisError": None,
+        "analysisErrorCode": None,
+    })
+    return payload
+
+
+def analysis_failure_to_firestore(result: AnalysisResult) -> dict[str, Any]:
+    payload = _result_payload(result)
+    payload.update({
+        "analysisVersion": ANALYSIS_VERSION,
+        "analysisErrorCode": (
+            "ai_insights_unavailable"
+            if result.insightProvider == "groq_error"
+            else "pipeline_failed"
+        ),
+        "aiInsights": [],
+    })
+    return payload
+
+
+def _result_payload(result: AnalysisResult) -> dict[str, Any]:
+    payload = {
         "entryType": result.entryType,
         "analysisModalities": result.analysisModalities,
         "modalityStatus": {

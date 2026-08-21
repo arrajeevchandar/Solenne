@@ -48,7 +48,7 @@ class JournalDateRange {
 }
 
 class JournalRepository {
-  static const analysisVersion = '2026-08-v8-multimodal-journals';
+  static const analysisVersion = '2026-08-v9-gpt-oss-insights';
 
   JournalRepository({required this.firestore, required this.auth});
 
@@ -184,6 +184,47 @@ class JournalRepository {
           'requestedAt': FieldValue.serverTimestamp(),
         });
       }
+    });
+  }
+
+  Future<void> retryAnalysis(String id) async {
+    final user = auth.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to retry analysis.');
+    }
+    final journalRef = _collection(user.uid).doc(id);
+    final jobRef = firestore.collection('analysis_jobs').doc(id);
+    await firestore.runTransaction((transaction) async {
+      final journal = await transaction.get(journalRef);
+      final job = await transaction.get(jobRef);
+      if (!journal.exists || journal.data()?['userId'] != user.uid) {
+        throw StateError('This journal is no longer available.');
+      }
+      if (!job.exists || job.data()?['status'] != 'failed') {
+        throw StateError('This analysis is not ready to be retried.');
+      }
+      transaction.update(jobRef, {
+        'status': 'queued',
+        'processingStep': 'queued',
+        'analysisVersion': analysisVersion,
+        'startedAt': null,
+        'completedAt': null,
+        'errorMessage': null,
+        'attemptCount': 0,
+        'retryCount': 0,
+        'requestedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(journalRef, {
+        'analysisStatus': 'queued',
+        'analysisStep': 'queued',
+        'analysisVersion': analysisVersion,
+        'analysisError': null,
+        'analysisErrorCode': null,
+        'analysisRequestedAt': FieldValue.serverTimestamp(),
+        'aiInsights': <Map<String, dynamic>>[],
+        'templateInsights': <Map<String, dynamic>>[],
+        'insightProvider': '',
+      });
     });
   }
 }

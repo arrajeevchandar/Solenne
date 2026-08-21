@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/profile_avatar.dart';
+import '../../core/widgets/solenne_notice.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
 
@@ -158,9 +159,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(authStateProvider);
       ref.invalidate(userProfileProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      SolenneNotice.show(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile updated.')));
+        message: 'Your profile has been updated.',
+        icon: Icons.person_outline_rounded,
+      );
       Navigator.of(context).pop();
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());

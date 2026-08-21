@@ -21,7 +21,7 @@ from .media_source import (
     download_cloudinary_video,
     validate_cloudinary_media_url,
 )
-from .result_mapper import analysis_result_to_firestore
+from .result_mapper import analysis_failure_to_firestore, analysis_result_to_firestore
 
 
 LOGGER = logging.getLogger("solenne.worker")
@@ -103,7 +103,14 @@ class AnalysisWorker:
                         else runner.analyze(media_path, run_id=job.id)
                     )
                 if result.status != "complete":
-                    raise RuntimeError(result.errorMessage or "Analysis pipeline failed.")
+                    message = result.errorMessage or "Analysis pipeline failed."
+                    self.gateway.fail(
+                        job,
+                        message,
+                        details=analysis_failure_to_firestore(result),
+                    )
+                    LOGGER.error("Analysis job %s failed: %s", job.id, message)
+                    return
                 payload = analysis_result_to_firestore(result)
                 timestamp = result.facial.bestFrameTimestampSeconds
                 if entry_type == "video" and timestamp is not None:

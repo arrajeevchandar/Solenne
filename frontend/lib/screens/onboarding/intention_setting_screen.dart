@@ -58,6 +58,7 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
       math.max(398.0, cardWidth * 1.18),
     );
     final compact = cardWidth < 350;
+    final compactHeight = screenSize.height < 650;
 
     return Scaffold(
       body: SizedBox.expand(
@@ -88,34 +89,46 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
                     compact ? 22 : 26,
                     compact ? 18 : 24,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 34,
-                          height: 2,
-                          decoration: BoxDecoration(
-                            color: AppColors.quicksand.withValues(alpha: 0.62),
-                            borderRadius: BorderRadius.circular(2),
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 34,
+                            height: 2,
+                            decoration: BoxDecoration(
+                              color: AppColors.quicksand.withValues(
+                                alpha: 0.62,
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
                         ),
-                      ),
-                      SizedBox(height: compact ? 18 : 28),
-                      Text(
-                        'What brings you\nto Solenne?',
-                        style: AppTextStyles.display(
-                          fontSize: compact ? 28 : 32,
+                        SizedBox(
+                          height: compactHeight ? 12 : (compact ? 18 : 28),
                         ),
-                      ),
-                      SizedBox(height: compact ? 18 : 28),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: Intention.values.map(_buildOption).toList(),
+                        Text(
+                          'What brings you\nto Solenne?',
+                          style: AppTextStyles.display(
+                            fontSize: compactHeight ? 25 : (compact ? 28 : 32),
+                          ),
                         ),
-                      ),
-                    ],
+                        SizedBox(
+                          height: compactHeight ? 12 : (compact ? 18 : 28),
+                        ),
+                        for (
+                          int index = 0;
+                          index < Intention.values.length;
+                          index++
+                        ) ...[
+                          _buildOption(Intention.values[index]),
+                          if (index != Intention.values.length - 1)
+                            SizedBox(height: compactHeight ? 7 : 10),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -140,7 +153,11 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
           curve: Curves.easeOut,
           padding: EdgeInsets.symmetric(
             horizontal: 14,
-            vertical: MediaQuery.of(context).size.width < 370 ? 7 : 10,
+            vertical: MediaQuery.of(context).size.height < 650
+                ? 5
+                : MediaQuery.of(context).size.width < 370
+                ? 7
+                : 10,
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
@@ -156,7 +173,11 @@ class _IntentionSettingScreenState extends State<IntentionSettingScreen>
           child: Text(
             intention.label,
             style: AppTextStyles.body(
-              fontSize: MediaQuery.of(context).size.width < 370 ? 14 : 15,
+              fontSize: MediaQuery.of(context).size.height < 650
+                  ? 12.5
+                  : MediaQuery.of(context).size.width < 370
+                  ? 14
+                  : 15,
               color: isHovered
                   ? AppColors.textPrimary
                   : AppColors.textSecondary.withValues(alpha: 0.86),

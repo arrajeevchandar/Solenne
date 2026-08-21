@@ -12,6 +12,23 @@
       "collectionGroup": "journal_shares",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "memberIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "friendshipId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "journal_shares",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "journal_shares",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "recipientId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "sharedAt", "order": "DESCENDING" }
