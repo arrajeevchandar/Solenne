@@ -27,12 +27,22 @@ final friendshipsProvider = Provider<List<Friendship>>(
       const [],
 );
 
-final incomingFriendRequestsProvider = StreamProvider<List<Friendship>>((ref) {
-  return ref.watch(socialRepositoryProvider).watchIncomingRequests();
+final incomingFriendRequestsProvider = Provider<List<Friendship>>((ref) {
+  final uid = ref.watch(firebaseAuthProvider).currentUser?.uid;
+  if (uid == null) return const [];
+  return ref
+          .watch(relationshipsProvider)
+          .value
+          ?.where(
+            (friendship) =>
+                friendship.status == 'pending' && friendship.recipientId == uid,
+          )
+          .toList(growable: false) ??
+      const [];
 });
 
 final incomingFriendRequestCountProvider = Provider<int>((ref) {
-  return ref.watch(incomingFriendRequestsProvider).value?.length ?? 0;
+  return ref.watch(incomingFriendRequestsProvider).length;
 });
 
 final receivedSharesProvider = StreamProvider<List<SharedJournalEntry>>((ref) {
@@ -58,13 +68,23 @@ class SocialRepository {
   Future<List<PublicProfile>> searchProfiles(String query) async {
     final normalized = AuthRepository.normalizeUsername(query);
     if (normalized.length < 3) return const [];
-    final snapshot = await firestore
-        .collection('usernames')
-        .orderBy('usernameNormalized')
-        .startAt([normalized])
-        .endAt(['$normalized\uf8ff'])
-        .limit(20)
-        .get();
+    late final QuerySnapshot<Map<String, dynamic>> snapshot;
+    try {
+      snapshot = await firestore
+          .collection('usernames')
+          .orderBy('usernameNormalized')
+          .startAt([normalized])
+          .endAt(['$normalized\uf8ff'])
+          .limit(20)
+          .get();
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw const SocialSearchException(
+          'Username search is unavailable because access was denied.',
+        );
+      }
+      rethrow;
+    }
     return snapshot.docs
         .map((document) => PublicProfile.fromMap(document.data()))
         .where((profile) => profile.uid.isNotEmpty && profile.uid != _uid)
@@ -74,16 +94,6 @@ class SocialRepository {
   Stream<List<Friendship>> watchRelationships() => firestore
       .collection('friendships')
       .where('memberIds', arrayContains: _uid)
-      .snapshots()
-      .map(
-        (snapshot) =>
-            snapshot.docs.map(Friendship.fromFirestore).toList(growable: false),
-      );
-
-  Stream<List<Friendship>> watchIncomingRequests() => firestore
-      .collection('friendships')
-      .where('recipientId', isEqualTo: _uid)
-      .where('status', isEqualTo: 'pending')
       .snapshots()
       .map(
         (snapshot) =>
@@ -143,10 +153,23 @@ class SocialRepository {
     if (friendship.recipientId != _uid || friendship.status != 'pending') {
       throw StateError('This request cannot be changed.');
     }
-    await firestore.collection('friendships').doc(friendship.id).update({
-      'status': accept ? 'accepted' : 'declined',
-      'respondedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final ref = firestore.collection('friendships').doc(friendship.id);
+    final targetStatus = accept ? 'accepted' : 'declined';
+    await firestore.runTransaction((transaction) async {
+      final current = await transaction.get(ref);
+      final data = current.data();
+      if (!current.exists || data == null || data['recipientId'] != _uid) {
+        throw StateError('This request is no longer available.');
+      }
+      if (data['status'] == targetStatus) return;
+      if (data['status'] != 'pending') {
+        throw StateError('This request has already been resolved.');
+      }
+      transaction.update(ref, {
+        'status': targetStatus,
+        'respondedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -168,6 +191,8 @@ class SocialRepository {
     final shares = await firestore
         .collection('journal_shares')
         .where('memberIds', arrayContains: _uid)
+        .where('friendshipId', isEqualTo: friendship.id)
+        .where('status', isEqualTo: 'active')
         .get();
     final batch = firestore.batch()
       ..update(firestore.collection('friendships').doc(friendship.id), {
@@ -280,4 +305,13 @@ class SocialRepository {
     'insightProvider': entry.insightProvider,
     if (includeTranscript) 'transcript': entry.transcript.toMap(),
   };
+}
+
+class SocialSearchException implements Exception {
+  const SocialSearchException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

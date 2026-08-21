@@ -89,7 +89,21 @@ service cloud.firestore {
           && request.resource.data.userId == userId
           && request.resource.data.id == journalId
           && request.resource.data.analysisStatus == 'queued';
-        allow update: if false;
+        allow update: if signedInAs(userId)
+          && resource.data.userId == userId
+          && resource.data.analysisStatus == 'failed'
+          && request.resource.data.userId == userId
+          && request.resource.data.id == journalId
+          && request.resource.data.analysisStatus == 'queued'
+          && request.resource.data.analysisStep == 'queued'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'analysisStatus', 'analysisStep', 'analysisVersion',
+            'analysisError', 'analysisErrorCode', 'analysisRequestedAt',
+            'aiInsights', 'templateInsights', 'insightProvider'
+          ])
+          && getAfter(
+            /databases/$(database)/documents/analysis_jobs/$(journalId)
+          ).data.status == 'queued';
         allow delete: if false;
       }
     }
@@ -123,7 +137,14 @@ service cloud.firestore {
     }
 
     match /friendships/{friendship} {
-      allow read: if request.auth != null
+      // A sender transaction must be able to confirm that its deterministic
+      // friendship document does not exist before creating it. Existing
+      // documents remain readable only by their two members.
+      allow get: if request.auth != null
+        && (!exists(
+          /databases/$(database)/documents/friendships/$(friendship)
+        ) || request.auth.uid in resource.data.memberIds);
+      allow list: if request.auth != null
         && request.auth.uid in resource.data.memberIds;
       allow create: if request.auth != null
         && request.resource.data.keys().hasOnly([
@@ -202,13 +223,23 @@ service cloud.firestore {
     }
 
     match /journal_shares/{shareId} {
-      allow read: if request.auth != null
-        && request.auth.uid in resource.data.memberIds
-        && resource.data.status == 'active'
+      allow get: if request.auth != null
+        && request.auth.uid in resource.data.get('memberIds', [])
+        && resource.data.get('status', '') == 'active'
         && activeFriendship(
-          resource.data.friendshipId,
-          resource.data.ownerId,
-          resource.data.recipientId
+          resource.data.get('friendshipId', ''),
+          resource.data.get('ownerId', ''),
+          resource.data.get('recipientId', '')
+        );
+      // Collection queries cannot prove a dynamic friendship document lookup.
+      // Inbox/outbox queries constrain recipientId/ownerId and active status;
+      // friendship cleanup constrains memberIds and active status.
+      allow list: if request.auth != null
+        && resource.data.get('status', '') == 'active'
+        && (
+          resource.data.get('recipientId', '') == request.auth.uid
+          || resource.data.get('ownerId', '') == request.auth.uid
+          || request.auth.uid in resource.data.get('memberIds', [])
         );
       allow create: if request.auth != null
         && request.resource.data.keys().hasOnly([
@@ -319,7 +350,24 @@ service cloud.firestore {
         && getAfter(
           /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
         ).data.userId == request.auth.uid;
-      allow update: if false;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && resource.data.journalId == jobId
+        && resource.data.status == 'failed'
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.journalId == resource.data.journalId
+        && request.resource.data.status == 'queued'
+        && request.resource.data.processingStep == 'queued'
+        && request.resource.data.attemptCount == 0
+        && request.resource.data.retryCount == 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'processingStep', 'analysisVersion', 'startedAt',
+          'completedAt', 'errorMessage', 'attemptCount', 'retryCount',
+          'requestedAt'
+        ])
+        && getAfter(
+          /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
+        ).data.analysisStatus == 'queued';
       allow delete: if false;
     }
 

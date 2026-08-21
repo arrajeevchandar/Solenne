@@ -26,7 +26,7 @@ class AnalyzerConfig:
     min_confidence_for_insight: float = 0.45
     enable_llm_insights: bool = False
     groq_api_key: str | None = None
-    groq_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: float = 30.0
     grounding_mode: str = "off"
     grounding_catalog_path: Path = DEFAULT_GROUNDING_CATALOG_PATH
@@ -64,7 +64,7 @@ class AnalyzerConfig:
             max_video_seconds=max_video_seconds,
             enable_llm_insights=enabled,
             groq_api_key=os.environ.get("GROQ_API_KEY"),
-            groq_model=groq_model or os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant"),
+            groq_model=groq_model or os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
             llm_timeout_seconds=float(os.environ.get("LLM_TIMEOUT_SECONDS", "30")),
             grounding_mode=grounding_mode,
             grounding_catalog_path=catalog_path.resolve(),

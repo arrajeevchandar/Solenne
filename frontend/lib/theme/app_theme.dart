@@ -80,6 +80,42 @@ class AppTheme {
         primary: AppColors.accentWarm,
         secondary: AppColors.accentCool,
       ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        showDuration: const Duration(seconds: 2),
+        preferBelow: false,
+        verticalOffset: 18,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF14264F),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.quicksand.withValues(alpha: 0.48),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.34),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        textStyle: AppTextStyles.mono(fontSize: 9, color: AppColors.swanWing),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF14264F),
+        elevation: 14,
+        contentTextStyle: AppTextStyles.body(
+          fontSize: 12,
+          color: AppColors.swanWing,
+        ),
+        actionTextColor: AppColors.quicksand,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: AppColors.quicksand.withValues(alpha: 0.45)),
+        ),
+      ),
     );
   }
 }

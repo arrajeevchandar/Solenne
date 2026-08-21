@@ -173,14 +173,9 @@ class _WrittenJournalScreenState extends ConsumerState<WrittenJournalScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text(
-                      '${_wordCount(body)} words · ${body.length}/10000',
-                      style: AppTextStyles.mono(fontSize: 8),
-                    ),
-                    const Spacer(),
-                    FilledButton.icon(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final action = FilledButton.icon(
                       onPressed: body.isEmpty || _saving
                           ? null
                           : _reviewing
@@ -199,8 +194,32 @@ class _WrittenJournalScreenState extends ConsumerState<WrittenJournalScreen> {
                             ? 'Save & analyze'
                             : 'Review',
                       ),
-                    ),
-                  ],
+                    );
+                    final counter = Text(
+                      '${_wordCount(body)} words · ${body.length}/10000',
+                      style: AppTextStyles.mono(fontSize: 8),
+                    );
+                    if (constraints.maxWidth < 330) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          counter,
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: action,
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: counter),
+                        const SizedBox(width: 10),
+                        action,
+                      ],
+                    );
+                  },
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),

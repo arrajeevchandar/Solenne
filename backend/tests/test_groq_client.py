@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from solenne_analyzer.ai.groq_client import (
+    GroqRequestError,
     _chat_completion,
     _response_formats,
     generate_groq_insights,
@@ -22,7 +23,40 @@ class GroqClientTest(unittest.TestCase):
         formats = _response_formats("openai/gpt-oss-20b")
 
         self.assertEqual(formats[0]["type"], "json_schema")
+        self.assertTrue(formats[0]["json_schema"]["strict"])
+        evidence_schema = formats[0]["json_schema"]["schema"]["properties"][
+            "aiInsights"
+        ]["items"]["properties"]["evidence"]
+        self.assertFalse(evidence_schema["additionalProperties"])
+        self.assertEqual(evidence_schema["required"], ["reason"])
         self.assertEqual(formats[1], {"type": "json_object"})
+
+    def test_gpt_oss_request_uses_hidden_low_reasoning_and_completion_limit(self):
+        response = _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": _rich_response()},
+                    }
+                ]
+            }
+        )
+        client = _FakeClient(response)
+        with patch(
+            "solenne_analyzer.ai.groq_client.httpx.Client",
+            return_value=client,
+        ):
+            _chat_completion(
+                _substantive_context(),
+                _config(),
+                _response_formats("openai/gpt-oss-120b")[0],
+            )
+
+        self.assertIn("max_completion_tokens", client.last_json)
+        self.assertNotIn("max_tokens", client.last_json)
+        self.assertEqual(client.last_json["reasoning_format"], "hidden")
+        self.assertEqual(client.last_json["reasoning_effort"], "low")
 
     def test_substantive_prompt_requests_rich_distinct_cards(self):
         prompt = build_user_prompt(_substantive_context())
@@ -301,6 +335,26 @@ class GroqClientTest(unittest.TestCase):
                     {"type": "json_object"},
                 )
 
+    def test_service_failures_never_return_completed_cards(self):
+        for status, reason in (
+            (401, "authentication rejected"),
+            (404, "configured model or endpoint not found"),
+            (429, "rate limit exceeded"),
+            (None, "network transport unavailable"),
+        ):
+            with self.subTest(status=status), patch(
+                "solenne_analyzer.ai.groq_client._chat_completion",
+                side_effect=GroqRequestError(status, reason),
+            ):
+                insights, diagnostics = generate_groq_insights(
+                    _substantive_context(),
+                    _config(),
+                    token_estimate=300,
+                )
+                self.assertEqual(insights, [])
+                self.assertEqual(diagnostics.status, "failed")
+                self.assertIn(reason, diagnostics.failureReason)
+
 
 class _FakeResponse:
     def __init__(self, payload: dict) -> None:
@@ -316,6 +370,7 @@ class _FakeResponse:
 class _FakeClient:
     def __init__(self, response: _FakeResponse) -> None:
         self.response = response
+        self.last_json: dict = {}
 
     def __enter__(self):
         return self
@@ -323,7 +378,8 @@ class _FakeClient:
     def __exit__(self, *_args) -> None:
         return None
 
-    def post(self, *_args, **_kwargs) -> _FakeResponse:
+    def post(self, *_args, **kwargs) -> _FakeResponse:
+        self.last_json = kwargs.get("json", {})
         return self.response
 
 
@@ -331,7 +387,7 @@ def _config() -> AnalyzerConfig:
     return AnalyzerConfig(
         enable_llm_insights=True,
         groq_api_key="test-key",
-        groq_model="llama-3.3-70b-versatile",
+        groq_model="openai/gpt-oss-120b",
     )
 
 

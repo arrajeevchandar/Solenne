@@ -54,7 +54,12 @@ class DailyInsightScreen extends ConsumerWidget {
                 onClose: close,
               );
             }
-            return _DailyEntryView(entry: entry, onClose: close);
+            return _DailyEntryView(
+              entry: entry,
+              onClose: close,
+              onRetryAnalysis: () =>
+                  ref.read(journalRepositoryProvider).retryAnalysis(entry.id),
+            );
           },
         ),
       ),
@@ -172,10 +177,15 @@ class _EntryStateView extends StatelessWidget {
 }
 
 class _DailyEntryView extends StatelessWidget {
-  const _DailyEntryView({required this.entry, required this.onClose});
+  const _DailyEntryView({
+    required this.entry,
+    required this.onClose,
+    required this.onRetryAnalysis,
+  });
 
   final JournalEntry entry;
   final VoidCallback onClose;
+  final Future<void> Function() onRetryAnalysis;
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +271,7 @@ class _DailyEntryView extends StatelessWidget {
               _TranscriptAction(entry: entry),
             ],
             const SizedBox(height: 26),
-            _AnalysisBody(entry: entry),
+            _AnalysisBody(entry: entry, onRetryAnalysis: onRetryAnalysis),
           ],
         ),
       ),
@@ -967,20 +977,33 @@ class _VideoControls extends StatelessWidget {
 }
 
 class _AnalysisBody extends StatelessWidget {
-  const _AnalysisBody({required this.entry});
+  const _AnalysisBody({required this.entry, required this.onRetryAnalysis});
 
   final JournalEntry entry;
+  final Future<void> Function() onRetryAnalysis;
 
   @override
   Widget build(BuildContext context) {
     final status = entry.analysisStatus.toLowerCase();
     if (status == 'failed') {
-      return const _AnalysisStateCard(
+      return _AnalysisStateCard(
         icon: Icons.waves_outlined,
         eyebrow: 'ANALYSIS PAUSED',
-        title: 'Your video is safe.',
+        title: 'Your reflection is safe.',
         message:
             'Insights could not be prepared this time. You can still revisit the reflection whenever you want.',
+        actionLabel: 'Retry analysis',
+        onAction: () async {
+          try {
+            await onRetryAnalysis();
+          } catch (error) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(error.toString())));
+            }
+          }
+        },
       );
     }
     if (status == 'processing') {
@@ -1082,12 +1105,16 @@ class _AnalysisStateCard extends StatelessWidget {
     required this.eyebrow,
     required this.title,
     required this.message,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String eyebrow;
   final String title;
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1137,6 +1164,17 @@ class _AnalysisStateCard extends StatelessWidget {
                     color: AppColors.shellstone.withValues(alpha: 0.7),
                   ),
                 ),
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: onAction,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: Text(
+                      actionLabel!,
+                      style: AppTextStyles.mono(fontSize: 9),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

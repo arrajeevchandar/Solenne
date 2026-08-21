@@ -20,6 +20,14 @@ GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 JSON_SCHEMA_MODEL_PREFIXES = ("openai/", "moonshotai/", "qwen/")
 
 
+class GroqRequestError(RuntimeError):
+    def __init__(self, status_code: int | None, reason: str) -> None:
+        self.status_code = status_code
+        self.reason = reason
+        status = f" HTTP {status_code}" if status_code is not None else ""
+        super().__init__(f"Groq request failed{status}: {reason}.")
+
+
 def generate_groq_insights(
     context: dict,
     config: AnalyzerConfig,
@@ -156,7 +164,7 @@ def _chat_completion(
     payload = {
         "model": config.groq_model,
         "temperature": 0.25,
-        "max_tokens": _max_output_tokens(card_limit),
+        "max_completion_tokens": _max_output_tokens(card_limit),
         "response_format": response_format,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -174,6 +182,11 @@ def _chat_completion(
             },
         ],
     }
+    if config.groq_model.startswith("openai/gpt-oss-"):
+        # Keep reasoning outside the JSON response and use a bounded reasoning
+        # budget so structured output remains reliable and app latency stays low.
+        payload["reasoning_format"] = "hidden"
+        payload["reasoning_effort"] = "low"
     headers = {
         "Authorization": f"Bearer {config.groq_api_key}",
         "Content-Type": "application/json",
@@ -189,15 +202,17 @@ def _chat_completion(
                 data = response.json()
             break
         except httpx.HTTPStatusError as error:
-            last_error = error
+            last_error = _request_error(error)
             if error.response.status_code not in {429, 500, 502, 503, 504}:
-                raise
+                raise last_error
         except httpx.TransportError as error:
             last_error = error
         if attempt == 0:
             time.sleep(1)
     else:
         assert last_error is not None
+        if isinstance(last_error, httpx.TransportError):
+            raise GroqRequestError(None, "network transport unavailable") from last_error
         raise last_error
     choice = data["choices"][0]
     if choice.get("finish_reason") == "length":
@@ -207,6 +222,42 @@ def _chat_completion(
 
 def _max_output_tokens(card_limit: int) -> int:
     return max(1200, min(4800, 700 + (card_limit * 500)))
+
+
+def _request_error(error: httpx.HTTPStatusError) -> GroqRequestError:
+    status = error.response.status_code
+    response_reason = _safe_response_reason(error.response)
+    reason = {
+        400: response_reason or "request rejected",
+        401: "authentication rejected",
+        403: "request not authorized",
+        404: "configured model or endpoint not found",
+        429: "rate limit exceeded",
+        500: "service error",
+        502: "service gateway error",
+        503: "service unavailable",
+        504: "service timeout",
+    }.get(status, "request rejected")
+    return GroqRequestError(status, reason)
+
+
+def _safe_response_reason(response: httpx.Response) -> str | None:
+    """Classify Groq errors without retaining generated or journal content."""
+    try:
+        error = response.json().get("error", {})
+    except (ValueError, AttributeError):
+        return None
+    message = str(error.get("message", "")).lower()
+    error_type = str(error.get("type", "")).lower()
+    if "schema" in message or "json" in message or "failed_generation" in error:
+        return "structured output rejected"
+    if "reasoning" in message:
+        return "reasoning configuration rejected"
+    if "token" in message or "context" in message:
+        return "token or context limit rejected"
+    if error_type == "invalid_request_error":
+        return "invalid request rejected"
+    return None
 
 
 def _response_formats(model: str) -> list[dict]:
@@ -222,6 +273,7 @@ def _json_schema_format() -> dict:
         "type": "json_schema",
         "json_schema": {
             "name": INSIGHT_JSON_SCHEMA["name"],
+            "strict": True,
             "schema": INSIGHT_JSON_SCHEMA["schema"],
         },
     }

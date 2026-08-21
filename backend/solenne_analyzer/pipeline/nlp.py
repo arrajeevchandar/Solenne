@@ -53,7 +53,7 @@ def analyze_text(text: str) -> NlpResult:
     sentiment = _sentiment(normalized, words)
     stress_score = _stress_score(words)
     topics = _topics(words)
-    key_phrases = _key_phrases(words)
+    key_phrases = _key_phrases(words, excluded=_self_identification_terms(normalized))
 
     return NlpResult(
         sentimentValence=sentiment,
@@ -99,7 +99,20 @@ def _topics(words: list[str]) -> list[str]:
     return [topic for topic, score in sorted(scored, key=lambda item: -item[1]) if score > 0][:3]
 
 
-def _key_phrases(words: list[str]) -> list[str]:
+def _self_identification_terms(text: str) -> set[str]:
+    patterns = (
+        r"\b(?:i am|i'm)\s+([a-z][a-z'-]{1,29})\b",
+        r"\bmy name is\s+([a-z][a-z'-]{1,29})\b",
+        r"\bthis is\s+([a-z][a-z'-]{1,29})\b",
+    )
+    return {
+        match.group(1).lower()
+        for pattern in patterns
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE)
+    }
+
+
+def _key_phrases(words: list[str], *, excluded: set[str] | None = None) -> list[str]:
     stop = {
         "about",
         "after",
@@ -160,7 +173,8 @@ def _key_phrases(words: list[str]) -> list[str]:
         "would",
         "you're",
     }
-    counts = Counter(word for word in words if len(word) > 3 and word not in stop)
+    omitted = stop | (excluded or set())
+    counts = Counter(word for word in words if len(word) > 3 and word not in omitted)
     return [word for word, _ in counts.most_common(8)]
 
 

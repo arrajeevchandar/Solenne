@@ -50,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--llm-model",
         default=None,
-        help="Groq model id for AI insights. Defaults to GROQ_MODEL or llama-3.1-8b-instant.",
+        help="Groq model id for AI insights. Defaults to GROQ_MODEL or openai/gpt-oss-120b.",
     )
     analyze.add_argument(
         "--json",
@@ -84,6 +84,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reprocess.add_argument("--user-id", required=True)
     reprocess.add_argument("--journal-id", required=True)
+
+    retired = subparsers.add_parser(
+        "reprocess-retired-model",
+        help="Find journals that fell back because a retired Groq model returned 404.",
+    )
+    retired.add_argument(
+        "--apply",
+        action="store_true",
+        help="Requeue matching journals. Without this flag the command is a dry run.",
+    )
+
+    usernames = subparsers.add_parser(
+        "migrate-usernames",
+        help="Canonicalize legacy username reservations using Firebase Admin.",
+    )
+    usernames.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply migrations. Without this flag the command is a dry run.",
+    )
 
     export_service = subparsers.add_parser(
         "serve-exports",
@@ -153,6 +173,33 @@ def main(argv: list[str] | None = None) -> int:
         gateway = FirebaseGateway(WorkerConfig.from_env())
         gateway.requeue_journal(args.user_id, args.journal_id)
         print(f"requeued=1\nuserId={args.user_id}\njournalId={args.journal_id}")
+        return 0
+    if args.command == "reprocess-retired-model":
+        from .worker.firebase_gateway import FirebaseGateway
+
+        gateway = FirebaseGateway(WorkerConfig.from_env())
+        matches = gateway.retired_model_404_journals()
+        for user_id, journal_id in matches:
+            print(f"match userId={user_id} journalId={journal_id}")
+            if args.apply:
+                gateway.requeue_journal(user_id, journal_id)
+        print(f"matched={len(matches)}\nrequeued={len(matches) if args.apply else 0}")
+        return 0
+    if args.command == "migrate-usernames":
+        from .worker.firebase_gateway import FirebaseGateway
+        from .worker.username_migration import migrate_usernames
+
+        gateway = FirebaseGateway(WorkerConfig.from_env())
+        migrations = migrate_usernames(gateway.db, apply=args.apply)
+        for item in migrations:
+            print(
+                f"migration userId={item.user_id} "
+                f"old={item.old_username or '<missing>'} new={item.new_username}"
+            )
+        print(
+            f"matched={len(migrations)}\n"
+            f"migrated={len(migrations) if args.apply else 0}"
+        )
         return 0
     if args.command == "serve-exports":
         import uvicorn

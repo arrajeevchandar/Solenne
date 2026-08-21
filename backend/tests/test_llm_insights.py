@@ -2,7 +2,10 @@ import unittest
 from unittest.mock import patch
 
 from solenne_analyzer.config import AnalyzerConfig
-from solenne_analyzer.pipeline.llm_insights import generate_llm_insights
+from solenne_analyzer.pipeline.llm_insights import (
+    LlmInsightUnavailable,
+    generate_llm_insights,
+)
 from solenne_analyzer.schemas import AiInsight, AnalysisResult, Insight, LlmDiagnostics
 
 
@@ -19,7 +22,7 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertEqual(diagnostics.status, "not_requested")
         self.assertEqual(provider, "template")
 
-    def test_missing_key_produces_fallback_cards(self):
+    def test_missing_key_fails_instead_of_publishing_fallback_cards(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         result.insights = [
             Insight(
@@ -30,16 +33,15 @@ class LlmInsightsTest(unittest.TestCase):
             )
         ]
 
-        ai_insights, diagnostics, provider = generate_llm_insights(
-            result,
-            AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
-        )
+        with self.assertRaises(LlmInsightUnavailable) as raised:
+            generate_llm_insights(
+                result,
+                AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
+            )
 
-        self.assertEqual(diagnostics.status, "skipped")
-        self.assertEqual(provider, "fallback")
-        self.assertTrue(ai_insights)
+        self.assertEqual(raised.exception.diagnostics.status, "skipped")
 
-    def test_failed_model_uses_detailed_contextual_recovery_without_generic_titles(self):
+    def test_failed_model_does_not_publish_contextual_recovery(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         result.transcript.text = (
             "I worked through a difficult project review and explained why the "
@@ -56,22 +58,11 @@ class LlmInsightsTest(unittest.TestCase):
         result.nlp.topics = ["study"]
         result.nlp.keyPhrases = ["feedback", "teammate", "priorities"]
 
-        insights, diagnostics, provider = generate_llm_insights(
-            result,
-            AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
-        )
-
-        self.assertEqual(provider, "fallback")
-        self.assertEqual(diagnostics.status, "skipped")
-        self.assertEqual(len(insights), 2)
-        self.assertTrue(all(35 <= len(item.summary.split()) <= 75 for item in insights))
-        self.assertTrue(all(len(item.suggestions) == 2 for item in insights))
-        self.assertTrue(all(len(item.reflectionQuestions) == 2 for item in insights))
-        self.assertTrue(all(item.evidence == {} for item in insights))
-        self.assertFalse(
-            {item.title for item in insights}
-            & {"Reflection signal", "Reflection captured", "A note from this reflection"}
-        )
+        with self.assertRaises(LlmInsightUnavailable):
+            generate_llm_insights(
+                result,
+                AnalyzerConfig(enable_llm_insights=True, groq_api_key=None),
+            )
 
     def test_enforce_mode_uses_grounded_output(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
@@ -99,6 +90,36 @@ class LlmInsightsTest(unittest.TestCase):
         self.assertIs(returned_diagnostics, diagnostics)
         self.assertEqual(provider, "groq_grounded")
 
+    def test_enforce_mode_does_not_publish_provider_failure_template(self):
+        result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
+        diagnostics = LlmDiagnostics(
+            status="failed",
+            provider="groq",
+            failureReason="Groq request failed HTTP 429: rate limit exceeded.",
+        )
+        with patch(
+            "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+            return_value=(
+                [
+                    AiInsight(
+                        title="Generic",
+                        summary="A generic fallback.",
+                        moodLabel="reflective",
+                    )
+                ],
+                diagnostics,
+                "grounded_template",
+            ),
+        ):
+            with self.assertRaises(LlmInsightUnavailable):
+                generate_llm_insights(
+                    result,
+                    AnalyzerConfig(
+                        enable_llm_insights=True,
+                        grounding_mode="enforce",
+                    ),
+                )
+
     def test_combined_mode_shows_legacy_and_grounded_cards(self):
         result = AnalysisResult(runId="run", sourceVideo="sample.mp4")
         result.transcript.wordCount = 78
@@ -125,9 +146,21 @@ class LlmInsightsTest(unittest.TestCase):
         grounded_diagnostics = LlmDiagnostics(
             status="complete", grounding={"status": "source_supported"}
         )
-        with patch(
-            "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
-            return_value=([grounded], grounded_diagnostics, "groq_grounded"),
+        narrative = AiInsight(
+            title="Narrative",
+            summary="Your reflection described a meaningful pattern in your day.",
+            moodLabel="reflective",
+        )
+        narrative_diagnostics = LlmDiagnostics(status="complete")
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_groq_insights",
+                return_value=([narrative], narrative_diagnostics),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=([grounded], grounded_diagnostics, "groq_grounded"),
+            ),
         ):
             insights, diagnostics, provider = generate_llm_insights(
                 result,
@@ -723,9 +756,21 @@ class LlmInsightsTest(unittest.TestCase):
         shadow_diagnostics = LlmDiagnostics(
             status="complete", grounding={"status": "source_supported"}
         )
-        with patch(
-            "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
-            return_value=([shadow], shadow_diagnostics, "groq_grounded"),
+        narrative = AiInsight(
+            title="Narrative",
+            summary="Your reflection described a meaningful pattern in your day.",
+            moodLabel="reflective",
+        )
+        narrative_diagnostics = LlmDiagnostics(status="complete")
+        with (
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_groq_insights",
+                return_value=([narrative], narrative_diagnostics),
+            ),
+            patch(
+                "solenne_analyzer.pipeline.llm_insights.generate_grounded_insights",
+                return_value=([shadow], shadow_diagnostics, "groq_grounded"),
+            ),
         ):
             insights, diagnostics, provider = generate_llm_insights(
                 result,
@@ -736,7 +781,7 @@ class LlmInsightsTest(unittest.TestCase):
                 ),
             )
 
-        self.assertEqual(provider, "fallback")
+        self.assertEqual(provider, "groq")
         self.assertTrue(insights)
         self.assertEqual(result.groundingShadowInsights, [shadow])
         self.assertEqual(diagnostics.grounding["status"], "source_supported")

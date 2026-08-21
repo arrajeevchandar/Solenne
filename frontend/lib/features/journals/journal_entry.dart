@@ -22,6 +22,7 @@ class JournalEntry {
     this.analysisStep = '',
     this.analysisVersion = '',
     this.analysisError,
+    this.analysisErrorCode,
     this.analysisStartedAt,
     this.analysisCompletedAt,
     this.transcript = const JournalTranscript(),
@@ -55,6 +56,7 @@ class JournalEntry {
   final String analysisStep;
   final String analysisVersion;
   final String? analysisError;
+  final String? analysisErrorCode;
   final DateTime? analysisStartedAt;
   final DateTime? analysisCompletedAt;
   final JournalTranscript transcript;
@@ -131,6 +133,7 @@ class JournalEntry {
       analysisStep: data['analysisStep'] as String? ?? '',
       analysisVersion: data['analysisVersion'] as String? ?? '',
       analysisError: data['analysisError'] as String?,
+      analysisErrorCode: data['analysisErrorCode'] as String?,
       analysisStartedAt: _nullableDate(data['analysisStartedAt']),
       analysisCompletedAt: _nullableDate(data['analysisCompletedAt']),
       transcript: JournalTranscript.fromMap(_dynamicMap(data['transcript'])),
@@ -176,6 +179,7 @@ class JournalEntry {
       'analysisStep': analysisStep,
       'analysisVersion': analysisVersion,
       'analysisError': analysisError,
+      'analysisErrorCode': analysisErrorCode,
       'analysisStartedAt': analysisStartedAt == null
           ? null
           : Timestamp.fromDate(analysisStartedAt!),
