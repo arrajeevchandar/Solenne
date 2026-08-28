@@ -37,11 +37,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyD3HnRCt2cGT-2QsAw3dtlszHygT3R2FIE',
-    appId: '1:682422521838:web:solenne-frontend',
+    apiKey: 'AIzaSyA9ePe0RtvY5IQ3s4AVBubhDyOv-es9OkE',
+    appId: '1:682422521838:web:576ad8916e0d891db708ff',
     messagingSenderId: '682422521838',
     projectId: 'solenne-9324d',
     authDomain: 'solenne-9324d.firebaseapp.com',
     storageBucket: 'solenne-9324d.firebasestorage.app',
+    measurementId: 'G-ESWZD7N5BR',
   );
 }

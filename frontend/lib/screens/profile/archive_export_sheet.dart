@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/errors/user_error_message.dart';
+import '../../core/widgets/solenne_notice.dart';
 import '../../features/archive/archive_repository.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
@@ -538,10 +540,10 @@ class _ArchiveExportSheetState extends ConsumerState<_ArchiveExportSheet> {
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your save and share options were opened.'),
-        ),
+      SolenneNotice.show(
+        context,
+        message: 'Your save and share options were opened.',
+        icon: Icons.archive_outlined,
       );
     } catch (error) {
       if (mounted) {
@@ -553,13 +555,18 @@ class _ArchiveExportSheetState extends ConsumerState<_ArchiveExportSheet> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
+    SolenneNotice.show(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message: message,
+      icon: Icons.error_outline_rounded,
+    );
   }
 
   String _friendlyError(Object error) {
-    return error.toString().replaceFirst(RegExp(r'^.*Exception: '), '');
+    return userErrorMessage(
+      error,
+      fallback: 'This archive action could not be completed.',
+    );
   }
 }
 

@@ -88,7 +88,23 @@ service cloud.firestore {
         allow create: if signedInAs(userId)
           && request.resource.data.userId == userId
           && request.resource.data.id == journalId
-          && request.resource.data.analysisStatus == 'queued';
+          && (
+            (request.resource.data.analysisStatus == 'queued'
+              && get(
+                /databases/$(database)/documents/users/$(userId)
+              ).data.get('aiConsentGranted', true) == true
+              && getAfter(
+                /databases/$(database)/documents/analysis_jobs/$(journalId)
+              ).data.status == 'queued')
+            || (request.resource.data.analysisStatus == 'not_requested'
+              && request.resource.data.analysisStep == 'consent_withdrawn'
+              && get(
+                /databases/$(database)/documents/users/$(userId)
+              ).data.get('aiConsentGranted', true) == false
+              && !existsAfter(
+                /databases/$(database)/documents/analysis_jobs/$(journalId)
+              ))
+          );
         allow update: if signedInAs(userId)
           && resource.data.userId == userId
           && resource.data.analysisStatus == 'failed'
@@ -106,6 +122,7 @@ service cloud.firestore {
           ).data.status == 'queued';
         allow delete: if false;
       }
+
     }
 
     match /usernames/{username} {
@@ -220,6 +237,219 @@ service cloud.firestore {
           ))
       );
       allow delete: if false;
+    }
+
+    match /conversations/{conversation} {
+      function acceptedFriendshipMember() {
+        let friendshipPath = /databases/$(database)/documents/friendships/$(conversation);
+        return request.auth != null
+          && exists(friendshipPath)
+          && get(friendshipPath).data.status == 'accepted'
+          && get(friendshipPath).data.memberIds is list
+          && get(friendshipPath).data.memberIds.size() == 2
+          && request.auth.uid in get(friendshipPath).data.memberIds;
+      }
+
+      function acceptedConversation(data) {
+        return data.get('active', true) == true
+          && data.memberIds is list
+          && data.memberIds.size() == 2
+          && activeFriendship(
+            conversation,
+            data.memberIds[0],
+            data.memberIds[1]
+          );
+      }
+
+      function otherMember(data) {
+        return data.memberIds[0] == request.auth.uid
+          ? data.memberIds[1]
+          : data.memberIds[0];
+      }
+
+      function validConversationProfiles(data) {
+        return data.profiles is map
+          && data.profiles.keys().hasOnly(data.memberIds)
+          && validPublicProfile(data.profiles[data.memberIds[0]], data.memberIds[0])
+          && validPublicProfile(data.profiles[data.memberIds[1]], data.memberIds[1]);
+      }
+
+      allow get: if acceptedFriendshipMember()
+        && (
+          !exists(
+            /databases/$(database)/documents/conversations/$(conversation)
+          )
+          || (request.auth.uid in resource.data.memberIds
+            && acceptedConversation(resource.data))
+        );
+      allow list: if request.auth != null
+        && request.auth.uid in resource.data.memberIds
+        && acceptedConversation(resource.data);
+
+      allow create: if request.auth != null
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.keys().hasOnly([
+          'memberIds', 'profiles', 'active', 'schemaVersion', 'lastMessageId',
+          'lastMessagePreview', 'lastMessageAt', 'lastMessageSenderId',
+          'unreadCounts', 'deliveredThrough', 'readThrough', 'typing',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.active == true
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.lastMessageId is string
+        && request.resource.data.lastMessageId.size() > 0
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() <= 140
+        && request.resource.data.lastMessageSenderId == request.auth.uid
+        && request.resource.data.unreadCounts[request.auth.uid] == 0
+        && request.resource.data.unreadCounts[otherMember(request.resource.data)] == 1
+        && validConversationProfiles(request.resource.data)
+        && acceptedConversation(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.schemaVersion == resource.data.get('schemaVersion', 1)
+        && (
+          (acceptedConversation(resource.data)
+            && request.resource.data.active == true
+            && request.resource.data.profiles == resource.data.profiles
+            && request.resource.data.lastMessageSenderId == request.auth.uid
+            && request.resource.data.lastMessageId is string
+            && request.resource.data.lastMessageId.size() > 0
+            && request.resource.data.lastMessagePreview is string
+            && request.resource.data.lastMessagePreview.size() <= 140
+            && request.resource.data.unreadCounts[request.auth.uid] == 0
+            && request.resource.data.unreadCounts[otherMember(resource.data)]
+              == resource.data.unreadCounts.get(otherMember(resource.data), 0) + 1
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'lastMessageId', 'lastMessagePreview', 'lastMessageAt',
+              'lastMessageSenderId', 'unreadCounts', 'deliveredThrough',
+              'readThrough', 'typing', 'updatedAt'
+            ]))
+          || (acceptedConversation(resource.data)
+            && request.resource.data.active == true
+            && request.resource.data.profiles == resource.data.profiles
+            && request.resource.data.lastMessageId == resource.data.lastMessageId
+            && request.resource.data.lastMessagePreview == resource.data.lastMessagePreview
+            && request.resource.data.lastMessageAt == resource.data.lastMessageAt
+            && request.resource.data.lastMessageSenderId == resource.data.lastMessageSenderId
+            && request.resource.data.unreadCounts[request.auth.uid] == 0
+            && request.resource.data.unreadCounts[otherMember(resource.data)]
+              == resource.data.unreadCounts.get(otherMember(resource.data), 0)
+            && request.resource.data.deliveredThrough
+              .diff(resource.data.get('deliveredThrough', {})).affectedKeys()
+              .hasOnly([request.auth.uid])
+            && request.resource.data.readThrough
+              .diff(resource.data.get('readThrough', {})).affectedKeys()
+              .hasOnly([request.auth.uid])
+            && request.resource.data.typing == resource.data.typing
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'unreadCounts', 'deliveredThrough', 'readThrough', 'updatedAt'
+            ]))
+          || (acceptedConversation(resource.data)
+            && request.resource.data.active == true
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['typing', 'updatedAt'])
+            && request.resource.data.typing
+              .diff(resource.data.get('typing', {})).affectedKeys()
+              .hasOnly([request.auth.uid])
+            && request.resource.data.typing[request.auth.uid].active is bool)
+          || (acceptedConversation(resource.data)
+            && request.resource.data.active == true
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['profiles', 'updatedAt'])
+            && request.resource.data.profiles.diff(resource.data.profiles)
+              .affectedKeys().hasOnly([request.auth.uid])
+            && validPublicProfile(
+              request.resource.data.profiles[request.auth.uid],
+              request.auth.uid
+            ))
+          || (resource.data.get('active', true) == true
+            && request.resource.data.active == false
+            && request.resource.data.typing == {}
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['active', 'typing', 'updatedAt'])
+            && getAfter(
+              /databases/$(database)/documents/friendships/$(conversation)
+            ).data.status == 'removed')
+        );
+      allow delete: if false;
+
+      match /messages/{message} {
+        function activeConversationForMessage() {
+          let conversationData = getAfter(
+            /databases/$(database)/documents/conversations/$(conversation)
+          ).data;
+          return conversationData.memberIds is list
+            && request.auth != null
+            && request.auth.uid in conversationData.memberIds
+            && conversationData.get('active', true) == true
+            && activeFriendship(
+              conversation,
+              conversationData.memberIds[0],
+              conversationData.memberIds[1]
+            );
+        }
+
+        allow get, list: if acceptedFriendshipMember()
+          && (
+            !exists(
+              /databases/$(database)/documents/conversations/$(conversation)
+            )
+            || acceptedConversation(get(
+              /databases/$(database)/documents/conversations/$(conversation)
+            ).data)
+          );
+
+        allow create: if activeConversationForMessage()
+          && getAfter(
+            /databases/$(database)/documents/conversations/$(conversation)
+          ).data.lastMessageId == message
+          && request.resource.data.keys().hasOnly([
+            'senderId', 'type', 'body', 'shareId', 'createdAt', 'deleted',
+            'deletedAt'
+          ])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.type in ['text', 'journal_share']
+          && request.resource.data.body is string
+          && request.resource.data.body.size() <= 2000
+          && request.resource.data.shareId is string
+          && request.resource.data.deleted == false
+          && request.resource.data.deletedAt == null
+          && (
+            (request.resource.data.type == 'text'
+              && request.resource.data.body.size() > 0
+              && request.resource.data.shareId == '')
+            || (request.resource.data.type == 'journal_share'
+              && request.resource.data.body == ''
+              && request.resource.data.shareId.size() > 0)
+          );
+
+        allow update: if request.auth != null
+          && request.auth.uid == resource.data.senderId
+          && activeConversationForMessage()
+          && resource.data.deleted == false
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.deleted == true
+          && request.resource.data.body == ''
+          && request.resource.data.shareId == ''
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'body', 'shareId', 'deleted', 'deletedAt'
+          ])
+          && (
+            getAfter(
+              /databases/$(database)/documents/conversations/$(conversation)
+            ).data.lastMessageId != message
+            || getAfter(
+              /databases/$(database)/documents/conversations/$(conversation)
+            ).data.lastMessagePreview == 'Message removed'
+          );
+        allow delete: if false;
+      }
     }
 
     match /journal_shares/{shareId} {
@@ -347,9 +577,15 @@ service cloud.firestore {
         && request.resource.data.processingStep == 'queued'
         && request.resource.data.retryCount == 0
         && request.resource.data.attemptCount == 0
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.get('aiConsentGranted', true) == true
         && getAfter(
           /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
-        ).data.userId == request.auth.uid;
+        ).data.userId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/users/$(request.auth.uid)/journals/$(jobId)
+        ).data.analysisStatus == 'queued';
       allow update: if request.auth != null
         && resource.data.userId == request.auth.uid
         && resource.data.journalId == jobId

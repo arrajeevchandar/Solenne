@@ -19,6 +19,15 @@ class CloudinaryUploadResult {
   factory CloudinaryUploadResult.fromJson(Map<String, dynamic> json) {
     final publicId = json['public_id'] as String? ?? '';
     final secureUrl = json['secure_url'] as String? ?? '';
+    final uri = Uri.tryParse(secureUrl);
+    if (publicId.trim().isEmpty ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'res.cloudinary.com') {
+      throw const FormatException(
+        'Cloudinary returned an invalid upload response.',
+      );
+    }
     return CloudinaryUploadResult(
       publicId: publicId,
       secureUrl: secureUrl,

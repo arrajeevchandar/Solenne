@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/errors/user_error_message.dart';
+import '../../core/widgets/solenne_notice.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/social/social_models.dart';
@@ -163,14 +165,20 @@ class _ShareJournalSheetState extends ConsumerState<_ShareJournalSheet> {
                                   );
                               if (!context.mounted) return;
                               Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Journal shared.'),
-                                ),
+                              SolenneNotice.show(
+                                context,
+                                message: 'Journal shared.',
+                                icon: Icons.lock_open_rounded,
                               );
                             } catch (error) {
                               if (mounted) {
-                                setState(() => _error = error.toString());
+                                setState(
+                                  () => _error = userErrorMessage(
+                                    error,
+                                    fallback:
+                                        'This reflection could not be shared.',
+                                  ),
+                                );
                               }
                             } finally {
                               if (mounted) setState(() => _saving = false);

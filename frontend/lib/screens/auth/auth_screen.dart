@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/errors/user_error_message.dart';
 import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../../features/auth/auth_providers.dart';
@@ -71,9 +72,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     });
     if (!_checkingUsername) return;
     _usernameDebounce = Timer(const Duration(milliseconds: 350), () async {
-      final available = await ref
-          .read(authRepositoryProvider)
-          .isUsernameAvailable(normalized);
+      bool available;
+      try {
+        available = await ref
+            .read(authRepositoryProvider)
+            .isUsernameAvailable(normalized);
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _checkingUsername = false;
+            _usernameAvailable = null;
+            _error = userErrorMessage(
+              error,
+              fallback: 'Username availability could not be checked.',
+            );
+          });
+        }
+        return;
+      }
       if (!mounted ||
           AuthRepository.normalizeUsername(_usernameController.text) !=
               normalized) {
@@ -197,11 +213,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           _error = 'Email is already in use.';
           _emailError = true;
         } else {
-          _error = error.message ?? 'Authentication failed.';
+          _error = userErrorMessage(error, fallback: 'Authentication failed.');
         }
       });
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = userErrorMessage(
+          error,
+          fallback: 'Authentication failed. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -238,11 +259,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           _error = 'Incorrect email address.';
           _emailError = true;
         } else {
-          _error = error.message ?? 'Failed to reset password.';
+          _error = userErrorMessage(
+            error,
+            fallback: 'Failed to reset password.',
+          );
         }
       });
     } catch (error) {
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = userErrorMessage(
+          error,
+          fallback: 'Failed to reset password.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

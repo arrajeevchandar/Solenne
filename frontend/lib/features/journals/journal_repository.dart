@@ -114,18 +114,23 @@ class JournalRepository {
     final userRef = firestore.collection('users').doc(entry.userId);
     await firestore.runTransaction((transaction) async {
       final userSnapshot = await transaction.get(userRef);
-      if (userSnapshot.data()?['aiConsentGranted'] == false) {
-        throw StateError(
-          'Future AI analysis is disabled. Restore consent in Profile first.',
-        );
-      }
+      final aiConsentGranted =
+          userSnapshot.data()?['aiConsentGranted'] as bool? ?? true;
       final existingJournal = await transaction.get(journalRef);
       if (existingJournal.exists) {
         return;
       }
 
-      transaction.set(journalRef, entry.toFirestore());
-      if (entry.analysisStatus == 'queued') {
+      final journalData = entry.toFirestore();
+      if (!aiConsentGranted) {
+        journalData
+          ..['analysisStatus'] = 'not_requested'
+          ..['analysisStep'] = 'consent_withdrawn'
+          ..['analysisError'] = null
+          ..['analysisErrorCode'] = null;
+      }
+      transaction.set(journalRef, journalData);
+      if (aiConsentGranted && entry.analysisStatus == 'queued') {
         transaction.set(jobRef, {
           'userId': entry.userId,
           'journalId': entry.id,

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/errors/user_error_message.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../theme/app_theme.dart';
@@ -74,7 +75,14 @@ class _WrittenJournalScreenState extends ConsumerState<WrittenJournalScreen> {
         (_) => false,
       );
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'This written journal could not be saved.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

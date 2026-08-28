@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../core/errors/user_error_message.dart';
 import '../../core/widgets/solenne_audio_player.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
@@ -62,23 +63,35 @@ class _AudioJournalScreenState extends ConsumerState<AudioJournalScreen>
 
   Future<void> _start() async {
     setState(() => _error = null);
-    if (!await _recorder.hasPermission()) {
-      setState(() => _error = 'Microphone permission is required.');
+    try {
+      if (!await _recorder.hasPermission()) {
+        setState(() => _error = 'Microphone permission is required.');
+        return;
+      }
+      final path = kIsWeb
+          ? ''
+          : '${(await getTemporaryDirectory()).path}/solenne-$_journalId.m4a';
+      await _recorder.start(
+        RecordConfig(
+          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+          noiseSuppress: true,
+          echoCancel: true,
+        ),
+        path: path,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'The microphone could not be started.',
+          ),
+        );
+      }
       return;
     }
-    final path = kIsWeb
-        ? ''
-        : '${(await getTemporaryDirectory()).path}/solenne-$_journalId.m4a';
-    await _recorder.start(
-      RecordConfig(
-        encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-        noiseSuppress: true,
-        echoCancel: true,
-      ),
-      path: path,
-    );
     _animation.repeat(reverse: true);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _paused) return;
@@ -162,7 +175,14 @@ class _AudioJournalScreenState extends ConsumerState<AudioJournalScreen>
         (_) => false,
       );
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'This voice journal could not be saved.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

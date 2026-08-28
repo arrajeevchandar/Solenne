@@ -300,6 +300,11 @@ class AuthRepository {
         .where('memberIds', arrayContains: userId)
         .where('status', isEqualTo: 'active')
         .get();
+    final conversationSnapshot = await firestore
+        .collection('conversations')
+        .where('memberIds', arrayContains: userId)
+        .where('active', isEqualTo: true)
+        .get();
     final batch = firestore.batch();
     for (final document in friendshipSnapshot.docs) {
       batch.update(document.reference, {
@@ -314,6 +319,12 @@ class AuthRepository {
           : 'recipientProfile';
       batch.update(document.reference, {
         profileField: profile,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    for (final document in conversationSnapshot.docs) {
+      batch.update(document.reference, {
+        'profiles.$userId': profile,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }

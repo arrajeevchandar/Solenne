@@ -43,24 +43,20 @@ void main() {
     },
   );
 
-  test('withdrawn AI consent prevents future journals and jobs', () async {
+  test('withdrawn AI consent saves journal without analysis job', () async {
     await firestore.collection('users').doc('user-1').update({
       'aiConsentGranted': false,
     });
 
-    await expectLater(
-      repository.saveJournal(_writtenEntry()),
-      throwsStateError,
-    );
-    expect(
-      (await firestore
-              .collection('users')
-              .doc('user-1')
-              .collection('journals')
-              .get())
-          .docs,
-      isEmpty,
-    );
+    await repository.saveJournal(_writtenEntry());
+    final journals = await firestore
+        .collection('users')
+        .doc('user-1')
+        .collection('journals')
+        .get();
+    expect(journals.docs, hasLength(1));
+    expect(journals.docs.single.data()['analysisStatus'], 'not_requested');
+    expect(journals.docs.single.data()['analysisStep'], 'consent_withdrawn');
     expect((await firestore.collection('analysis_jobs').get()).docs, isEmpty);
   });
 }

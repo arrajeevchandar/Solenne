@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/profile_avatar.dart';
+import '../../core/errors/user_error_message.dart';
 import '../../core/widgets/solenne_notice.dart';
 import '../../services/cloudinary/cloudinary_providers.dart';
 import '../../theme/app_theme.dart';
@@ -123,7 +124,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(userProfileProvider);
       if (mounted) setState(() {});
     } catch (error) {
-      if (mounted) setState(() => _photoError = error.toString());
+      if (mounted) {
+        setState(
+          () => _photoError = userErrorMessage(
+            error,
+            fallback: 'Your profile photo could not be updated.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _photoUploading = false);
     }
@@ -166,7 +174,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
       Navigator.of(context).pop();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'Your profile could not be updated.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

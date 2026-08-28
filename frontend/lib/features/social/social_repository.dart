@@ -194,12 +194,23 @@ class SocialRepository {
         .where('friendshipId', isEqualTo: friendship.id)
         .where('status', isEqualTo: 'active')
         .get();
+    final conversationRef = firestore
+        .collection('conversations')
+        .doc(friendship.id);
+    final conversation = await conversationRef.get();
     final batch = firestore.batch()
       ..update(firestore.collection('friendships').doc(friendship.id), {
         'status': 'removed',
         'removedBy': _uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+    if (conversation.exists) {
+      batch.update(conversationRef, {
+        'active': false,
+        'typing': {},
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
     for (final share in shares.docs) {
       final data = share.data();
       if (data['memberIds'] is List &&

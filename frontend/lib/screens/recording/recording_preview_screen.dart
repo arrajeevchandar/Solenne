@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/errors/user_error_message.dart';
 import '../../features/journals/journal_entry.dart';
 import '../../features/journals/journal_repository.dart';
 import '../../features/recording/local_video_controller.dart';
@@ -46,7 +47,14 @@ class _RecordingPreviewScreenState
             if (mounted) setState(() {});
           })
           .catchError((Object error) {
-            if (mounted) setState(() => _error = error.toString());
+            if (mounted) {
+              setState(
+                () => _error = userErrorMessage(
+                  error,
+                  fallback: 'This recording could not be previewed.',
+                ),
+              );
+            }
           });
     // Keep the scrubber position and play/pause icon in sync with playback.
     _controller.addListener(_onPlaybackTick);
@@ -131,8 +139,11 @@ class _RecordingPreviewScreenState
     } catch (error) {
       debugPrint('[Solenne] Save entry failed: $error');
       setState(
-        () => _error =
-            'Could not save this entry yet. Check your connection and Cloudinary setup, then try again.\n\n$error',
+        () => _error = userErrorMessage(
+          error,
+          fallback:
+              'Could not save this entry yet. Check your connection and retry.',
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

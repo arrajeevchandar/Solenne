@@ -61,7 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     worker = subparsers.add_parser(
         "worker", help="Process Firestore-backed Solenne analysis jobs."
     )
-    mode = worker.add_mutually_exclusive_group(required=True)
+    worker.add_argument("worker_action", nargs="?", choices=["doctor"])
+    mode = worker.add_mutually_exclusive_group(required=False)
     mode.add_argument("--watch", action="store_true", help="Poll continuously.")
     mode.add_argument("--once", action="store_true", help="Process one queued job.")
     mode.add_argument("--job-id", help="Process one specific queued job id.")
@@ -105,6 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply migrations. Without this flag the command is a dry run.",
     )
 
+    maintenance = subparsers.add_parser(
+        "maintenance",
+        help="Audit and repair Firestore queue and social data.",
+    )
+    maintenance.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply repairs. Without this flag the command is a dry run.",
+    )
+
     export_service = subparsers.add_parser(
         "serve-exports",
         help="Serve authenticated, single-use export downloads.",
@@ -138,13 +149,29 @@ def main(argv: list[str] | None = None) -> int:
         import logging
 
         from .worker.dispatcher import QueueWorker
+        from .worker.doctor import doctor_ready, run_worker_doctor
 
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s %(levelname)s %(name)s %(message)s",
         )
-        worker = QueueWorker(WorkerConfig.from_env())
+        config = WorkerConfig.from_env()
+        if args.worker_action == "doctor":
+            checks = run_worker_doctor(config)
+            for check in checks:
+                print(f"{check.name}={check.status} detail={check.detail}")
+            print(f"ready={1 if doctor_ready(checks) else 0}")
+            return 0 if doctor_ready(checks) else 1
+        if not (args.watch or args.once or args.job_id):
+            raise SystemExit("worker requires doctor, --watch, --once, or --job-id")
+        worker = QueueWorker(config)
         if args.watch:
+            checks = run_worker_doctor(config, gateway=worker.gateway)
+            if not doctor_ready(checks):
+                for check in checks:
+                    if check.status == "failed":
+                        print(f"preflight_failed={check.name} detail={check.detail}")
+                return 1
             worker.watch()
             return 0
         processed = (
@@ -199,6 +226,19 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"matched={len(migrations)}\n"
             f"migrated={len(migrations) if args.apply else 0}"
+        )
+        return 0
+    if args.command == "maintenance":
+        from .worker.firebase_gateway import FirebaseGateway
+        from .worker.maintenance import run_maintenance
+
+        gateway = FirebaseGateway(WorkerConfig.from_env())
+        findings = run_maintenance(gateway, apply=args.apply)
+        for item in findings:
+            print(f"finding category={item.category} documentId={item.document_id}")
+        print(
+            f"findings={len(findings)}\n"
+            f"repaired={len(findings) if args.apply else 0}"
         )
         return 0
     if args.command == "serve-exports":

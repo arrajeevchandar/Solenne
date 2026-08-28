@@ -29,6 +29,9 @@ class WorkerConfig:
     analysis_max_attempts: int = 3
     deletion_lease_seconds: int = 60
     deletion_cancel_grace_seconds: int = 15
+    maintenance_interval_seconds: int = 300
+    quota_backoff_initial_seconds: float = 30.0
+    quota_backoff_max_seconds: float = 900.0
 
     @classmethod
     def from_env(cls) -> "WorkerConfig":
@@ -102,6 +105,15 @@ class WorkerConfig:
             ),
             deletion_cancel_grace_seconds=max(
                 0, int(os.environ.get("DELETION_CANCEL_GRACE_SECONDS", "15"))
+            ),
+            maintenance_interval_seconds=max(
+                60, int(os.environ.get("MAINTENANCE_INTERVAL_SECONDS", "300"))
+            ),
+            quota_backoff_initial_seconds=max(
+                1.0, float(os.environ.get("QUOTA_BACKOFF_INITIAL_SECONDS", "30"))
+            ),
+            quota_backoff_max_seconds=max(
+                30.0, float(os.environ.get("QUOTA_BACKOFF_MAX_SECONDS", "900"))
             ),
         )
 
