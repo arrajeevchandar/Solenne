@@ -24,6 +24,7 @@ class GroqRequestError(RuntimeError):
     def __init__(self, status_code: int | None, reason: str) -> None:
         self.status_code = status_code
         self.reason = reason
+        self.error_code = groq_error_code(status_code, reason)
         status = f" HTTP {status_code}" if status_code is not None else ""
         super().__init__(f"Groq request failed{status}: {reason}.")
 
@@ -146,9 +147,33 @@ def generate_groq_insights(
         return accepted[:card_limit], diagnostics
     if last_error:
         diagnostics.failureReason = str(last_error)
+        diagnostics.failureCode = (
+            last_error.error_code
+            if isinstance(last_error, GroqRequestError)
+            else "groq_transport"
+        )
     elif diagnostics.validationWarnings:
         diagnostics.failureReason = "; ".join(diagnostics.validationWarnings)
+        diagnostics.failureCode = "groq_schema"
     return [], diagnostics
+
+
+def groq_error_code(status_code: int | None, reason: str = "") -> str:
+    if status_code in {401, 403}:
+        return "groq_auth"
+    if status_code == 404:
+        return "groq_model_unavailable"
+    if status_code == 429:
+        return "groq_rate_limited"
+    if status_code == 504 or "timeout" in reason.lower():
+        return "groq_timeout"
+    if status_code is None:
+        return "groq_transport"
+    if status_code >= 500:
+        return "groq_unavailable"
+    if "schema" in reason.lower() or "structured" in reason.lower():
+        return "groq_schema"
+    return "groq_request_rejected"
 
 
 def _chat_completion(

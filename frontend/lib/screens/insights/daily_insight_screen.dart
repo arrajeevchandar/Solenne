@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/errors/user_error_message.dart';
+import '../../core/widgets/solenne_notice.dart';
 import '../../core/widgets/solenne_audio_player.dart';
 import '../../features/journals/insight_evidence.dart';
 import '../../features/journals/journal_entry.dart';
@@ -400,19 +402,23 @@ class _DeleteJournalButtonState extends ConsumerState<_DeleteJournalButton> {
     try {
       await ref.read(journalRepositoryProvider).deleteJournal(widget.entry.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+      SolenneNotice.show(
+        context,
+        message:
             'Deletion requested. This reflection will disappear when deletion is complete.',
-          ),
-        ),
+        icon: Icons.delete_outline_rounded,
       );
       widget.onDeleted();
     } catch (error) {
       if (!mounted) return;
       setState(() => _deleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This reflection could not be deleted.')),
+      SolenneNotice.show(
+        context,
+        message: userErrorMessage(
+          error,
+          fallback: 'This reflection could not be deleted.',
+        ),
+        icon: Icons.error_outline_rounded,
       );
     }
   }
@@ -998,9 +1004,14 @@ class _AnalysisBody extends StatelessWidget {
             await onRetryAnalysis();
           } catch (error) {
             if (context.mounted) {
-              ScaffoldMessenger.of(
+              SolenneNotice.show(
                 context,
-              ).showSnackBar(SnackBar(content: Text(error.toString())));
+                message: userErrorMessage(
+                  error,
+                  fallback: 'Analysis could not be queued again.',
+                ),
+                icon: Icons.cloud_off_rounded,
+              );
             }
           }
         },
@@ -1013,6 +1024,15 @@ class _AnalysisBody extends StatelessWidget {
         title: _analysisStepTitle(entry.analysisStep),
         message:
             'Solenne will update this page automatically when the next stage is ready.',
+      );
+    }
+    if (status == 'not_requested') {
+      return const _AnalysisStateCard(
+        icon: Icons.lock_outline_rounded,
+        eyebrow: 'AI ANALYSIS IS OFF',
+        title: 'This reflection remains private.',
+        message:
+            'No analysis job was created because Data & AI Consent was withdrawn when this entry was saved.',
       );
     }
     if (status == 'queued' || status == 'not_started') {

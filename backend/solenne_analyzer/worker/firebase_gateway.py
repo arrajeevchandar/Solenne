@@ -1031,19 +1031,32 @@ class FirebaseGateway:
 
         interrupt(transaction)
 
-    def recover_stale_jobs(self, *, limit: int = 25) -> int:
-        recovered = self._recover_stale_deletions(limit=limit)
-        recovered += self._recover_stale_analyses(limit=limit)
+    def recover_stale_jobs(
+        self, *, limit: int = 25, include_legacy: bool = True
+    ) -> int:
+        recovered = self._recover_stale_deletions(
+            limit=limit, include_legacy=include_legacy
+        )
+        recovered += self._recover_stale_analyses(
+            limit=limit, include_legacy=include_legacy
+        )
         return recovered
 
-    def _recover_stale_deletions(self, *, limit: int) -> int:
+    def _recover_stale_deletions(
+        self, *, limit: int, include_legacy: bool
+    ) -> int:
         recovered = 0
-        for status in ("waiting", "processing"):
-            query = (
-                self.db.collection("deletion_jobs")
-                .where(filter=FieldFilter("status", "==", status))
-                .limit(limit)
+        now = datetime.now(timezone.utc)
+        statuses = ("waiting", "processing") if include_legacy else ("processing",)
+        for status in statuses:
+            query = self.db.collection("deletion_jobs").where(
+                filter=FieldFilter("status", "==", status)
             )
+            if not include_legacy and status == "processing":
+                query = query.where(
+                    filter=FieldFilter("leaseExpiresAt", "<=", now)
+                ).order_by("leaseExpiresAt")
+            query = query.limit(limit)
             for snapshot in query.stream():
                 data = snapshot.to_dict() or {}
                 lease_expires_at = data.get("leaseExpiresAt")
@@ -1087,14 +1100,20 @@ class FirebaseGateway:
                     recovered += 1
         return recovered
 
-    def _recover_stale_analyses(self, *, limit: int) -> int:
+    def _recover_stale_analyses(
+        self, *, limit: int, include_legacy: bool
+    ) -> int:
         recovered = 0
+        now = datetime.now(timezone.utc)
         for status in ("processing", "cancel_requested"):
-            query = (
-                self.db.collection("analysis_jobs")
-                .where(filter=FieldFilter("status", "==", status))
-                .limit(limit)
+            query = self.db.collection("analysis_jobs").where(
+                filter=FieldFilter("status", "==", status)
             )
+            if not include_legacy and status == "processing":
+                query = query.where(
+                    filter=FieldFilter("leaseExpiresAt", "<=", now)
+                ).order_by("leaseExpiresAt")
+            query = query.limit(limit)
             for snapshot in query.stream():
                 data = snapshot.to_dict() or {}
                 lease_expires_at = data.get("leaseExpiresAt")

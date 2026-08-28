@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/legal_documents.dart';
+import '../../core/errors/user_error_message.dart';
 import '../../theme/app_theme.dart';
 
 class LegalPrivacyScreen extends ConsumerStatefulWidget {
@@ -25,7 +26,14 @@ class _LegalPrivacyScreenState extends ConsumerState<LegalPrivacyScreen> {
       await ref.read(authRepositoryProvider).setAiConsent(value);
       ref.invalidate(userProfileProvider);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'Your consent preference could not be updated.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

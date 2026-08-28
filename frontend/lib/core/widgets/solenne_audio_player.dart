@@ -35,8 +35,8 @@ class _SolenneAudioPlayerState extends State<SolenneAudioPlayer> {
       } else {
         await _player.setUrl(widget.source);
       }
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Audio could not be loaded.');
     }
   }
 

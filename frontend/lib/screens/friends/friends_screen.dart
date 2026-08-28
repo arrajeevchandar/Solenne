@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/errors/user_error_message.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/profile_avatar.dart';
 import '../../core/widgets/solenne_audio_player.dart';
@@ -13,6 +14,7 @@ import '../../routing/fade_through_route.dart';
 import '../../theme/app_theme.dart';
 import '../insights/daily_insight_screen.dart';
 import 'sharing_settings_screen.dart';
+import 'chat_screen.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
   const FriendsScreen({super.key, this.embedded = false});
@@ -62,7 +64,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         if (mounted) {
           setState(() {
             _matches = const [];
-            _error = error.toString();
+            _error = userErrorMessage(
+              error,
+              fallback: 'Username search could not be completed.',
+            );
           });
         }
       } finally {
@@ -76,7 +81,14 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     try {
       await action();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: 'That action could not be completed.',
+          ),
+        );
+      }
     }
   }
 
@@ -86,6 +98,18 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 
   void _openOutgoingShares() {
     Navigator.of(context).push(fadeThroughRoute(const SharingSettingsScreen()));
+  }
+
+  void _openConversations() {
+    Navigator.of(context).push(fadeThroughRoute(const ChatInboxScreen()));
+  }
+
+  void _openChat(Friendship friendship) {
+    Navigator.of(context).push(
+      fadeThroughRoute(
+        ChatScreen(conversationId: friendship.id, friendship: friendship),
+      ),
+    );
   }
 
   void _openFriend(Friendship friendship) {
@@ -151,6 +175,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                ChatInboxCard(onTap: _openConversations),
+                const SizedBox(height: 10),
                 _SharedWithMeCard(
                   shares: receivedShares,
                   onTap: _openSharedJournals,
@@ -268,6 +294,15 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            IconButton(
+                              tooltip: 'Message friend',
+                              onPressed: () => _openChat(friendship),
+                              icon: const Icon(
+                                Icons.forum_outlined,
+                                size: 19,
+                                color: AppColors.quicksand,
+                              ),
+                            ),
                             IconButton(
                               tooltip: 'View shared journals',
                               onPressed: () => _openFriend(friendship),
@@ -750,6 +785,22 @@ class FriendActivityScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 22),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      fadeThroughRoute(
+                        ChatScreen(
+                          conversationId: friendship.id,
+                          friendship: friendship,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.forum_outlined, size: 18),
+                    label: const Text('Message'),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Text(
                   'Journals they chose to share',
                   style: AppTextStyles.body(fontSize: 18),

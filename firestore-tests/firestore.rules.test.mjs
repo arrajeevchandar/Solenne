@@ -314,6 +314,34 @@ test('owner can atomically retry only their failed analysis', async () => {
   await assertSucceeds(batch.commit());
 });
 
+test('withdrawn AI consent saves a journal but cannot create analysis work', async () => {
+  await assertSucceeds(register('owner', 'owner_name'));
+  const db = database('owner');
+  await assertSucceeds(
+    updateDoc(doc(db, 'users', 'owner'), { aiConsentGranted: false }),
+  );
+
+  await assertSucceeds(
+    setDoc(doc(db, 'users', 'owner', 'journals', 'private-journal'), {
+      id: 'private-journal',
+      userId: 'owner',
+      analysisStatus: 'not_requested',
+      analysisStep: 'consent_withdrawn',
+    }),
+  );
+
+  await assertFails(
+    setDoc(doc(db, 'analysis_jobs', 'private-journal'), {
+      userId: 'owner',
+      journalId: 'private-journal',
+      status: 'queued',
+      processingStep: 'queued',
+      retryCount: 0,
+      attemptCount: 0,
+    }),
+  );
+});
+
 test('friendships reject outsiders and forged membership', async () => {
   await assertSucceeds(register('owner', 'owner_name'));
   const ownerDb = database('owner');
@@ -392,6 +420,178 @@ test('friends cannot read the owner private journal', async () => {
   await seedAcceptedFriendshipAndJournal();
   await assertFails(
     getDoc(doc(database('friend'), 'users', 'owner', 'journals', 'journal-1')),
+  );
+});
+
+function conversationData(messageId = 'message-1', preview = 'Hello') {
+  return {
+    memberIds: ['friend', 'owner'],
+    profiles: {
+      owner: profile('owner', 'owner_name'),
+      friend: profile('friend', 'friend_name'),
+    },
+    active: true,
+    schemaVersion: 1,
+    lastMessageId: messageId,
+    lastMessagePreview: preview,
+    lastMessageAt: serverTimestamp(),
+    lastMessageSenderId: 'owner',
+    unreadCounts: { owner: 0, friend: 1 },
+    deliveredThrough: { owner: serverTimestamp() },
+    readThrough: { owner: serverTimestamp() },
+    typing: {
+      owner: { active: false, updatedAt: serverTimestamp() },
+    },
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+function messageData(senderId = 'owner', body = 'Hello') {
+  return {
+    senderId,
+    type: 'text',
+    body,
+    shareId: '',
+    createdAt: serverTimestamp(),
+    deleted: false,
+    deletedAt: null,
+  };
+}
+
+test('accepted friends can open and transactionally create a first conversation', async () => {
+  await seedAcceptedFriendshipAndJournal();
+  const ownerDb = database('owner');
+  const conversation = doc(ownerDb, 'conversations', 'friend_owner');
+  const messages = collection(ownerDb, 'conversations', 'friend_owner', 'messages');
+
+  const missingConversation = await assertSucceeds(getDoc(conversation));
+  assert.equal(missingConversation.exists(), false);
+  const emptyMessages = await assertSucceeds(getDocs(messages));
+  assert.equal(emptyMessages.empty, true);
+  await assertFails(getDoc(doc(database('outsider'), 'conversations', 'friend_owner')));
+
+  const first = doc(messages, 'message-1');
+  await assertSucceeds(
+    runTransaction(ownerDb, async (transaction) => {
+      const current = await transaction.get(conversation);
+      assert.equal(current.exists(), false);
+      transaction.set(conversation, conversationData());
+      transaction.set(first, messageData());
+    }),
+  );
+
+  const created = await assertSucceeds(getDoc(conversation));
+  assert.equal(created.data().unreadCounts.friend, 1);
+  const createdMessages = await assertSucceeds(getDocs(messages));
+  assert.equal(createdMessages.size, 1);
+});
+
+test('removed friends cannot open an uncreated conversation or message list', async () => {
+  await seedAcceptedFriendshipAndJournal();
+  await seed(async (db) => {
+    await updateDoc(doc(db, 'friendships', 'friend_owner'), {
+      status: 'removed',
+    });
+  });
+
+  const ownerDb = database('owner');
+  await assertFails(getDoc(doc(ownerDb, 'conversations', 'friend_owner')));
+  await assertFails(
+    getDocs(collection(ownerDb, 'conversations', 'friend_owner', 'messages')),
+  );
+});
+
+test('accepted friends create and continue one conversation atomically', async () => {
+  await seedAcceptedFriendshipAndJournal();
+  const ownerDb = database('owner');
+  const conversation = doc(ownerDb, 'conversations', 'friend_owner');
+  const first = doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'message-1');
+  const createBatch = writeBatch(ownerDb);
+  createBatch.set(conversation, conversationData());
+  createBatch.set(first, messageData());
+  await assertSucceeds(createBatch.commit());
+
+  const second = doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'message-2');
+  const continueBatch = writeBatch(ownerDb);
+  continueBatch.update(conversation, {
+    lastMessageId: 'message-2',
+    lastMessagePreview: 'Still here',
+    lastMessageAt: serverTimestamp(),
+    lastMessageSenderId: 'owner',
+    'unreadCounts.owner': 0,
+    'unreadCounts.friend': 2,
+    'deliveredThrough.owner': serverTimestamp(),
+    'readThrough.owner': serverTimestamp(),
+    'typing.owner': { active: false, updatedAt: serverTimestamp() },
+    updatedAt: serverTimestamp(),
+  });
+  continueBatch.set(second, messageData('owner', 'Still here'));
+  await assertSucceeds(continueBatch.commit());
+});
+
+test('message sender identity and receipt ownership cannot be forged', async () => {
+  await seedAcceptedFriendshipAndJournal();
+  const ownerDb = database('owner');
+  const conversation = doc(ownerDb, 'conversations', 'friend_owner');
+  const first = doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'message-1');
+  const batch = writeBatch(ownerDb);
+  batch.set(conversation, conversationData());
+  batch.set(first, messageData());
+  await batch.commit();
+
+  await assertFails(
+    setDoc(
+      doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'forged'),
+      messageData('friend', 'Forged'),
+    ),
+  );
+  await assertFails(
+    updateDoc(doc(database('friend'), 'conversations', 'friend_owner'), {
+      'unreadCounts.owner': 0,
+      'deliveredThrough.owner': serverTimestamp(),
+      'readThrough.owner': serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(database('friend'), 'conversations', 'friend_owner'), {
+      'unreadCounts.friend': 0,
+      'deliveredThrough.friend': serverTimestamp(),
+      'readThrough.friend': serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }),
+  );
+});
+
+test('removing a friend deactivates chat and blocks later messages', async () => {
+  await seedAcceptedFriendshipAndJournal();
+  const ownerDb = database('owner');
+  const conversation = doc(ownerDb, 'conversations', 'friend_owner');
+  const first = doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'message-1');
+  const createBatch = writeBatch(ownerDb);
+  createBatch.set(conversation, conversationData());
+  createBatch.set(first, messageData());
+  await createBatch.commit();
+
+  const removeBatch = writeBatch(ownerDb);
+  removeBatch.update(doc(ownerDb, 'friendships', 'friend_owner'), {
+    status: 'removed',
+    removedBy: 'owner',
+    updatedAt: serverTimestamp(),
+  });
+  removeBatch.update(conversation, {
+    active: false,
+    typing: {},
+    updatedAt: serverTimestamp(),
+  });
+  await assertSucceeds(removeBatch.commit());
+  await assertFails(getDoc(conversation));
+  await assertFails(
+    setDoc(
+      doc(ownerDb, 'conversations', 'friend_owner', 'messages', 'late'),
+      messageData('owner', 'Too late'),
+    ),
   );
 });
 
