@@ -74,4 +74,4 @@ frontend/android/app/release
 # ── Symbolication & Obfuscation ──────────────────────
 app.*.symbols
 app.*.map.json
-Solenne_Report_Chapters_4_to_6.docx
+docs/
